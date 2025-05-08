@@ -43,6 +43,7 @@
     <logstash-encoder.version>5.3</logstash-encoder.version>
     <slf4j.version>1.7.30</slf4j.version>
     <spring-boot-admin.version>2.2.4</spring-boot-admin.version>
+    <micrometer.version>1.12.2</micrometer.version>
 
     <!-- documentation -->
     <springdoc-openapi-ui.version>1.5.8</springdoc-openapi-ui.version>
@@ -122,6 +123,14 @@
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-context</artifactId>
       <version>${spring-cloud-commons.version}</version>
+    </dependency>
+
+    <!-- Metrics -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+      <version>${micrometer.version}</version>
+      <scope>runtime</scope>
     </dependency>
 
     <!-- documentation -->
