@@ -56,7 +56,9 @@ public class RuleController implements Controller<Rule> {
   @Parameter(name = "rulesetId", description = "Filters by the given ruleset")
   @Parameter(name = "projectId", description = "Filters by the given project")
   @Parameter(name = "basisOfRecord", description = "Filters by basis of record")
-  @Parameter(name = "yearRange", description = "Filters by year range (e.g., '1000,2025', '*,1990', '1000,*')")
+  @Parameter(
+      name = "yearRange",
+      description = "Filters by year range (e.g., '1000,2025', '*,1990', '1000,*')")
   @Parameter(
       name = "comment",
       description = "Filters to rules with a non-deleted comment containing the given text")
@@ -76,7 +78,15 @@ public class RuleController implements Controller<Rule> {
     int limitInt = limit == null ? 100 : limit;
     int offsetInt = offset == null ? 0 : offset;
     return ruleMapper.list(
-        taxonKey, datasetKey, rulesetId, projectId, basisOfRecord, yearRange, comment, limitInt, offsetInt);
+        taxonKey,
+        datasetKey,
+        rulesetId,
+        projectId,
+        basisOfRecord,
+        yearRange,
+        comment,
+        limitInt,
+        offsetInt);
   }
 
   @Operation(summary = "Get a single rule (may be deleted)")
