@@ -6,6 +6,7 @@ import { SavedPolygons } from './components/SavedPolygons';
 import { LoginButton } from './components/LoginButton';
 import { AnnotationRules, AnnotationRule } from './components/AnnotationRules';
 import { toast } from 'sonner';
+import { getGbifApiUrl } from './utils/apiConfig';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
@@ -72,7 +73,7 @@ export default function App() {
     if (taxonKey) {
       try {
         // Fetch species details from GBIF API using the taxon key
-        const response = await fetch(`https://api.gbif.org/v1/species/${taxonKey}`);
+        const response = await fetch(getGbifApiUrl(`/species/${taxonKey}`));
         if (response.ok) {
           const speciesData = await response.json();
           const species: SelectedSpecies = {

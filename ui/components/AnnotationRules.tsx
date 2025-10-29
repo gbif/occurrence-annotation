@@ -10,6 +10,7 @@ import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { MiniMapPreview } from './MiniMapPreview';
+import { getAnnotationApiUrl, getGbifApiUrl } from '../utils/apiConfig';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -188,7 +189,7 @@ export function AnnotationRules({
           
           try {
             // Fetch the scientific name from GBIF species API
-            const response = await fetch(`https://api.gbif.org/v1/species/${key}`);
+            const response = await fetch(getGbifApiUrl(`/species/${key}`));
             if (response.ok) {
               const speciesData = await response.json();
               taxonKeyToScientificName.set(key, speciesData.scientificName || speciesData.canonicalName || 'Unknown taxon');
@@ -214,7 +215,7 @@ export function AnnotationRules({
         // First, fetch ALL rules for all taxon keys to get the complete dataset
         const allRulesPromises = taxonKeys.map(async ({ key, level }) => {
           const response = await fetch(
-            `https://api.gbif.org/v1/occurrence/experimental/annotation/rule?taxonKey=${key}`
+            getAnnotationApiUrl(`/rule?taxonKey=${key}`)
           );
           
           if (!response.ok) {
@@ -335,7 +336,7 @@ export function AnnotationRules({
 
     try {
       const response = await fetch(
-        `https://api.gbif.org/v1/occurrence/experimental/annotation/rule/${ruleId}/comment`
+        getAnnotationApiUrl(`/rule/${ruleId}/comment`)
       );
 
       if (!response.ok) {
@@ -371,7 +372,7 @@ export function AnnotationRules({
 
     try {
       const response = await fetch(
-        `https://api.gbif.org/v1/occurrence/experimental/annotation/rule/${ruleId}/comment`
+        getAnnotationApiUrl(`/rule/${ruleId}/comment`)
       );
 
       if (!response.ok) {
@@ -409,7 +410,7 @@ export function AnnotationRules({
 
     try {
       const response = await fetch(
-        `https://api.gbif.org/v1/occurrence/experimental/annotation/rule/${ruleId}/comment`
+        getAnnotationApiUrl(`/rule/${ruleId}/comment`)
       );
 
       if (!response.ok) {
@@ -475,7 +476,7 @@ export function AnnotationRules({
       setSubmittingComment(true);
 
       const response = await fetch(
-        `https://api.gbif.org/v1/occurrence/experimental/annotation/rule/${ruleId}/comment`,
+        getAnnotationApiUrl(`/rule/${ruleId}/comment`),
         {
           method: 'POST',
           headers: {
@@ -532,7 +533,7 @@ export function AnnotationRules({
       setDeletingComments(prev => new Set(prev).add(commentKey));
 
       const response = await fetch(
-        `https://api.gbif.org/v1/occurrence/experimental/annotation/rule/${ruleId}/comment/${commentId}`,
+        getAnnotationApiUrl(`/rule/${ruleId}/comment/${commentId}`),
         {
           method: 'DELETE',
           headers: {
@@ -585,7 +586,7 @@ export function AnnotationRules({
 
     try {
       const response = await fetch(
-        `https://api.gbif.org/v1/occurrence/experimental/annotation/rule/${ruleId}`,
+        getAnnotationApiUrl(`/rule/${ruleId}`),
         {
           method: 'DELETE',
           headers: {
@@ -651,8 +652,8 @@ export function AnnotationRules({
       console.log('Attempting to vote:', { ruleId, action, authHeader });
 
       const endpoint = action === 'support' 
-        ? `https://api.gbif.org/v1/occurrence/experimental/annotation/rule/${ruleId}/support`
-        : `https://api.gbif.org/v1/occurrence/experimental/annotation/rule/${ruleId}/contest`;
+        ? getAnnotationApiUrl(`/rule/${ruleId}/support`)
+        : getAnnotationApiUrl(`/rule/${ruleId}/contest`);
 
       console.log('API Endpoint:', endpoint);
 
@@ -731,8 +732,8 @@ export function AnnotationRules({
       }
 
       const endpoint = action === 'support' 
-        ? `https://api.gbif.org/v1/occurrence/experimental/annotation/rule/${ruleId}/removeSupport`
-        : `https://api.gbif.org/v1/occurrence/experimental/annotation/rule/${ruleId}/removeContest`;
+        ? getAnnotationApiUrl(`/rule/${ruleId}/removeSupport`)
+        : getAnnotationApiUrl(`/rule/${ruleId}/removeContest`);
 
       const response = await fetch(endpoint, {
         method: 'POST',
