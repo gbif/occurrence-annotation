@@ -28,6 +28,7 @@ public interface RuleMapper {
       @Param("rulesetId") Integer rulesetId,
       @Param("projectId") Integer projectId,
       @Param("basisOfRecord") String basisOfRecord,
+      @Param("yearRange") String yearRange,
       @Param("comment") String comment,
       @Param("limit") int limit,
       @Param("offset") int offset);

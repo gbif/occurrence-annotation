@@ -561,6 +561,95 @@ class AnnotationTest {
     assertTrue("Should find at least 2 rules", allRules.size() >= 2);
   }
 
+  @Test
+  @WithMockUser(
+      username = "tim",
+      authorities = {"USER"})
+  void testYearRange() {
+    // Test creating a rule with yearRange
+    Rule ruleWithYearRange =
+        ruleController.create(
+            Rule.builder()
+                .taxonKey(1)
+                .geometry("geom1")
+                .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+                .yearRange("1800,2000")
+                .build());
+
+    assertEquals("1800,2000", ruleWithYearRange.getYearRange());
+
+    // Test creating a rule with wildcard year ranges
+    Rule ruleWithWildcardStart =
+        ruleController.create(
+            Rule.builder()
+                .taxonKey(2)
+                .geometry("geom2")
+                .annotation(Rule.ANNOTATION_TYPE.INTRODUCED)
+                .yearRange("*,1950")
+                .build());
+
+    assertEquals("*,1950", ruleWithWildcardStart.getYearRange());
+
+    Rule ruleWithWildcardEnd =
+        ruleController.create(
+            Rule.builder()
+                .taxonKey(3)
+                .geometry("geom3")
+                .annotation(Rule.ANNOTATION_TYPE.VAGRANT)
+                .yearRange("1900,*")
+                .build());
+
+    assertEquals("1900,*", ruleWithWildcardEnd.getYearRange());
+
+    // Test creating a rule without yearRange (should be null)
+    Rule ruleWithoutYearRange =
+        ruleController.create(
+            Rule.builder()
+                .taxonKey(4)
+                .geometry("geom4")
+                .annotation(Rule.ANNOTATION_TYPE.FORMER)
+                .build());
+
+    assertNull(ruleWithoutYearRange.getYearRange());
+
+    // Test retrieving rules and verifying yearRange persistence
+    Rule retrievedWithYearRange = ruleController.get(ruleWithYearRange.getId());
+    Rule retrievedWithWildcardStart = ruleController.get(ruleWithWildcardStart.getId());
+    Rule retrievedWithWildcardEnd = ruleController.get(ruleWithWildcardEnd.getId());
+    Rule retrievedWithoutYearRange = ruleController.get(ruleWithoutYearRange.getId());
+
+    assertEquals("1800,2000", retrievedWithYearRange.getYearRange());
+    assertEquals("*,1950", retrievedWithWildcardStart.getYearRange());
+    assertEquals("1900,*", retrievedWithWildcardEnd.getYearRange());
+    assertNull(retrievedWithoutYearRange.getYearRange());
+
+    // Test filtering by yearRange
+    List<Rule> specificYearRangeRules =
+        ruleController.list(null, null, null, null, null, "1800,2000", null, 100, 0);
+    assertEquals("Should find 1 rule with year range 1800,2000", 1, specificYearRangeRules.size());
+    assertEquals("1800,2000", specificYearRangeRules.get(0).getYearRange());
+
+    // Test filtering by wildcard year ranges
+    List<Rule> wildcardStartRules =
+        ruleController.list(null, null, null, null, null, "*,1950", null, 100, 0);
+    assertEquals("Should find 1 rule with year range *,1950", 1, wildcardStartRules.size());
+    assertEquals("*,1950", wildcardStartRules.get(0).getYearRange());
+
+    List<Rule> wildcardEndRules =
+        ruleController.list(null, null, null, null, null, "1900,*", null, 100, 0);
+    assertEquals("Should find 1 rule with year range 1900,*", 1, wildcardEndRules.size());
+    assertEquals("1900,*", wildcardEndRules.get(0).getYearRange());
+
+    // Test filtering by non-existent yearRange
+    List<Rule> nonExistentYearRangeRules =
+        ruleController.list(null, null, null, null, null, "2000,2025", null, 100, 0);
+    assertEquals("Should find 0 rules with year range 2000,2025", 0, nonExistentYearRangeRules.size());
+
+    // Test listing all rules (no filter)
+    List<Rule> allRules = ruleController.list(null, null, null, null, null, null, null, 100, 0);
+    assertTrue("Should find at least 4 rules", allRules.size() >= 4);
+  }
+
   private static void setAuthenticatedUser(String name, UserRole role) {
     SecurityContextHolder.getContext()
         .setAuthentication(

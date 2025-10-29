@@ -23,6 +23,9 @@
         <if test="basisOfRecord != null" >
             AND basis_of_record = #{basisOfRecord}
         </if>
+        <if test="yearRange != null" >
+            AND year_range = #{yearRange}
+        </if>
         <if test="comment != null" >
             AND id IN (
               SELECT DISTINCT rule_id FROM comment WHERE deleted IS NULL AND comment LIKE '%' || #{comment} || '%'
@@ -36,8 +39,8 @@
     </select>
 
     <insert id="create" parameterType="Rule" useGeneratedKeys="true" keyColumn="id" keyProperty="id">
-        INSERT INTO rule (taxon_key, dataset_key, geometry, annotation, basis_of_record, ruleset_id, project_id, created_by, created)
-        VALUES (#{taxonKey}, #{datasetKey}, #{geometry}, #{annotation}, #{basisOfRecord}, #{rulesetId}, #{projectId}, #{createdBy}, now())
+        INSERT INTO rule (taxon_key, dataset_key, geometry, annotation, basis_of_record, year_range, ruleset_id, project_id, created_by, created)
+        VALUES (#{taxonKey}, #{datasetKey}, #{geometry}, #{annotation}, #{basisOfRecord}, #{yearRange}, #{rulesetId}, #{projectId}, #{createdBy}, now())
     </insert>
 
     <update id="delete" parameterType="map">
