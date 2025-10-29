@@ -22,6 +22,8 @@ import java.util.List;
 
 import javax.validation.Valid;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -45,16 +47,20 @@ import static org.gbif.occurrence.annotation.controller.AuthAdvice.assertCreator
 @CrossOrigin(origins = "*")
 @RequestMapping("/occurrence/experimental/annotation/rule")
 public class RuleController implements Controller<Rule> {
+
+  private static final Logger log = LoggerFactory.getLogger(RuleController.class);
+
   @Autowired private RuleMapper ruleMapper;
   @Autowired private CommentMapper commentMapper;
 
   @Operation(
       summary =
-          "List all rules that are not deleted, optionally filtered by taxonKey, datasetKey, rulesetId and containing the comment text")
+          "List all rules that are not deleted, optionally filtered by taxonKey, datasetKey, rulesetId, basisOfRecord and containing the comment text")
   @Parameter(name = "taxonKey", description = "Filters by taxonKey")
   @Parameter(name = "contextKey", description = "Filters by context key")
   @Parameter(name = "rulesetId", description = "Filters by the given ruleset")
   @Parameter(name = "projectId", description = "Filters by the given project")
+  @Parameter(name = "basisOfRecord", description = "Filters by basis of record")
   @Parameter(
       name = "comment",
       description = "Filters to rules with a non-deleted comment containing the given text")
@@ -66,13 +72,21 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) String datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
+      @RequestParam(required = false) String basisOfRecord,
       @RequestParam(required = false) String comment,
       @RequestParam(required = false) Integer limit,
       @RequestParam(required = false) Integer offset) {
     int limitInt = limit == null ? 100 : limit;
     int offsetInt = offset == null ? 0 : offset;
+
+    // Debug logging
+    log.info("DEBUG: basisOfRecord parameter = '{}'", basisOfRecord);
+    log.info("DEBUG: basisOfRecord is null? {}", (basisOfRecord == null));
+    log.info(
+        "DEBUG: basisOfRecord is empty? {}", (basisOfRecord != null && basisOfRecord.isEmpty()));
+
     return ruleMapper.list(
-        taxonKey, datasetKey, rulesetId, projectId, comment, limitInt, offsetInt);
+        taxonKey, datasetKey, rulesetId, projectId, basisOfRecord, comment, limitInt, offsetInt);
   }
 
   @Operation(summary = "Get a single rule (may be deleted)")

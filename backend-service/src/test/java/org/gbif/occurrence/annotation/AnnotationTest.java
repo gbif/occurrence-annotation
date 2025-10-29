@@ -27,6 +27,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Collections;
+import java.util.List;
 
 import javax.sql.DataSource;
 
@@ -53,6 +54,7 @@ import lombok.SneakyThrows;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -138,6 +140,7 @@ class AnnotationTest {
             .taxonKey(1)
             .geometry("geom1")
             .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .basisOfRecord("PRESERVED_SPECIMEN")
             .build());
 
     ruleController.create(
@@ -147,6 +150,7 @@ class AnnotationTest {
             .rulesetId(rs1.getId())
             .projectId(p1.getId())
             .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .basisOfRecord("HUMAN_OBSERVATION")
             .build());
 
     ruleController.create(
@@ -164,6 +168,7 @@ class AnnotationTest {
                 .taxonKey(1)
                 .geometry("geom4")
                 .annotation(Rule.ANNOTATION_TYPE.INTRODUCED)
+                .basisOfRecord("MACHINE_OBSERVATION")
                 .build());
     ruleController.delete(deleteRule.getId());
 
@@ -176,34 +181,34 @@ class AnnotationTest {
     assertEquals(
         "3 active rules were just created",
         3,
-        ruleController.list(null, null, null, null, null, 100, 0).size());
+        ruleController.list(null, null, null, null, null, null, 100, 0).size());
     assertEquals(
         "2 non-deleted rules were about taxon 1",
         2,
-        ruleController.list(1, null, null, null, null, 100, 0).size());
+        ruleController.list(1, null, null, null, null, null, 100, 0).size());
     assertEquals(
         "2 non-deleted rules are in ruleset 1 and project 1",
         2,
-        ruleController.list(null, null, rs1.getId(), p1.getId(), null, 100, 0).size());
+        ruleController.list(null, null, rs1.getId(), p1.getId(), null, null, 100, 0).size());
     assertEquals(
         "0 non-deleted rules are in ruleset 2 and project 2",
         0,
-        ruleController.list(null, null, rs2.getId(), p2.getId(), null, 100, 0).size());
+        ruleController.list(null, null, rs2.getId(), p2.getId(), null, null, 100, 0).size());
 
     assertEquals(
         "2 rules should exist for limit 0-2",
         2,
-        ruleController.list(null, null, null, null, null, 2, 0).size());
+        ruleController.list(null, null, null, null, null, null, 2, 0).size());
 
     assertEquals(
         "1 rule should exist in page 2-4",
         1,
-        ruleController.list(null, null, null, null, null, 2, 2).size());
+        ruleController.list(null, null, null, null, null, null, 2, 2).size());
 
     assertEquals(
         "0 rule should exist in page 4-6",
         0,
-        ruleController.list(null, null, null, null, null, 2, 4).size());
+        ruleController.list(null, null, null, null, null, null, 2, 4).size());
   }
 
   @Test
@@ -240,15 +245,15 @@ class AnnotationTest {
     assertEquals(
         "Gannin should match 2 rules",
         2,
-        ruleController.list(null, null, null, null, "gannin", 100, 0).size());
+        ruleController.list(null, null, null, null, null, "gannin", 100, 0).size());
     assertEquals(
         "Deleted comments should be skipped",
         0,
-        ruleController.list(null, null, null, null, "delete", 100, 0).size());
+        ruleController.list(null, null, null, null, null, "delete", 100, 0).size());
     assertEquals(
         "Pet is only on one rule",
         1,
-        ruleController.list(null, null, null, null, "pet", 100, 0).size());
+        ruleController.list(null, null, null, null, null, "pet", 100, 0).size());
   }
 
   @Test
@@ -285,6 +290,7 @@ class AnnotationTest {
                 .taxonKey(1)
                 .geometry("geom1")
                 .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+                .basisOfRecord("PRESERVED_SPECIMEN")
                 .build());
 
     ruleController.support(r.getId());
@@ -366,14 +372,16 @@ class AnnotationTest {
                 .build());
 
     assertEquals(
-        "4 non-deleted rules", 4, ruleController.list(null, null, null, null, null, 100, 0).size());
+        "4 non-deleted rules",
+        4,
+        ruleController.list(null, null, null, null, null, null, 100, 0).size());
 
     projectController.delete(p1.getId());
 
     assertEquals(
         "2 non-deleted rules not associated with project 1",
         2,
-        ruleController.list(null, null, null, null, null, 100, 0).size());
+        ruleController.list(null, null, null, null, null, null, 100, 0).size());
     assertEquals(
         "0 non-deleted rulesets since they were all in project 1",
         0,
@@ -428,26 +436,30 @@ class AnnotationTest {
                 .build());
 
     assertEquals(
-        "4 non-deleted rules", 4, ruleController.list(null, null, null, null, null, 100, 0).size());
+        "4 non-deleted rules",
+        4,
+        ruleController.list(null, null, null, null, null, null, 100, 0).size());
 
     assertEquals(
         "3 non-deleted rules",
         3,
-        ruleController.list(null, null, rs1.getId(), null, null, 100, 0).size());
+        ruleController.list(null, null, rs1.getId(), null, null, null, 100, 0).size());
 
     rulesetController.delete(rs1.getId());
 
     assertEquals(
         "0 non-deleted rules",
         0,
-        ruleController.list(null, null, rs1.getId(), null, null, 100, 0).size());
+        ruleController.list(null, null, rs1.getId(), null, null, null, 100, 0).size());
 
     assertEquals(
         "0 non-deleted rules",
         0,
-        ruleController.list(null, null, null, p1.getId(), null, 100, 0).size());
+        ruleController.list(null, null, null, p1.getId(), null, null, 100, 0).size());
     assertEquals(
-        "1 non-deleted rules", 1, ruleController.list(null, null, null, null, null, 100, 0).size());
+        "1 non-deleted rules",
+        1,
+        ruleController.list(null, null, null, null, null, null, 100, 0).size());
   }
 
   @Test
@@ -496,6 +508,57 @@ class AnnotationTest {
     } catch (AuthAdvice.NotAuthorisedException e) {
       fail("Admin should be able to delete any user comments");
     }
+  }
+
+  @Test
+  @WithMockUser(
+      username = "tim",
+      authorities = {"USER"})
+  void testBasisOfRecord() {
+    // Test creating a rule with basisOfRecord
+    Rule ruleWithBasis =
+        ruleController.create(
+            Rule.builder()
+                .taxonKey(1)
+                .geometry("geom1")
+                .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+                .basisOfRecord("PRESERVED_SPECIMEN")
+                .build());
+
+    assertEquals("PRESERVED_SPECIMEN", ruleWithBasis.getBasisOfRecord());
+
+    // Test creating a rule without basisOfRecord (should be null)
+    Rule ruleWithoutBasis =
+        ruleController.create(
+            Rule.builder()
+                .taxonKey(2)
+                .geometry("geom2")
+                .annotation(Rule.ANNOTATION_TYPE.INTRODUCED)
+                .build());
+
+    assertNull(ruleWithoutBasis.getBasisOfRecord());
+
+    // Test retrieving rules and verifying basisOfRecord persistence
+    Rule retrievedWithBasis = ruleController.get(ruleWithBasis.getId());
+    Rule retrievedWithoutBasis = ruleController.get(ruleWithoutBasis.getId());
+
+    assertEquals("PRESERVED_SPECIMEN", retrievedWithBasis.getBasisOfRecord());
+    assertNull(retrievedWithoutBasis.getBasisOfRecord());
+
+    // Test filtering by basisOfRecord
+    List<Rule> preservedSpecimenRules =
+        ruleController.list(null, null, null, null, "PRESERVED_SPECIMEN", null, 100, 0);
+    assertEquals("Should find 1 rule with PRESERVED_SPECIMEN", 1, preservedSpecimenRules.size());
+    assertEquals("PRESERVED_SPECIMEN", preservedSpecimenRules.get(0).getBasisOfRecord());
+
+    // Test filtering by non-existent basisOfRecord
+    List<Rule> machineObservationRules =
+        ruleController.list(null, null, null, null, "MACHINE_OBSERVATION", null, 100, 0);
+    assertEquals("Should find 0 rules with MACHINE_OBSERVATION", 0, machineObservationRules.size());
+
+    // Test listing all rules (no filter)
+    List<Rule> allRules = ruleController.list(null, null, null, null, null, null, 100, 0);
+    assertTrue("Should find at least 2 rules", allRules.size() >= 2);
   }
 
   private static void setAuthenticatedUser(String name, UserRole role) {
