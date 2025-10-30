@@ -14,6 +14,199 @@ import { coordinatesToWKT } from '../utils/wktParser';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
 
+// Searchable multi-select component for Basis of Record
+// Supports typing to filter options, keyboard navigation, and chip-based selection
+function BasisOfRecordMultiSelect({ 
+  options, 
+  selected, 
+  onChange 
+}: { 
+  options: string[]; 
+  selected: string[]; 
+  onChange: (selected: string[]) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Filter options based on search term
+  const filteredOptions = options.filter(option =>
+    option.toLowerCase().includes(searchTerm.toLowerCase()) && !selected.includes(option)
+  );
+
+  // Handle option selection
+  const handleSelectOption = (option: string) => {
+    if (!selected.includes(option)) {
+      onChange([...selected, option]);
+    }
+    setSearchTerm('');
+    setShowDropdown(false);
+    setFocusedIndex(-1);
+    inputRef.current?.focus();
+  };
+
+  // Handle chip removal
+  const handleRemoveChip = (option: string) => {
+    onChange(selected.filter(item => item !== option));
+  };
+
+  // Handle keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showDropdown) {
+      if (e.key === 'ArrowDown' && filteredOptions.length > 0) {
+        e.preventDefault();
+        setShowDropdown(true);
+        setFocusedIndex(0);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setFocusedIndex(prev => 
+          prev < filteredOptions.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setFocusedIndex(prev => prev > 0 ? prev - 1 : prev);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (focusedIndex >= 0 && focusedIndex < filteredOptions.length) {
+          handleSelectOption(filteredOptions[focusedIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setShowDropdown(false);
+        setFocusedIndex(-1);
+        break;
+      case 'Backspace':
+        if (searchTerm === '' && selected.length > 0) {
+          e.preventDefault();
+          handleRemoveChip(selected[selected.length - 1]);
+        }
+        break;
+    }
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+        setFocusedIndex(-1);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs text-gray-700">
+          Basis of Record (optional)
+          {selected.length > 0 && (
+            <span className="ml-1 text-blue-600 font-medium">({selected.length} selected)</span>
+          )}
+        </Label>
+        <div className="flex space-x-2">
+          <button
+            type="button"
+            onClick={() => onChange(options)}
+            className="text-xs text-blue-600 hover:text-blue-800 underline"
+          >
+            Select All
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="text-xs text-gray-600 hover:text-gray-800 underline"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+      
+      <div className="relative" ref={dropdownRef}>
+        {/* Selected chips and input container */}
+        <div className="min-h-[2.25rem] border border-gray-300 rounded p-2 bg-white flex flex-wrap gap-1 items-center">
+          {/* Selected chips */}
+          {selected.map((option) => (
+            <span
+              key={option}
+              className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-md"
+            >
+              {option.replace(/_/g, ' ')}
+              <button
+                type="button"
+                onClick={() => handleRemoveChip(option)}
+                className="hover:bg-blue-200 rounded-sm p-0.5 -mr-1"
+                aria-label={`Remove ${option}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          
+          {/* Search input */}
+          <input
+            ref={inputRef}
+            type="text"
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setShowDropdown(true);
+              setFocusedIndex(-1);
+            }}
+            onKeyDown={handleKeyDown}
+            onFocus={() => {
+              if (filteredOptions.length > 0) {
+                setShowDropdown(true);
+              }
+            }}
+            placeholder={selected.length === 0 ? "Type to search basis of record..." : ""}
+            className="flex-1 min-w-[120px] text-xs outline-none bg-transparent"
+          />
+        </div>
+        
+        {/* Dropdown options */}
+        {showDropdown && filteredOptions.length > 0 && (
+          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-32 overflow-y-auto">
+            {filteredOptions.map((option, index) => (
+              <div
+                key={option}
+                className={`p-2 text-xs cursor-pointer ${
+                  index === focusedIndex 
+                    ? 'bg-blue-100 text-blue-900' 
+                    : 'hover:bg-gray-100'
+                }`}
+                onClick={() => handleSelectOption(option)}
+                onMouseEnter={() => setFocusedIndex(index)}
+              >
+                {option.replace(/_/g, ' ')}
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {/* No options message */}
+        {selected.length === 0 && (
+          <div className="text-xs text-gray-500 italic mt-1">
+            No selection - will apply to all basis of record types
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Simple debounce function
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
   let timeout: number;
@@ -200,7 +393,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
   // Complex rule state
   const [showComplexOptions, setShowComplexOptions] = useState(false);
   const [selectedAnnotation, setSelectedAnnotation] = useState(annotation);
-  const [basisOfRecord, setBasisOfRecord] = useState<string>('');
+  const [basisOfRecord, setBasisOfRecord] = useState<string[]>([]);
   const [datasetKey, setDatasetKey] = useState<string>('');
   const [yearRange, setYearRange] = useState<string>('');
   const [basisOfRecordOptions, setBasisOfRecordOptions] = useState<string[]>([]);
@@ -474,8 +667,8 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
 
       // Add complex rule fields if enabled
       if (showComplexOptions) {
-        if (basisOfRecord.trim()) {
-          payload.basisOfRecord = basisOfRecord.trim();
+        if (basisOfRecord.length > 0) {
+          payload.basisOfRecord = basisOfRecord;
         }
         if (datasetKey.trim()) {
           payload.datasetKey = datasetKey.trim();
@@ -691,23 +884,12 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
                     </div>
                   )}
 
-                  {/* Basis of Record */}
-                  <div className="space-y-1">
-                    <Label htmlFor="basis-of-record" className="text-xs text-gray-700">Basis of Record (optional)</Label>
-                    <select
-                      id="basis-of-record"
-                      value={basisOfRecord}
-                      onChange={(e) => setBasisOfRecord(e.target.value)}
-                      className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value="">All basis of record types</option>
-                      {basisOfRecordOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option.replace(/_/g, ' ')}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* Basis of Record - Searchable Multi-Select */}
+                  <BasisOfRecordMultiSelect
+                    options={basisOfRecordOptions}
+                    selected={basisOfRecord}
+                    onChange={setBasisOfRecord}
+                  />
 
                   {/* Dataset Key */}
                   <div className="space-y-1 relative">
@@ -834,8 +1016,8 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
                 <div className="mt-4 p-3 rounded-lg border border-gray-200 bg-gray-50">
                   <p className="text-base text-gray-800">
                     This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of <span className="font-bold">"{polygon.species?.scientificName || polygon.species?.name || 'selected species'}"</span>
-                    {basisOfRecord && basisOfRecord !== '' && (
-                      <> with basis of record <span className="font-bold">"{basisOfRecord.replace(/_/g, ' ')}"</span></>
+                    {basisOfRecord && basisOfRecord.length > 0 && (
+                      <> with basis of record <span className="font-bold">"{basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
                     )}
                     {selectedDataset && (
                       <> from dataset <span className="font-bold">"{selectedDataset.title}"</span></>
