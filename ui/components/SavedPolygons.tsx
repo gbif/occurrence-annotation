@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { PolygonData } from '../App';
 import { Button } from './ui/button';
 import { Upload, Loader2, Trash2, MessageSquare } from 'lucide-react';
@@ -7,12 +7,21 @@ import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Textarea } from './ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
 import { coordinatesToWKT } from '../utils/wktParser';
 import { MiniMapPreview } from './MiniMapPreview';
+import { getAnnotationApiUrl } from '../utils/apiConfig';
+
+// Simple debounce function
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
+  let timeout: number;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = window.setTimeout(() => func(...args), wait);
+  };
+}
 
 interface SavedPolygonsProps {
   polygons: PolygonData[];
@@ -187,6 +196,28 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [wktText, setWktText] = useState('');
+  
+  // Complex rule state
+  const [showComplexOptions, setShowComplexOptions] = useState(false);
+  const [selectedAnnotation, setSelectedAnnotation] = useState(annotation);
+  const [basisOfRecord, setBasisOfRecord] = useState<string>('');
+  const [datasetKey, setDatasetKey] = useState<string>('');
+  const [yearRange, setYearRange] = useState<string>('');
+  const [basisOfRecordOptions, setBasisOfRecordOptions] = useState<string[]>([]);
+  
+  // Year range slider state
+  const [yearRangeStart, setYearRangeStart] = useState<number>(1600);
+  const [yearRangeEnd, setYearRangeEnd] = useState<number>(2025);
+  const [useCustomYearRange, setUseCustomYearRange] = useState<boolean>(true);
+  
+  // Dataset search state
+  const [datasetQuery, setDatasetQuery] = useState<string>('');
+  const [datasetSuggestions, setDatasetSuggestions] = useState<any[]>([]);
+  const [showDatasetSuggestions, setShowDatasetSuggestions] = useState(false);
+  const [selectedDataset, setSelectedDataset] = useState<any>(null);
+  
+  // WKT editing state
+  const [showWktEditor, setShowWktEditor] = useState(false);
 
   // Initialize WKT when dialog opens
   useEffect(() => {
@@ -202,6 +233,84 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
       setWktText(initialWkt);
     }
   }, [isOpen, polygon.coordinates, polygon.inverted]);
+
+  // Fetch basis of record options from GBIF API
+  useEffect(() => {
+    const fetchBasisOfRecordOptions = async () => {
+      try {
+        const response = await fetch('https://api.gbif.org/v1/enumeration/basic/BasisOfRecord');
+        if (response.ok) {
+          const options = await response.json();
+          setBasisOfRecordOptions(options);
+        }
+      } catch (error) {
+        console.warn('Failed to fetch basis of record options:', error);
+        // Fallback to some common options if API fails
+        setBasisOfRecordOptions(['HUMAN_OBSERVATION', 'MACHINE_OBSERVATION', 'PRESERVED_SPECIMEN', 'OBSERVATION']);
+      }
+    };
+
+    fetchBasisOfRecordOptions();
+  }, []);
+
+  // Update yearRange string when slider values change
+  useEffect(() => {
+    if (!useCustomYearRange) {
+      if (yearRangeStart === yearRangeEnd) {
+        setYearRange(yearRangeStart.toString());
+      } else {
+        setYearRange(`${yearRangeStart}-${yearRangeEnd}`);
+      }
+    }
+  }, [yearRangeStart, yearRangeEnd, useCustomYearRange]);
+
+  // Handle clicks outside dataset suggestions
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowDatasetSuggestions(false);
+    };
+
+    if (showDatasetSuggestions) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showDatasetSuggestions]);
+
+  // Function to search datasets with debouncing
+  const searchDatasetsDebounced = useCallback(
+    debounce(async (query: string) => {
+      if (!query.trim()) {
+        setDatasetSuggestions([]);
+        setShowDatasetSuggestions(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`https://api.gbif.org/v1/dataset/suggest?q=${encodeURIComponent(query)}`);
+        if (response.ok) {
+          const suggestions = await response.json();
+          setDatasetSuggestions(suggestions);
+          setShowDatasetSuggestions(suggestions.length > 0);
+        }
+      } catch (error) {
+        console.warn('Failed to fetch dataset suggestions:', error);
+      }
+    }, 300),
+    []
+  );
+
+  // Function to search datasets (immediate call for focus)
+  const searchDatasets = async (query: string) => {
+    searchDatasetsDebounced(query);
+  };
+
+  // Handle dataset selection
+  const handleDatasetSelect = (dataset: any) => {
+    setSelectedDataset(dataset);
+    setDatasetKey(dataset.key);
+    setDatasetQuery(dataset.title);
+    setShowDatasetSuggestions(false);
+  };
 
   // Function to post pending comments to GBIF after rule creation
   const postPendingComments = async (ruleId: number, gbifAuth: string) => {
@@ -220,7 +329,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
       for (const comment of pendingComments) {
         try {
           const response = await fetch(
-            `https://api.gbif.org/v1/occurrence/experimental/annotation/rule/${ruleId}/comment`,
+            getAnnotationApiUrl(`/rule/${ruleId}/comment`),
             {
               method: 'POST',
               headers: {
@@ -355,19 +464,32 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
       }
       
       // Prepare the payload
-      const payload = {
+      const payload: any = {
         projectId: null,
         rulesetId: null,
         taxonKey: polygon.species.key,
         geometry: wktGeometry,
-        annotation: annotation,
+        annotation: showComplexOptions ? selectedAnnotation : annotation,
       };
+
+      // Add complex rule fields if enabled
+      if (showComplexOptions) {
+        if (basisOfRecord.trim()) {
+          payload.basisOfRecord = basisOfRecord.trim();
+        }
+        if (datasetKey.trim()) {
+          payload.datasetKey = datasetKey.trim();
+        }
+        if (yearRange.trim()) {
+          payload.yearRange = yearRange.trim();
+        }
+      }
 
       // console.log('Saving to GBIF:', payload);
 
       // Make the API request
       const response = await fetch(
-        'https://api.gbif.org/v1/occurrence/experimental/annotation/rule',
+        getAnnotationApiUrl('/rule'),
         {
           method: 'POST',
           headers: {
@@ -488,14 +610,11 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
           </Button>
         </div>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Save Rule to GBIF</DialogTitle>
-          <DialogDescription>
-            Confirm saving this {annotation} annotation rule to GBIF
-          </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto flex-1 pr-2">
           {/* Warning Messages */}
           {(!getLoginStatus() || !polygon.species) && (
             <div className="p-3 bg-white border border-red-200 rounded-lg shadow-sm">
@@ -513,20 +632,255 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
           )}
 
           {/* Species Info */}
-          {polygon.species && (
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600">Species</p>
-              <p className="font-medium">{polygon.species.name}</p>
-              <p className="text-sm text-gray-600 italic">{polygon.species.scientificName}</p>
-              <p className="text-xs text-gray-500 mt-1">Taxon Key: {polygon.species.key}</p>
-            </div>
-          )}
+          {/* Species information removed - now shown in rule description */}
 
+          {/* Rule Options */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowComplexOptions(!showComplexOptions)}
+                className="text-xs text-gray-500 hover:text-gray-700 h-6 px-2"
+              >
+                {showComplexOptions ? "Hide options" : "Add more complexity"}
+              </Button>
+            </div>
+
+            {showComplexOptions && (
+              /* Complex Rule Options */
+              <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium text-blue-900">Complex Rule Filters</h4>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowComplexOptions(false)}
+                    className="h-6 w-6 p-0 text-blue-700 hover:text-blue-900"
+                  >
+                    ×
+                  </Button>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-3">
+                  {/* Annotation Type */}
+                  <div className="space-y-1">
+                    <Label htmlFor="annotation-select" className="text-xs text-gray-700">Annotation</Label>
+                    <select
+                      id="annotation-select"
+                      value={selectedAnnotation}
+                      onChange={(e) => setSelectedAnnotation(e.target.value)}
+                      className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="SUSPICIOUS">SUSPICIOUS</option>
+                      <option value="MANAGED">MANAGED</option>
+                      <option value="FORMER">FORMER</option>
+                      <option value="VAGRANT">VAGRANT</option>
+                      <option value="NATIVE">NATIVE</option>
+                    </select>
+                  </div>
+
+                  {/* Warning for non-SUSPICIOUS annotations */}
+                  {selectedAnnotation !== 'SUSPICIOUS' && (
+                    <div className="p-2 bg-amber-50 rounded border border-amber-200">
+                      <p className="text-xs text-amber-700">
+                        ⚠️ It is extremely difficult to make rules that make sense for all occurrence records using annotation types other than suspicious. Use with caution.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Basis of Record */}
+                  <div className="space-y-1">
+                    <Label htmlFor="basis-of-record" className="text-xs text-gray-700">Basis of Record (optional)</Label>
+                    <select
+                      id="basis-of-record"
+                      value={basisOfRecord}
+                      onChange={(e) => setBasisOfRecord(e.target.value)}
+                      className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">All basis of record types</option>
+                      {basisOfRecordOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option.replace(/_/g, ' ')}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Dataset Key */}
+                  <div className="space-y-1 relative">
+                    <Label htmlFor="dataset-key" className="text-xs text-gray-700">Dataset (optional)</Label>
+                    <div className="relative">
+                      <Input
+                        id="dataset-key"
+                        type="text"
+                        value={datasetQuery}
+                        onChange={(e) => {
+                          setDatasetQuery(e.target.value);
+                          searchDatasets(e.target.value);
+                        }}
+                        onFocus={() => {
+                          if (datasetSuggestions.length > 0) {
+                            setShowDatasetSuggestions(true);
+                          }
+                        }}
+                        placeholder="Leave empty to apply to all datasets"
+                        className="text-xs py-1"
+                      />
+                      {showDatasetSuggestions && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto">
+                          {datasetSuggestions.map((dataset) => (
+                            <div
+                              key={dataset.key}
+                              className="p-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                              onClick={() => handleDatasetSelect(dataset)}
+                            >
+                              <div className="text-xs font-medium text-gray-900 truncate">
+                                {dataset.title}
+                              </div>
+                              <div className="text-xs text-gray-500 truncate">
+                                {dataset.key} • {dataset.type}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {selectedDataset && (
+                      <div className="text-xs text-gray-600">
+                        Selected: <span className="font-medium">{selectedDataset.title}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Year Range */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-gray-700">Year Range (optional)</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setUseCustomYearRange(!useCustomYearRange)}
+                        className="h-5 px-2 text-xs text-blue-600 hover:text-blue-800"
+                      >
+                        {useCustomYearRange ? "Use slider" : "Custom text"}
+                      </Button>
+                    </div>
+                    
+                    {useCustomYearRange ? (
+                      /* Custom text input */
+                      <Input
+                        type="text"
+                        value={yearRange}
+                        onChange={(e) => setYearRange(e.target.value)}
+                        placeholder="e.g., 2020-2023, >2000, <1950"
+                        className="text-xs py-1"
+                      />
+                    ) : (
+                      /* Year range slider */
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs text-gray-600">
+                          <span>From: {yearRangeStart}</span>
+                          <span>To: {yearRangeEnd}</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-xs text-gray-500">Start year:</div>
+                          <input
+                            type="range"
+                            min="1600"
+                            max="2025"
+                            value={yearRangeStart}
+                            onChange={(e) => {
+                              const newStart = parseInt(e.target.value);
+                              setYearRangeStart(newStart);
+                              if (newStart > yearRangeEnd) {
+                                setYearRangeEnd(newStart);
+                              }
+                            }}
+                            className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                          />
+                          <div className="text-xs text-gray-500">End year:</div>
+                          <input
+                            type="range"
+                            min="1600"
+                            max="2025"
+                            value={yearRangeEnd}
+                            onChange={(e) => {
+                              const newEnd = parseInt(e.target.value);
+                              setYearRangeEnd(newEnd);
+                              if (newEnd < yearRangeStart) {
+                                setYearRangeStart(newEnd);
+                              }
+                            }}
+                            className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                          />
+                        </div>
+                        <div className="text-xs text-gray-500 text-center">
+                          Range: {yearRangeStart === yearRangeEnd ? yearRangeStart : `${yearRangeStart} - ${yearRangeEnd}`}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <p className="text-xs text-gray-600 mt-2">
+                  Leave fields empty to apply to all values of that type
+                </p>
+                
+                {/* Complex Rule Display */}
+                <div className="mt-4 p-3 rounded-lg border border-gray-200 bg-gray-50">
+                  <p className="text-base text-gray-800">
+                    This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of <span className="font-bold">"{polygon.species?.scientificName || polygon.species?.name || 'selected species'}"</span>
+                    {basisOfRecord && basisOfRecord !== '' && (
+                      <> with basis of record <span className="font-bold">"{basisOfRecord.replace(/_/g, ' ')}"</span></>
+                    )}
+                    {selectedDataset && (
+                      <> from dataset <span className="font-bold">"{selectedDataset.title}"</span></>
+                    )}
+                    {(yearRange || (yearRangeStart !== 1600 || yearRangeEnd !== 2025)) && (
+                      <> from years <span className="font-bold">{yearRange || (yearRangeStart === yearRangeEnd ? yearRangeStart : `${yearRangeStart}-${yearRangeEnd}`)}</span></>
+                    )}
+                    {} within the <span className="font-bold">polygon area</span> as <span className={`font-bold ${
+                      selectedAnnotation === 'SUSPICIOUS' ? 'text-red-600' :
+                      selectedAnnotation === 'NATIVE' ? 'text-green-600' :
+                      selectedAnnotation === 'MANAGED' ? 'text-blue-600' :
+                      selectedAnnotation === 'FORMER' ? 'text-purple-600' :
+                      selectedAnnotation === 'VAGRANT' ? 'text-orange-600' :
+                      'text-red-600'
+                    }`}>{selectedAnnotation.toLowerCase()}</span>.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {!showComplexOptions && (
+              /* Simple Rule Display */
+              <div className="p-3 rounded-lg border border-gray-200">
+                <p className="text-base text-gray-800">
+                  This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of <span className="font-bold">"{polygon.species?.scientificName || polygon.species?.name || 'selected species'}"</span> within the <span className="font-bold">polygon area</span> as <span className="font-bold text-red-600">suspicious</span>.
+                </p>
+              </div>
+            )}
+          </div>
 
 
           {/* Polygon info */}
           <div className="text-sm text-gray-600 space-y-1">
-            <p>Geometry: {polygon.coordinates.length} vertices</p>
+            <div className="flex items-center justify-between">
+              <p>Geometry: {polygon.coordinates.length} vertices</p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowWktEditor(!showWktEditor)}
+                className="h-6 px-2 text-xs text-blue-600 hover:text-blue-800"
+              >
+                {showWktEditor ? 'Hide WKT' : 'Edit WKT'}
+              </Button>
+            </div>
             {polygon.inverted && (
               <p className="text-amber-600">⚠️ This polygon is inverted (excludes the area inside)</p>
             )}
@@ -553,42 +907,44 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
             )}
           </div>
 
-          {/* WKT Geometry Section */}
-          <div className="space-y-2">
-            <Label htmlFor={`wkt-${polygon.id}`} className="text-sm text-gray-600">WKT Geometry</Label>
-            <Textarea
-              id={`wkt-${polygon.id}`}
-              value={wktText}
-              onChange={(e) => setWktText(e.target.value)}
-              placeholder="POLYGON((...)) or MULTIPOLYGON(...)"
-              className="resize-none font-mono text-xs"
-              rows={4}
-            />
-            <p className="text-xs text-gray-500">
-              You can edit the WKT geometry before saving to GBIF
-            </p>
-          </div>
-
-          {/* Buttons */}
-          <div className="flex gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsOpen(false)}
-              disabled={isLoading}
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleSave}
-              disabled={isLoading || !getLoginStatus() || !polygon.species}
-              className="flex-1"
-            >
-              {isLoading ? 'Saving...' : 'Save to GBIF'}
-            </Button>
-          </div>
+          {/* WKT Geometry Editor (Collapsible) */}
+          {showWktEditor && (
+            <div className="space-y-2 p-3 bg-gray-50 rounded border">
+              <Label htmlFor={`wkt-${polygon.id}`} className="text-xs text-gray-600">WKT Geometry (Advanced)</Label>
+              <Textarea
+                id={`wkt-${polygon.id}`}
+                value={wktText}
+                onChange={(e) => setWktText(e.target.value)}
+                placeholder="POLYGON((...)) or MULTIPOLYGON(...)"
+                className="resize-none font-mono text-xs"
+                rows={3}
+              />
+              <p className="text-xs text-gray-500">
+                Edit the WKT geometry if needed before saving
+              </p>
+            </div>
+          )}
+        </div>
+        
+        {/* Sticky Footer with Buttons */}
+        <div className="flex gap-2 pt-4 border-t bg-white flex-shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsOpen(false)}
+            disabled={isLoading}
+            className="flex-1"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={isLoading || !getLoginStatus() || !polygon.species}
+            className="flex-1"
+          >
+            {isLoading ? 'Saving...' : 'Save to GBIF'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -713,26 +1069,12 @@ function PolygonCard({
   onNavigateToPolygon?: (lat: number, lng: number) => void;
   onRuleSavedToGBIF?: () => void;
 }) {
-  const [annotation, setAnnotation] = useState<string>(polygon.annotation || 'SUSPICIOUS');
+  const annotation = 'SUSPICIOUS'; // All simple rules are SUSPICIOUS
   
   // Comment functionality state
   const [showCommentSection, setShowCommentSection] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
-
-  // Sync local state with prop changes
-  useEffect(() => {
-    if (polygon.annotation && polygon.annotation !== annotation) {
-      setAnnotation(polygon.annotation);
-    }
-  }, [polygon.annotation]);
-
-  // Update annotation when it changes
-  useEffect(() => {
-    if (onUpdateAnnotation && annotation !== polygon.annotation) {
-      onUpdateAnnotation(polygon.id, annotation);
-    }
-  }, [annotation, polygon.id, polygon.annotation, onUpdateAnnotation]);
 
   // Handle adding comments to polygons
   const handleAddComment = async () => {
@@ -911,28 +1253,11 @@ function PolygonCard({
           </div>
         </div>
 
-        {/* Annotation Type Selector */}
+        {/* Species Assignment Info */}
         <div className="space-y-1">
-          <Label htmlFor={`annotation-${polygon.id}`} className="text-xs text-gray-600">
-            Annotation Type
-          </Label>
-          <Select value={annotation} onValueChange={setAnnotation}>
-            <SelectTrigger id={`annotation-${polygon.id}`} className="h-8 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="SUSPICIOUS">SUSPICIOUS</SelectItem>
-              <SelectItem value="MANAGED">MANAGED</SelectItem>
-              <SelectItem value="FORMER">FORMER</SelectItem>
-              <SelectItem value="VAGRANT">VAGRANT</SelectItem>
-              <SelectItem value="NATIVE">NATIVE</SelectItem>
-            </SelectContent>
-          </Select>
-          {annotation !== 'SUSPICIOUS' && (
-            <p className="text-xs text-amber-600 mt-1">
-              ⚠️ Non-SUSPICIOUS annotations require expert knowledge
-            </p>
-          )}
+          <p className="text-xs text-gray-600">
+            <span className="font-medium">Annotation:</span> SUSPICIOUS
+          </p>
         </div>
 
         {/* Date and Time */}
