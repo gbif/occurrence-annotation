@@ -36,6 +36,8 @@ export interface AnnotationRule {
   datasetKey: string | null;
   geometry: string; // WKT format (POLYGON or MULTIPOLYGON)
   annotation: string;
+  basisOfRecord?: string[] | null;
+  yearRange?: string | null;
   rulesetId: number | null;
   projectId: number | null;
   supportedBy: any[];
@@ -1106,21 +1108,33 @@ export function AnnotationRules({
                     )}
                   </div>
                   
+                  {/* Rule description */}
+                  {rule.scientificName && (
+                    <div className="col-span-2 mb-2">
+                      <p className="text-sm">
+                        <span className="text-gray-500">This rule designates all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <span className="font-semibold" style={{color: '#198240'}}>"{rule.scientificName}"</span>
+                        {rule.basisOfRecord && rule.basisOfRecord.length > 0 && (
+                          <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold">"{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                        )}
+                        {rule.datasetKey && (
+                          <><span className="text-gray-500"> from dataset</span> <span className="font-semibold">"{rule.datasetKey}"</span></>
+                        )}
+                        {rule.yearRange && (
+                          <><span className="text-gray-500"> from years</span> <span className="font-semibold">{rule.yearRange}</span></>
+                        )}
+                        <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${
+                          rule.annotation === 'SUSPICIOUS' ? 'text-red-600' :
+                          rule.annotation === 'NATIVE' ? 'text-green-600' :
+                          rule.annotation === 'MANAGED' ? 'text-blue-600' :
+                          rule.annotation === 'FORMER' ? 'text-purple-600' :
+                          rule.annotation === 'VAGRANT' ? 'text-orange-600' :
+                          'text-red-600'
+                        }`}>{rule.annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
+                      </p>
+                    </div>
+                  )}
+                  
                   <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <div className="text-xs text-gray-400 mb-0.5">Rule ID</div>
-                      <div className="text-gray-900 truncate">{rule.id}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-400 mb-0.5">Taxon Key</div>
-                      <div className="text-gray-900 truncate">{rule.taxonKey}</div>
-                    </div>
-                    {rule.scientificName && (
-                      <div className="col-span-2">
-                        <div className="text-xs text-gray-400 mb-0.5">Scientific Name</div>
-                        <div className="text-gray-900 italic truncate">{rule.scientificName}</div>
-                      </div>
-                    )}
                     <div className="col-span-2">
                       <div className="text-xs text-gray-400 mb-0.5">Created by</div>
                       <div className="text-gray-900 truncate">{rule.createdBy}</div>

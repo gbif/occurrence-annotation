@@ -1435,17 +1435,19 @@ function PolygonCard({
           </div>
         </div>
 
+        {/* Rule Description */}
+        {polygon.species && (
+          <div className="space-y-1">
+            <p className="text-sm">
+              <span className="text-gray-500">This</span> <span className="font-semibold text-gray-700">proposed</span> <span className="text-gray-500">rule will designate all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <span className="font-semibold" style={{color: '#198240'}}>"{polygon.species.scientificName || polygon.species.name}"</span> <span className="text-gray-500">within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className="font-semibold text-red-600">suspicious</span><span className="text-gray-500">.</span>
+            </p>
+          </div>
+        )}
+
         {/* Species Assignment Info */}
         <div className="space-y-1">
           <p className="text-xs text-gray-600">
             <span className="font-medium">Annotation:</span> SUSPICIOUS
-          </p>
-        </div>
-
-        {/* Date and Time */}
-        <div>
-          <p className="text-gray-500 text-xs">
-            {new Date(polygon.timestamp).toLocaleDateString()} {new Date(polygon.timestamp).toLocaleTimeString()}
           </p>
         </div>
 
