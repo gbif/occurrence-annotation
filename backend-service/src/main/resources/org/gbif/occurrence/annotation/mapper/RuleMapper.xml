@@ -22,7 +22,7 @@
             AND project_id = #{projectId}
         </if>
         <if test="basisOfRecord != null" >
-            AND #{basisOfRecord} = ANY(basis_of_record)
+            AND (basis_of_record <![CDATA[&&]]> #{basisOfRecord,typeHandler=org.apache.ibatis.type.ArrayTypeHandler})
         </if>
         <if test="yearRange != null" >
             AND year_range = #{yearRange}
@@ -41,7 +41,7 @@
 
     <insert id="create" parameterType="Rule" useGeneratedKeys="true" keyColumn="id" keyProperty="id">
         INSERT INTO rule (taxon_key, dataset_key, geometry, annotation, basis_of_record, year_range, ruleset_id, project_id, created_by, created)
-        VALUES (#{taxonKey}, #{datasetKey}, #{geometry}, #{annotation}, #{basisOfRecord}, #{yearRange}, #{rulesetId}, #{projectId}, #{createdBy}, now())
+        VALUES (#{taxonKey}, #{datasetKey}, #{geometry}, #{annotation}, #{basisOfRecord,typeHandler=org.apache.ibatis.type.ArrayTypeHandler}, #{yearRange}, #{rulesetId}, #{projectId}, #{createdBy}, now())
     </insert>
 
     <update id="delete" parameterType="map">

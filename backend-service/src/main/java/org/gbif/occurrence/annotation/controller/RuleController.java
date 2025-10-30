@@ -57,7 +57,7 @@ public class RuleController implements Controller<Rule> {
   @Parameter(name = "projectId", description = "Filters by the given project")
   @Parameter(
       name = "basisOfRecord",
-      description = "Filters by basis of record (checks if rule contains this value)")
+      description = "Filters by basis of record values (accepts multiple values)")
   @Parameter(
       name = "yearRange",
       description = "Filters by year range (e.g., '1000,2025', '*,1990', '1000,*')")
@@ -72,7 +72,7 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) String datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
-      @RequestParam(required = false) String basisOfRecord,
+      @RequestParam(required = false) String[] basisOfRecord,
       @RequestParam(required = false) String yearRange,
       @RequestParam(required = false) String comment,
       @RequestParam(required = false) Integer limit,
