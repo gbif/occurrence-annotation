@@ -55,7 +55,9 @@ public class RuleController implements Controller<Rule> {
   @Parameter(name = "contextKey", description = "Filters by context key")
   @Parameter(name = "rulesetId", description = "Filters by the given ruleset")
   @Parameter(name = "projectId", description = "Filters by the given project")
-  @Parameter(name = "basisOfRecord", description = "Filters by basis of record")
+  @Parameter(
+      name = "basisOfRecord",
+      description = "Filters by basis of record (checks if rule contains this value)")
   @Parameter(
       name = "yearRange",
       description = "Filters by year range (e.g., '1000,2025', '*,1990', '1000,*')")

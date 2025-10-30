@@ -4,6 +4,7 @@
     <resultMap id="RULE_MAP" type="Rule" autoMapping="true">
         <result property="supportedBy" column="supported_by" typeHandler="org.apache.ibatis.type.ArrayTypeHandler"/>
         <result property="contestedBy" column="contested_by" typeHandler="org.apache.ibatis.type.ArrayTypeHandler"/>
+        <result property="basisOfRecord" column="basis_of_record" typeHandler="org.apache.ibatis.type.ArrayTypeHandler"/>
     </resultMap>
 
     <select id="list" resultMap="org.gbif.occurrence.annotation.mapper.RuleMapper.RULE_MAP">
@@ -21,7 +22,7 @@
             AND project_id = #{projectId}
         </if>
         <if test="basisOfRecord != null" >
-            AND basis_of_record = #{basisOfRecord}
+            AND #{basisOfRecord} = ANY(basis_of_record)
         </if>
         <if test="yearRange != null" >
             AND year_range = #{yearRange}
