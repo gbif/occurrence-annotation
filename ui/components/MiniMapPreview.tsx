@@ -34,6 +34,7 @@ export function MiniMapPreview({
     MANAGED: { fill: '#3b82f6', fillRgba: 'rgba(59, 130, 246, 0.4)', stroke: '#2563eb', strokeRgba: 'rgba(37, 99, 235, 0.6)' },
     FORMER: { fill: '#a855f7', fillRgba: 'rgba(168, 85, 247, 0.4)', stroke: '#9333ea', strokeRgba: 'rgba(147, 51, 234, 0.6)' },
     VAGRANT: { fill: '#f97316', fillRgba: 'rgba(249, 115, 22, 0.4)', stroke: '#ea580c', strokeRgba: 'rgba(234, 88, 12, 0.6)' },
+    INTRODUCED: { fill: '#d97706', fillRgba: 'rgba(217, 119, 6, 0.4)', stroke: '#b45309', strokeRgba: 'rgba(180, 83, 9, 0.6)' },
   };
   
   const color = annotationColors[annotation.toUpperCase()] || annotationColors.SUSPICIOUS;

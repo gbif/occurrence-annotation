@@ -1,4 +1,19 @@
 # 
+
+library(rgbif)
+
+
+occ_download(
+pred("taxonKey","2431950"),
+pred_default(),
+format = "SIMPLE_CSV"
+)
+
+
+
+
+
+
 # d <- occ_download_get("0051416-241126133413365") |> occ_download_import()
 #   
 # d_cc <- d %>%

@@ -6,3 +6,6 @@
 **/fixtures
 
 .history
+
+# Docker utility scripts
+Start-DockerClean.ps1

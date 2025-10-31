@@ -123,6 +123,7 @@ export function MapComponent({
         MANAGED: { fill: '#3b82f6', stroke: '#2563eb' },
         FORMER: { fill: '#a855f7', stroke: '#9333ea' },
         VAGRANT: { fill: '#f97316', stroke: '#ea580c' },
+        INTRODUCED: { fill: '#d97706', stroke: '#b45309' },
       };
       const color = annotationColors[currentAnnotation.toUpperCase()] || annotationColors.SUSPICIOUS;
       console.log('🎨 ACTIVE POLYGON DEBUG:', {
@@ -1448,6 +1449,7 @@ export function MapComponent({
             MANAGED: { fill: '#3b82f6', stroke: '#2563eb' }, // blue
             FORMER: { fill: '#a855f7', stroke: '#9333ea' }, // purple
             VAGRANT: { fill: '#f97316', stroke: '#ea580c' }, // orange
+            INTRODUCED: { fill: '#d97706', stroke: '#b45309' }, // amber
           };
           const colorSet = colors[rule.annotation.toUpperCase() as keyof typeof colors] || { fill: '#6b7280', stroke: '#4b5563' };
           
@@ -1519,6 +1521,7 @@ export function MapComponent({
             MANAGED: { fill: '#3b82f6', stroke: '#2563eb' }, // blue
             FORMER: { fill: '#a855f7', stroke: '#9333ea' }, // purple
             VAGRANT: { fill: '#f97316', stroke: '#ea580c' }, // orange
+            INTRODUCED: { fill: '#d97706', stroke: '#b45309' }, // amber
           };
           const color = annotationColors[annotation.toUpperCase()] || annotationColors.SUSPICIOUS;
           
@@ -1799,6 +1802,7 @@ export function MapComponent({
                       MANAGED: { fill: '#3b82f6', stroke: '#2563eb' },
                       FORMER: { fill: '#a855f7', stroke: '#9333ea' },
                       VAGRANT: { fill: '#f97316', stroke: '#ea580c' },
+                      INTRODUCED: { fill: '#d97706', stroke: '#b45309' },
                     };
                     const color = annotationColors[currentAnnotation.toUpperCase()] || annotationColors.SUSPICIOUS;
                     

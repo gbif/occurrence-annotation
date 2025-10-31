@@ -389,7 +389,7 @@ export default function App() {
 
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="flex-1">Previous Rules</h3>
+            <h3 className="flex-1 text-sm">Previous Rules</h3>
             {annotationRules.length > 0 && (
               <Button
                 variant="ghost"

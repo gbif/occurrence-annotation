@@ -13,6 +13,15 @@
 #'
 #' @examples \dontrun{
 #' library(rgbif)
+#' # End to end example with GBIF download and cleaning
+#' 
+#' # Ambystoma mexicanum
+#' occ_download(
+#' pred(taxonKey,"2431950"),
+#' pred_default()
+#' format = "SIMPLE_CSV"
+#' )
+#' 
 #' # Calopteryx 
 #' # 0051416-241126133413365
 #' # simple polygons not inverted 

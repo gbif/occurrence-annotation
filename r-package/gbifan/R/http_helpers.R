@@ -95,6 +95,7 @@ gbifan_get_id_ <- function(url) {
 #' @keywords internal
 gbif_base <- function() {
   # overide with environmental variable for local development 
+  # For development use Sys.setenv(GBIFAN_URL = "http://localhost:8080/occurrence/experimental/annotation/")
   if(Sys.getenv("GBIFAN_URL") == "") {
     url <- "https://api.gbif.org/v1/occurrence/experimental/annotation/"
   } else {
