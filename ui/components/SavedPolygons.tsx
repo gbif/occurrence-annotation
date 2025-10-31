@@ -412,6 +412,75 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
   // WKT editing state
   const [showWktEditor, setShowWktEditor] = useState(false);
 
+  // Year range validation state
+  const [yearRangeError, setYearRangeError] = useState<string>('');
+
+  // Validate year range input
+  const validateYearRange = (value: string): string => {
+    if (!value.trim()) {
+      return ''; // Empty is valid (optional field)
+    }
+
+    // Remove any whitespace
+    const cleanValue = value.trim();
+    
+    // Check for valid patterns:
+    // - Single year: 2020
+    // - Year range: 2020-2023
+    // - Greater than: >2000 or >=2000
+    // - Less than: <2000 or <=2000
+    // - Multiple ranges: 2000-2010,2015-2020
+    
+    const patterns = [
+      /^\d{4}$/, // Single year (4 digits)
+      /^\d{4}-\d{4}$/, // Year range (e.g., 2020-2023)
+      /^[>]=?\d{4}$/, // Greater than (e.g., >2000, >=2000)
+      /^[<]=?\d{4}$/, // Less than (e.g., <2000, <=2000)
+      /^(\d{4}(-\d{4})?)(,\d{4}(-\d{4})?)*$/ // Multiple ranges (e.g., 2000-2010,2015-2020)
+    ];
+
+    const isValidPattern = patterns.some(pattern => pattern.test(cleanValue));
+    
+    if (!isValidPattern) {
+      return 'Invalid format. Use: 2020, 2020-2023, >2000, <2000, or 2000-2010,2015-2020';
+    }
+
+    // Validate year values are reasonable (between 1600 and current year + 10)
+    const currentYear = new Date().getFullYear();
+    const maxYear = currentYear + 10;
+    const minYear = 1600;
+    
+    const yearMatches = cleanValue.match(/\d{4}/g);
+    if (yearMatches) {
+      for (const yearStr of yearMatches) {
+        const year = parseInt(yearStr);
+        if (year < minYear || year > maxYear) {
+          return `Years must be between ${minYear} and ${maxYear}`;
+        }
+      }
+    }
+
+    // Validate ranges (start year should be <= end year)
+    const rangeMatches = cleanValue.match(/(\d{4})-(\d{4})/g);
+    if (rangeMatches) {
+      for (const range of rangeMatches) {
+        const [start, end] = range.split('-').map(y => parseInt(y));
+        if (start > end) {
+          return 'In ranges, start year must be less than or equal to end year';
+        }
+      }
+    }
+
+    return ''; // Valid
+  };
+
+  // Handle year range change with validation
+  const handleYearRangeChange = (value: string) => {
+    setYearRange(value);
+    const error = validateYearRange(value);
+    setYearRangeError(error);
+  };
+
   // Initialize WKT when dialog opens
   useEffect(() => {
     if (isOpen) {
@@ -620,6 +689,17 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
   const handleSave = async () => {
     console.log('SaveToGBIF: handleSave called');
     
+    // Validate year range input before proceeding
+    if (useCustomYearRange && yearRange.trim()) {
+      const validationError = validateYearRange(yearRange);
+      if (validationError) {
+        toast.error('⚠️ Invalid year range format', {
+          description: validationError
+        });
+        return;
+      }
+    }
+    
     // Check if user is logged in
     const gbifAuth = localStorage.getItem('gbifAuth');
     const gbifUser = localStorage.getItem('gbifUser');
@@ -790,16 +870,17 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
           }}
         >
           <Button
-            size="icon"
+            size="sm"
             variant="outline"
-            className={`h-9 w-9 ${isButtonDisabled 
+            className={`px-3 py-1 ${isButtonDisabled 
               ? 'border-gray-300 text-gray-400 cursor-not-allowed' 
               : 'border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400'
             }`}
             disabled={isButtonDisabled}
             title={getButtonTooltip()}
           >
-            <Upload className="w-4 h-4" />
+            <Upload className="w-4 h-4 mr-1" />
+            <span className="text-xs">Save to GBIF</span>
           </Button>
         </div>
       </DialogTrigger>
@@ -872,6 +953,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
                       <option value="FORMER">FORMER</option>
                       <option value="VAGRANT">VAGRANT</option>
                       <option value="NATIVE">NATIVE</option>
+                      <option value="INTRODUCED">INTRODUCED</option>
                     </select>
                   </div>
 
@@ -954,13 +1036,21 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
                     
                     {useCustomYearRange ? (
                       /* Custom text input */
-                      <Input
-                        type="text"
-                        value={yearRange}
-                        onChange={(e) => setYearRange(e.target.value)}
-                        placeholder="e.g., 2020-2023, >2000, <1950"
-                        className="text-xs py-1"
-                      />
+                      <div className="space-y-1">
+                        <Input
+                          type="text"
+                          value={yearRange}
+                          onChange={(e) => handleYearRangeChange(e.target.value)}
+                          placeholder="e.g., 2020-2023, >2000, <1950"
+                          className={`text-xs py-1 ${yearRangeError ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
+                        />
+                        {yearRangeError && (
+                          <p className="text-xs text-red-600">{yearRangeError}</p>
+                        )}
+                        <p className="text-xs text-gray-500">
+                          Examples: 2020, 2020-2023, &gt;2000, &lt;1950, 2000-2010,2015-2020
+                        </p>
+                      </div>
                     ) : (
                       /* Year range slider */
                       <div className="space-y-2">
@@ -1031,6 +1121,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
                       selectedAnnotation === 'MANAGED' ? 'text-blue-600' :
                       selectedAnnotation === 'FORMER' ? 'text-purple-600' :
                       selectedAnnotation === 'VAGRANT' ? 'text-orange-600' :
+                      selectedAnnotation === 'INTRODUCED' ? 'text-amber-600' :
                       'text-red-600'
                     }`}>{selectedAnnotation.toLowerCase()}</span>.
                   </p>
@@ -1201,6 +1292,7 @@ function PolygonPreview({ coordinates, annotation = 'SUSPICIOUS', isMultiPolygon
       MANAGED: { fill: '#3b82f6', fillRgba: 'rgba(59, 130, 246, 0.1)', stroke: '#2563eb', strokeRgba: 'rgba(37, 99, 235, 0.6)' },
       FORMER: { fill: '#a855f7', fillRgba: 'rgba(168, 85, 247, 0.1)', stroke: '#9333ea', strokeRgba: 'rgba(147, 51, 234, 0.6)' },
       VAGRANT: { fill: '#f97316', fillRgba: 'rgba(249, 115, 22, 0.1)', stroke: '#ea580c', strokeRgba: 'rgba(234, 88, 12, 0.6)' },
+      INTRODUCED: { fill: '#d97706', fillRgba: 'rgba(217, 119, 6, 0.1)', stroke: '#b45309', strokeRgba: 'rgba(180, 83, 9, 0.6)' },
     };
     const color = annotationColors[annotation.toUpperCase()] || annotationColors.SUSPICIOUS;
 
@@ -1236,7 +1328,6 @@ function PolygonPreview({ coordinates, annotation = 'SUSPICIOUS', isMultiPolygon
 
 function PolygonCard({ 
   polygon, 
-  isEditing, 
   onDelete, 
   onToggleInvert,
   onUpdateAnnotation,
@@ -1244,14 +1335,13 @@ function PolygonCard({
   onRuleSavedToGBIF
 }: { 
   polygon: PolygonData; 
-  isEditing: boolean;
   onDelete: (id: string) => void;
   onToggleInvert: (id: string) => void;
   onUpdateAnnotation?: (id: string, annotation: string) => void;
   onNavigateToPolygon?: (lat: number, lng: number) => void;
   onRuleSavedToGBIF?: () => void;
 }) {
-  const annotation = 'SUSPICIOUS'; // All simple rules are SUSPICIOUS
+  const annotation = polygon.annotation || 'SUSPICIOUS'; // Use polygon annotation or default to SUSPICIOUS
   
   // Comment functionality state
   const [showCommentSection, setShowCommentSection] = useState(false);
@@ -1377,7 +1467,7 @@ function PolygonCard({
     : (polygon.coordinates as [number, number][]).length;
 
   return (
-    <Card className={`p-4 ${isEditing ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}>
+    <Card className="p-4">
       <div className="space-y-3">
         {/* Top section */}
         <div className="flex items-start gap-3">
@@ -1406,15 +1496,6 @@ function PolygonCard({
             </p>
           </div>
 
-          {/* Editing Badge and content */}
-          <div className="flex-1 min-w-0 flex items-start pt-1">
-            {isEditing && (
-              <Badge variant="secondary" className="text-xs">
-                Editing
-              </Badge>
-            )}
-          </div>
-
           {/* Delete button */}
           <div className="flex-shrink-0">
             <Tooltip>
@@ -1439,16 +1520,21 @@ function PolygonCard({
         {polygon.species && (
           <div className="space-y-1">
             <p className="text-sm">
-              <span className="text-gray-500">This</span> <span className="font-semibold text-gray-700">proposed</span> <span className="text-gray-500">rule will designate all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <span className="font-semibold" style={{color: '#198240'}}>"{polygon.species.scientificName || polygon.species.name}"</span> <span className="text-gray-500">within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className="font-semibold text-red-600">suspicious</span><span className="text-gray-500">.</span>
+              <span className="text-gray-500">This</span> <span className="font-semibold text-gray-700">proposed</span> <span className="text-gray-500">rule will designate all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <span className="font-semibold" style={{color: '#198240'}}>"{polygon.species.scientificName || polygon.species.name}"</span> <span className="text-gray-500">within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${
+                annotation === 'SUSPICIOUS' ? 'text-red-600' :
+                annotation === 'NATIVE' ? 'text-green-600' :
+                annotation === 'MANAGED' ? 'text-blue-600' :
+                annotation === 'FORMER' ? 'text-purple-600' :
+                annotation === 'VAGRANT' ? 'text-orange-600' :
+                annotation === 'INTRODUCED' ? 'text-amber-600' :
+                'text-red-600'
+              }`}>{annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
             </p>
           </div>
         )}
 
         {/* Species Assignment Info */}
         <div className="space-y-1">
-          <p className="text-xs text-gray-600">
-            <span className="font-medium">Annotation:</span> SUSPICIOUS
-          </p>
         </div>
 
         {/* Action Buttons - Bottom Row */}
@@ -1592,7 +1678,7 @@ export function SavedPolygons({
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-gray-700">Active Rules (0)</h3>
+          <h3 className="text-gray-700 text-sm">Active Rules (0)</h3>
           {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
         </div>
         <div className="text-center py-8">
@@ -1643,22 +1729,26 @@ export function SavedPolygons({
         </div>
       )}
       
-      <div className="flex items-center justify-between">
-        <h3 className="text-gray-700">Active Rules ({polygons.length})</h3>
-        {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
+      {/* Active Rules Section with Green Border */}
+      <div className="border-2 border-green-300 rounded-lg p-4 bg-green-50/30">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-green-800 font-semibold text-sm">Active Rules ({polygons.length})</h3>
+          {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
+        </div>
+        <div className="space-y-3">
+          {polygons.map((polygon) => (
+            <PolygonCard
+              key={polygon.id}
+              polygon={polygon}
+              onDelete={onDelete}
+              onToggleInvert={onToggleInvert}
+              onUpdateAnnotation={onUpdateAnnotation}
+              onNavigateToPolygon={onNavigateToPolygon}
+              onRuleSavedToGBIF={onRuleSavedToGBIF}
+            />
+          ))}
+        </div>
       </div>
-      {polygons.map((polygon) => (
-        <PolygonCard
-          key={polygon.id}
-          polygon={polygon}
-          isEditing={editingPolygonId === polygon.id}
-          onDelete={onDelete}
-          onToggleInvert={onToggleInvert}
-          onUpdateAnnotation={onUpdateAnnotation}
-          onNavigateToPolygon={onNavigateToPolygon}
-          onRuleSavedToGBIF={onRuleSavedToGBIF}
-        />
-      ))}
     </div>
   );
 }
