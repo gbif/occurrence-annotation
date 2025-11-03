@@ -213,11 +213,11 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies }: SpeciesSel
   return (
     <div className="relative">
       {selectedSpecies ? (
-        <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2 flex items-center justify-between">
+        <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div>
               <span className="text-green-900">{selectedSpecies.name}</span>
-              <span className="text-green-700 text-sm italic ml-2">({selectedSpecies.scientificName})</span>
+              <span className="text-green-700 text-xs italic ml-2">({selectedSpecies.scientificName})</span>
             </div>
           </div>
           <Button

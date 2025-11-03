@@ -14,6 +14,37 @@ import { coordinatesToWKT } from '../utils/wktParser';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
 
+// Helper function to generate species page URL
+const getSpeciesPageUrl = (taxonKey: number): string => {
+  const isDevelopment = import.meta.env.DEV;
+  const baseUrl = isDevelopment ? 'http://localhost:3000' : window.location.origin;
+  return `${baseUrl}/?taxonKey=${taxonKey}`;
+};
+
+// Component for clickable species name
+const SpeciesLink = ({ species, className = "" }: { 
+  species: { scientificName?: string; name?: string; key?: number }; 
+  className?: string;
+}) => {
+  const displayName = species.scientificName || species.name || 'selected species';
+  
+  if (species.key) {
+    return (
+      <a 
+        href={getSpeciesPageUrl(species.key)} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className={`${className} hover:underline cursor-pointer`}
+        title={`View ${displayName} species page`}
+      >
+        "{displayName}"
+      </a>
+    );
+  }
+  
+  return <span className={className}>"{displayName}"</span>;
+};
+
 // Searchable multi-select component for Basis of Record
 // Supports typing to filter options, keyboard navigation, and chip-based selection
 function BasisOfRecordMultiSelect({ 
@@ -1105,7 +1136,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
                 {/* Complex Rule Display */}
                 <div className="mt-4 p-3 rounded-lg border border-gray-200 bg-gray-50">
                   <p className="text-base text-gray-800">
-                    This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of <span className="font-bold">"{polygon.species?.scientificName || polygon.species?.name || 'selected species'}"</span>
+                    This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of <SpeciesLink species={polygon.species} className="font-bold" />
                     {basisOfRecord && basisOfRecord.length > 0 && (
                       <> with basis of record <span className="font-bold">"{basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
                     )}
@@ -1133,7 +1164,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
               /* Simple Rule Display */
               <div className="p-3 rounded-lg border border-gray-200">
                 <p className="text-base text-gray-800">
-                  This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of <span className="font-bold">"{polygon.species?.scientificName || polygon.species?.name || 'selected species'}"</span> within the <span className="font-bold">polygon area</span> as <span className="font-bold text-red-600">suspicious</span>.
+                  This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of <SpeciesLink species={polygon.species} className="font-bold" /> within the <span className="font-bold">polygon area</span> as <span className="font-bold text-red-600">suspicious</span>.
                 </p>
               </div>
             )}
@@ -1520,7 +1551,7 @@ function PolygonCard({
         {polygon.species && (
           <div className="space-y-1">
             <p className="text-sm">
-              <span className="text-gray-500">This</span> <span className="font-semibold text-gray-700">proposed</span> <span className="text-gray-500">rule will designate all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <span className="font-semibold" style={{color: '#198240'}}>"{polygon.species.scientificName || polygon.species.name}"</span> <span className="text-gray-500">within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${
+              <span className="text-gray-500">This</span> <span className="font-semibold text-gray-700">proposed</span> <span className="text-gray-500">rule will designate all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <SpeciesLink species={polygon.species} className="font-semibold" style={{color: '#4C9C2E'}} /> <span className="text-gray-500">within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${
                 annotation === 'SUSPICIOUS' ? 'text-red-600' :
                 annotation === 'NATIVE' ? 'text-green-600' :
                 annotation === 'MANAGED' ? 'text-blue-600' :
@@ -1730,9 +1761,9 @@ export function SavedPolygons({
       )}
       
       {/* Active Rules Section with Green Border */}
-      <div className="border-2 border-green-300 rounded-lg p-4 bg-green-50/30">
+      <div className="border-2 rounded-lg p-4" style={{ borderColor: '#4C9C2E', backgroundColor: '#4C9C2E08' }}>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-green-800 font-semibold text-sm">Active Rules ({polygons.length})</h3>
+          <h3 className="font-semibold text-sm" style={{ color: '#4C9C2E' }}>Active Rules ({polygons.length})</h3>
           {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
         </div>
         <div className="space-y-3">

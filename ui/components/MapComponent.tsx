@@ -98,11 +98,68 @@ export function MapComponent({
   
   // Investigate mode state
   const [isInvestigateMode, setIsInvestigateMode] = useState(false);
-  const [investigateRadius, setInvestigateRadius] = useState(100000); // Default 100km radius
+  const [investigateRadius, setInvestigateRadius] = useState(200000); // Default 200km radius
   const [isInvestigateLoading, setIsInvestigateLoading] = useState(false);
   const [investigateResults, setInvestigateResults] = useState<any[]>([]);
   const [isInvestigateDialogOpen, setIsInvestigateDialogOpen] = useState(false);
   const [investigationPoint, setInvestigationPoint] = useState<{ lat: number; lng: number } | null>(null);
+  
+  // Function to calculate appropriate radius based on zoom level
+  const calculateRadiusForZoom = (zoomLevel: number): number => {
+    // Define radius mapping for different zoom levels
+    // Higher zoom = more detailed view = smaller radius
+    const zoomToRadius: { [key: number]: number } = {
+      2: 200000,  // Global view: 200km
+      3: 150000,  // Continental: 150km
+      4: 100000,  // Country: 100km
+      5: 75000,   // Region: 75km
+      6: 50000,   // State/Province: 50km
+      7: 35000,   // Metropolitan: 35km
+      8: 25000,   // City: 25km
+      9: 15000,   // District: 15km
+      10: 10000,  // Neighborhood: 10km
+      11: 7500,   // Local area: 7.5km
+      12: 5000,   // Block: 5km
+      13: 3000,   // Street: 3km
+      14: 2000,   // Building: 2km
+      15: 1500,   // Very detailed: 1.5km
+      16: 1000,   // Maximum detail: 1km
+    };
+    
+    // For zoom levels not in the map, interpolate or use closest
+    if (zoomToRadius[zoomLevel]) {
+      return zoomToRadius[zoomLevel];
+    }
+    
+    // For zoom levels higher than our map, use minimum radius
+    if (zoomLevel > 16) {
+      return 1000;
+    }
+    
+    // For zoom levels lower than our map, use maximum radius
+    if (zoomLevel < 2) {
+      return 200000;
+    }
+    
+    // Interpolate between closest values
+    const lowerZoom = Math.floor(zoomLevel);
+    const upperZoom = Math.ceil(zoomLevel);
+    const lowerRadius = zoomToRadius[lowerZoom] || 200000;
+    const upperRadius = zoomToRadius[upperZoom] || 200000;
+    const factor = zoomLevel - lowerZoom;
+    
+    return Math.round(lowerRadius + (upperRadius - lowerRadius) * factor);
+  };
+  
+  // Auto-adjust investigation radius based on zoom level
+  useEffect(() => {
+    // Only auto-adjust radius when investigation mode is active
+    if (isInvestigateMode) {
+      const newRadius = calculateRadiusForZoom(zoom);
+      setInvestigateRadius(newRadius);
+      console.log(`🔍 Auto-adjusted investigation radius: ${newRadius}m (${(newRadius/1000).toFixed(1)}km) for zoom level ${zoom}`);
+    }
+  }, [zoom, isInvestigateMode]);
   
   // Latitude band state
   const [latBandUpper, setLatBandUpper] = useState(3); // Upper bound (north)
@@ -2248,16 +2305,17 @@ export function MapComponent({
                   style={{ pointerEvents: 'auto' }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setInvestigateRadius(Math.min(100000, investigateRadius + 1000));
+                    setInvestigateRadius(Math.min(200000, investigateRadius + 1000));
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  disabled={investigateRadius >= 100000}
+                  disabled={investigateRadius >= 200000}
                   title="Increase radius"
                 >
                   <Plus className="w-3 h-3" />
                 </Button>
                 <span className="text-xs font-medium text-center py-1 relative z-40" style={{ pointerEvents: 'none' }}>
                   {(investigateRadius / 1000).toFixed(0)}km
+                  <div className="text-[10px] text-gray-500">Auto</div>
                 </span>
                 <Button
                   size="icon"
@@ -2376,7 +2434,6 @@ export function MapComponent({
             {savedPolygons.length > 0 && !editingPolygonId && (
               <>
                 <div className="w-full h-px bg-gray-200 my-1" />
-                <div className="px-2 py-1 text-xs text-gray-600 font-medium">Edit:</div>
                 {savedPolygons.map((polygon) => (
                   <Button
                     key={polygon.id}
@@ -2396,7 +2453,6 @@ export function MapComponent({
             {editingPolygonId && (
               <>
                 <div className="w-full h-px bg-gray-200 my-1" />
-                <div className="px-2 py-1 text-xs text-gray-600 font-medium">Tools:</div>
                 <Button 
                   onClick={() => onEditPolygon && onEditPolygon(editingPolygonId)}
                   size="icon" 

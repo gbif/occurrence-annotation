@@ -23,6 +23,43 @@ import {
   AlertDialogTrigger,
 } from './ui/alert-dialog';
 
+// Helper function to generate species page URL
+const getSpeciesPageUrl = (taxonKey: number): string => {
+  const isDevelopment = import.meta.env.DEV;
+  const baseUrl = isDevelopment ? 'http://localhost:3000' : window.location.origin;
+  return `${baseUrl}/?taxonKey=${taxonKey}`;
+};
+
+// Component for clickable species name in annotation rules
+const SpeciesLink = ({ 
+  scientificName, 
+  taxonKey, 
+  className = "", 
+  style = {} 
+}: { 
+  scientificName: string; 
+  taxonKey?: number; 
+  className?: string; 
+  style?: React.CSSProperties;
+}) => {
+  if (taxonKey) {
+    return (
+      <a 
+        href={getSpeciesPageUrl(taxonKey)} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className={`${className} hover:underline cursor-pointer`}
+        style={style}
+        title={`View ${scientificName} species page`}
+      >
+        "{scientificName}"
+      </a>
+    );
+  }
+  
+  return <span className={className} style={style}>"{scientificName}"</span>;
+};
+
 export interface RuleComment {
   id: number;
   comment: string;
@@ -1112,7 +1149,7 @@ export function AnnotationRules({
                   {rule.scientificName && (
                     <div className="col-span-2 mb-2">
                       <p className="text-sm">
-                        <span className="text-gray-500">This rule designates all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <span className="font-semibold" style={{color: '#198240'}}>"{rule.scientificName}"</span>
+                        <span className="text-gray-500">This rule designates all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <SpeciesLink scientificName={rule.scientificName} taxonKey={rule.taxonKey} className="font-semibold" />
                         {rule.basisOfRecord && rule.basisOfRecord.length > 0 && (
                           <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold">"{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
                         )}

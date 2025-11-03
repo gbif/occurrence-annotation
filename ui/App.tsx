@@ -353,15 +353,6 @@ export default function App() {
               Create rules that will apply to past and future occurrence records
             </p>
           </div>
-      {/* Species Selector */}
-      <div className="p-4 border-b bg-gray-50">
-        <div style={{ position: 'relative', zIndex: 50 }}>
-          <SpeciesSelector
-            selectedSpecies={selectedSpecies}
-            onSelectSpecies={setSelectedSpecies}
-          />
-        </div>
-      </div>
       
       <div className="flex-1 overflow-auto">
         <div className="p-4 border-b">
@@ -416,6 +407,22 @@ export default function App() {
 
     {/* Map - Now takes full height with no header */}
     <main className="absolute inset-0 left-80" style={{ contain: 'layout style' }}>
+      {/* Floating species selector - positioned at top but right of polygon tools */}
+      <div className="absolute top-4 left-20 z-20" style={{ minWidth: '250px', maxWidth: '350px' }}>
+        <div style={{ 
+          backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+          borderRadius: '6px',
+          border: '1px solid rgba(0, 0, 0, 0.1)',
+          backdropFilter: 'blur(8px)',
+          padding: '8px'
+        }}>
+          <SpeciesSelector
+            selectedSpecies={selectedSpecies}
+            onSelectSpecies={setSelectedSpecies}
+          />
+        </div>
+      </div>
+      
       {/* Floating login button */}
       <div className="absolute top-4 right-4 z-20">
         <LoginButton />
