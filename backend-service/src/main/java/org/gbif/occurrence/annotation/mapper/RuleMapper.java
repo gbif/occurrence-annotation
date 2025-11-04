@@ -29,6 +29,9 @@ public interface RuleMapper {
       @Param("projectId") Integer projectId,
       @Param("basisOfRecord") String[] basisOfRecord,
       @Param("yearRange") String yearRange,
+      @Param("createdBy") String createdBy,
+      @Param("supportedBy") String supportedBy,
+      @Param("contestedBy") String contestedBy,
       @Param("comment") String comment,
       @Param("limit") int limit,
       @Param("offset") int offset);

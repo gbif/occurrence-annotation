@@ -27,6 +27,15 @@
         <if test="yearRange != null" >
             AND year_range = #{yearRange}
         </if>
+        <if test="createdBy != null" >
+            AND created_by = #{createdBy}
+        </if>
+        <if test="supportedBy != null" >
+            AND #{supportedBy} = ANY(supported_by)
+        </if>
+        <if test="contestedBy != null" >
+            AND #{contestedBy} = ANY(contested_by)
+        </if>
         <if test="comment != null" >
             AND id IN (
               SELECT DISTINCT rule_id FROM comment WHERE deleted IS NULL AND comment LIKE '%' || #{comment} || '%'

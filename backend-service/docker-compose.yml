@@ -24,7 +24,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.multistage
     container_name: occurrence-annotation-backend
     depends_on:
       postgres:

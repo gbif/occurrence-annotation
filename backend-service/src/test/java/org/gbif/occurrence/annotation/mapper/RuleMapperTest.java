@@ -144,7 +144,18 @@ public class RuleMapperTest {
     // Test filtering by single basisOfRecord
     List<Rule> results =
         ruleMapper.list(
-            null, null, null, null, new String[] {"PRESERVED_SPECIMEN"}, null, null, 100, 0);
+            null,
+            null,
+            null,
+            null,
+            new String[] {"PRESERVED_SPECIMEN"},
+            null,
+            null,
+            null,
+            null,
+            null,
+            100,
+            0);
 
     assertEquals(2, results.size(), "Should find 2 rules with PRESERVED_SPECIMEN");
 
@@ -158,6 +169,9 @@ public class RuleMapperTest {
             new String[] {"PRESERVED_SPECIMEN", "MACHINE_OBSERVATION"},
             null,
             null,
+            null,
+            null,
+            null,
             100,
             0);
 
@@ -166,7 +180,19 @@ public class RuleMapperTest {
 
     // Test filtering by non-existent basisOfRecord
     results =
-        ruleMapper.list(null, null, null, null, new String[] {"NON_EXISTENT"}, null, null, 100, 0);
+        ruleMapper.list(
+            null,
+            null,
+            null,
+            null,
+            new String[] {"NON_EXISTENT"},
+            null,
+            null,
+            null,
+            null,
+            null,
+            100,
+            0);
 
     assertEquals(0, results.size(), "Should find 0 rules with NON_EXISTENT");
   }
@@ -183,7 +209,8 @@ public class RuleMapperTest {
     ruleMapper.create(rule2);
 
     // Test listing without filter
-    List<Rule> results = ruleMapper.list(null, null, null, null, null, null, null, 100, 0);
+    List<Rule> results =
+        ruleMapper.list(null, null, null, null, null, null, null, null, null, null, 100, 0);
 
     assertTrue(results.size() >= 2, "Should find at least 2 rules");
   }
@@ -195,7 +222,8 @@ public class RuleMapperTest {
 
     // Test with empty array - should return all rules (no filtering)
     List<Rule> results =
-        ruleMapper.list(null, null, null, null, new String[] {}, null, null, 100, 0);
+        ruleMapper.list(
+            null, null, null, null, new String[] {}, null, null, null, null, null, 100, 0);
 
     assertTrue(results.size() >= 1, "Should find rules when no filter is applied");
   }
@@ -230,6 +258,9 @@ public class RuleMapperTest {
             new String[] {"HUMAN_OBSERVATION", "FOSSIL_SPECIMEN"},
             null,
             null,
+            null,
+            null,
+            null,
             100,
             0);
 
@@ -238,8 +269,115 @@ public class RuleMapperTest {
     // Test exact match filter
     results =
         ruleMapper.list(
-            null, null, null, null, new String[] {"MACHINE_OBSERVATION"}, null, null, 100, 0);
+            null,
+            null,
+            null,
+            null,
+            new String[] {"MACHINE_OBSERVATION"},
+            null,
+            null,
+            null,
+            null,
+            null,
+            100,
+            0);
 
     assertEquals(1, results.size(), "Should find 1 rule with MACHINE_OBSERVATION");
+  }
+
+  @Test
+  public void testListRulesWithCreatedByFilter() {
+    // Create rules with different creators
+    Rule rule1 = createTestRule();
+    rule1.setCreatedBy("alice");
+    rule1.setTaxonKey(11111);
+    ruleMapper.create(rule1);
+
+    Rule rule2 = createTestRule();
+    rule2.setCreatedBy("bob");
+    rule2.setTaxonKey(22222);
+    ruleMapper.create(rule2);
+
+    Rule rule3 = createTestRule();
+    rule3.setCreatedBy("alice");
+    rule3.setTaxonKey(33333);
+    ruleMapper.create(rule3);
+
+    Rule rule4 = createTestRule();
+    rule4.setCreatedBy("charlie");
+    rule4.setTaxonKey(44444);
+    ruleMapper.create(rule4);
+
+    // Test filtering by specific creator - alice should have 2 rules
+    List<Rule> results =
+        ruleMapper.list(null, null, null, null, null, null, "alice", null, null, null, 100, 0);
+
+    assertEquals(2, results.size(), "Should find 2 rules created by alice");
+    assertTrue(
+        results.stream().allMatch(rule -> "alice".equals(rule.getCreatedBy())),
+        "All returned rules should be created by alice");
+
+    // Test filtering by specific creator - bob should have 1 rule
+    results = ruleMapper.list(null, null, null, null, null, null, "bob", null, null, null, 100, 0);
+
+    assertEquals(1, results.size(), "Should find 1 rule created by bob");
+    assertEquals("bob", results.get(0).getCreatedBy(), "Returned rule should be created by bob");
+
+    // Test filtering by specific creator - charlie should have 1 rule
+    results =
+        ruleMapper.list(null, null, null, null, null, null, "charlie", null, null, null, 100, 0);
+
+    assertEquals(1, results.size(), "Should find 1 rule created by charlie");
+    assertEquals(
+        "charlie", results.get(0).getCreatedBy(), "Returned rule should be created by charlie");
+
+    // Test filtering by non-existent creator
+    results =
+        ruleMapper.list(
+            null, null, null, null, null, null, "nonexistent", null, null, null, 100, 0);
+
+    assertEquals(0, results.size(), "Should find 0 rules created by nonexistent user");
+
+    // Test without createdBy filter - should return all rules
+    results = ruleMapper.list(null, null, null, null, null, null, null, null, null, null, 100, 0);
+
+    assertTrue(
+        results.size() >= 4, "Should find at least 4 rules when no createdBy filter is applied");
+  }
+
+  @Test
+  public void testListRulesWithCombinedFilters() {
+    // Create rules with different combinations of taxonKey and createdBy
+    Rule rule1 = createTestRule();
+    rule1.setCreatedBy("alice");
+    rule1.setTaxonKey(12345);
+    ruleMapper.create(rule1);
+
+    Rule rule2 = createTestRule();
+    rule2.setCreatedBy("bob");
+    rule2.setTaxonKey(12345);
+    ruleMapper.create(rule2);
+
+    Rule rule3 = createTestRule();
+    rule3.setCreatedBy("alice");
+    rule3.setTaxonKey(67890);
+    ruleMapper.create(rule3);
+
+    // Test combining taxonKey and createdBy filters
+    List<Rule> results =
+        ruleMapper.list(12345, null, null, null, null, null, "alice", null, null, null, 100, 0);
+
+    assertEquals(1, results.size(), "Should find 1 rule with taxonKey=12345 and createdBy=alice");
+    assertEquals(
+        "alice", results.get(0).getCreatedBy(), "Returned rule should be created by alice");
+    assertEquals(
+        Integer.valueOf(12345),
+        results.get(0).getTaxonKey(),
+        "Returned rule should have taxonKey=12345");
+
+    // Test with filters that should return no results
+    results = ruleMapper.list(67890, null, null, null, null, null, "bob", null, null, null, 100, 0);
+
+    assertEquals(0, results.size(), "Should find 0 rules with taxonKey=67890 and createdBy=bob");
   }
 }

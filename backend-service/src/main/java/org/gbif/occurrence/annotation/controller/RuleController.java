@@ -50,7 +50,7 @@ public class RuleController implements Controller<Rule> {
 
   @Operation(
       summary =
-          "List all rules that are not deleted, optionally filtered by taxonKey, datasetKey, rulesetId, basisOfRecord, yearRange and containing the comment text")
+          "List all rules that are not deleted, optionally filtered by taxonKey, datasetKey, rulesetId, basisOfRecord, yearRange, createdBy, supportedBy, contestedBy and containing the comment text")
   @Parameter(name = "taxonKey", description = "Filters by taxonKey")
   @Parameter(name = "contextKey", description = "Filters by context key")
   @Parameter(name = "rulesetId", description = "Filters by the given ruleset")
@@ -61,6 +61,9 @@ public class RuleController implements Controller<Rule> {
   @Parameter(
       name = "yearRange",
       description = "Filters by year range (e.g., '1000,2025', '*,1990', '1000,*')")
+  @Parameter(name = "createdBy", description = "Filters by the username who created the rule")
+  @Parameter(name = "supportedBy", description = "Filters by rules supported by the given username")
+  @Parameter(name = "contestedBy", description = "Filters by rules contested by the given username")
   @Parameter(
       name = "comment",
       description = "Filters to rules with a non-deleted comment containing the given text")
@@ -74,6 +77,9 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) Integer projectId,
       @RequestParam(required = false) String[] basisOfRecord,
       @RequestParam(required = false) String yearRange,
+      @RequestParam(required = false) String createdBy,
+      @RequestParam(required = false) String supportedBy,
+      @RequestParam(required = false) String contestedBy,
       @RequestParam(required = false) String comment,
       @RequestParam(required = false) Integer limit,
       @RequestParam(required = false) Integer offset) {
@@ -86,6 +92,102 @@ public class RuleController implements Controller<Rule> {
         projectId,
         basisOfRecord,
         yearRange,
+        createdBy,
+        supportedBy,
+        contestedBy,
+        comment,
+        limitInt,
+        offsetInt);
+  }
+
+  @Operation(summary = "Get rules created by the current logged-in user")
+  @GetMapping("/my")
+  @Secured("USER")
+  public List<Rule> getMyRules(
+      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String datasetKey,
+      @RequestParam(required = false) Integer rulesetId,
+      @RequestParam(required = false) Integer projectId,
+      @RequestParam(required = false) String[] basisOfRecord,
+      @RequestParam(required = false) String yearRange,
+      @RequestParam(required = false) String comment,
+      @RequestParam(required = false) Integer limit,
+      @RequestParam(required = false) Integer offset) {
+    int limitInt = limit == null ? 100 : limit;
+    int offsetInt = offset == null ? 0 : offset;
+    String currentUser = getLoggedInUser();
+    return ruleMapper.list(
+        taxonKey,
+        datasetKey,
+        rulesetId,
+        projectId,
+        basisOfRecord,
+        yearRange,
+        currentUser, // createdBy = current user
+        null, // supportedBy
+        null, // contestedBy
+        comment,
+        limitInt,
+        offsetInt);
+  }
+
+  @Operation(summary = "Get rules supported by the current logged-in user")
+  @GetMapping("/supported")
+  @Secured("USER")
+  public List<Rule> getSupportedRules(
+      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String datasetKey,
+      @RequestParam(required = false) Integer rulesetId,
+      @RequestParam(required = false) Integer projectId,
+      @RequestParam(required = false) String[] basisOfRecord,
+      @RequestParam(required = false) String yearRange,
+      @RequestParam(required = false) String comment,
+      @RequestParam(required = false) Integer limit,
+      @RequestParam(required = false) Integer offset) {
+    int limitInt = limit == null ? 100 : limit;
+    int offsetInt = offset == null ? 0 : offset;
+    String currentUser = getLoggedInUser();
+    return ruleMapper.list(
+        taxonKey,
+        datasetKey,
+        rulesetId,
+        projectId,
+        basisOfRecord,
+        yearRange,
+        null, // createdBy
+        currentUser, // supportedBy = current user
+        null, // contestedBy
+        comment,
+        limitInt,
+        offsetInt);
+  }
+
+  @Operation(summary = "Get rules contested by the current logged-in user")
+  @GetMapping("/contested")
+  @Secured("USER")
+  public List<Rule> getContestedRules(
+      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String datasetKey,
+      @RequestParam(required = false) Integer rulesetId,
+      @RequestParam(required = false) Integer projectId,
+      @RequestParam(required = false) String[] basisOfRecord,
+      @RequestParam(required = false) String yearRange,
+      @RequestParam(required = false) String comment,
+      @RequestParam(required = false) Integer limit,
+      @RequestParam(required = false) Integer offset) {
+    int limitInt = limit == null ? 100 : limit;
+    int offsetInt = offset == null ? 0 : offset;
+    String currentUser = getLoggedInUser();
+    return ruleMapper.list(
+        taxonKey,
+        datasetKey,
+        rulesetId,
+        projectId,
+        basisOfRecord,
+        yearRange,
+        null, // createdBy
+        null, // supportedBy
+        currentUser, // contestedBy = current user
         comment,
         limitInt,
         offsetInt);
