@@ -380,6 +380,7 @@ export function MapComponent({
           setZoom(zoom);
         }
       };
+      // Note: Removed pending navigation check - zoom to rules disabled
     }
     return () => {
       (window as any).__navigateToLocation = undefined;

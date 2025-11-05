@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Input } from './ui/input';
@@ -99,16 +100,18 @@ export function LoginButton() {
   if (user) {
     return (
       <div className="flex items-center gap-2">
-        <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
-          <User className="w-4 h-4 text-green-700" />
-          <div className="text-sm">
-            <p className="text-green-900">
-              {user.firstName && user.lastName 
-                ? `${user.firstName} ${user.lastName}` 
-                : user.userName}
-            </p>
+        <Link to={`/user/${user.userName}`} className="no-underline">
+          <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors cursor-pointer">
+            <User className="w-4 h-4 text-green-700" />
+            <div className="text-sm">
+              <p className="text-green-900">
+                {user.firstName && user.lastName 
+                  ? `${user.firstName} ${user.lastName}` 
+                  : user.userName}
+              </p>
+            </div>
           </div>
-        </div>
+        </Link>
         <Button onClick={handleLogout} variant="outline" size="sm">
           <LogOut className="w-4 h-4 mr-2" />
           Logout

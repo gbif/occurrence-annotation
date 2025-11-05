@@ -33,9 +33,10 @@ export interface SelectedSpecies {
 interface SpeciesSelectorProps {
   selectedSpecies: SelectedSpecies | null;
   onSelectSpecies: (species: SelectedSpecies | null) => void;
+  placeholder?: string;
 }
 
-export function SpeciesSelector({ selectedSpecies, onSelectSpecies }: SpeciesSelectorProps) {
+export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder = "Search for scientific name..." }: SpeciesSelectorProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<Species[]>([]);
   const [recentSpecies, setRecentSpecies] = useState<SelectedSpecies[]>([]);
@@ -238,7 +239,7 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies }: SpeciesSel
           <div className="relative">
             <Input
               ref={inputRef}
-              placeholder="Search for scientific name..."
+              placeholder={placeholder}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyPress={handleKeyPress}

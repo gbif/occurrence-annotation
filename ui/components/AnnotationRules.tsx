@@ -8,7 +8,6 @@ import { toast } from 'sonner';
 import { SelectedSpecies } from './SpeciesSelector';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl, getGbifApiUrl } from '../utils/apiConfig';
 import {
@@ -95,7 +94,6 @@ interface AnnotationRulesProps {
   showHigherOrderRules?: boolean;
   onShowHigherOrderChange?: (show: boolean) => void;
   onRulesLoad?: (rules: AnnotationRule[]) => void;
-  onNavigateToPolygon?: (lat: number, lng: number) => void;
   refreshTrigger?: number; // Add this to force refresh when rules are saved
 }
 
@@ -104,7 +102,6 @@ export function AnnotationRules({
   showHigherOrderRules = false,
   onShowHigherOrderChange,
   onRulesLoad,
-  onNavigateToPolygon,
   refreshTrigger
 }: AnnotationRulesProps) {
   const [rules, setRules] = useState<AnnotationRule[]>([]);
@@ -849,56 +846,7 @@ export function AnnotationRules({
     }
   };
 
-  const getPolygonStrokeColor = (annotation: string) => {
-    switch (annotation.toUpperCase()) {
-      case 'SUSPICIOUS':
-        return '#dc2626'; // red-600
-      case 'NATIVE':
-        return '#059669'; // green-600
-      case 'MANAGED':
-        return '#2563eb'; // blue-600
-      case 'FORMER':
-        return '#9333ea'; // purple-600
-      case 'VAGRANT':
-        return '#ea580c'; // orange-600
-      default:
-        return '#6b7280'; // gray-500
-    }
-  };
-
-  const getPolygonFillColor = (annotation: string) => {
-    switch (annotation.toUpperCase()) {
-      case 'SUSPICIOUS':
-        return 'rgba(220, 38, 38, 0.1)'; // red with opacity
-      case 'NATIVE':
-        return 'rgba(5, 150, 105, 0.1)'; // green with opacity
-      case 'MANAGED':
-        return 'rgba(37, 99, 235, 0.1)'; // blue with opacity
-      case 'FORMER':
-        return 'rgba(147, 51, 234, 0.1)'; // purple with opacity
-      case 'VAGRANT':
-        return 'rgba(234, 88, 12, 0.1)'; // orange with opacity
-      default:
-        return 'rgba(107, 114, 128, 0.1)'; // gray with opacity
-    }
-  };
-
-  // Calculate center point of a multipolygon
-  const calculatePolygonCenter = (multiPolygon: MultiPolygon): [number, number] => {
-    const allCoords = multiPolygon.polygons.flatMap(poly => 
-      poly.outer // Just use outer ring for center calculation
-    );
-    
-    if (allCoords.length === 0) return [0, 0];
-    
-    // Calculate centroid
-    const sumLat = allCoords.reduce((sum, coord) => sum + coord[0], 0);
-    const sumLng = allCoords.reduce((sum, coord) => sum + coord[1], 0);
-    
-    return [sumLat / allCoords.length, sumLng / allCoords.length];
-  };
-
-  const renderPolygonPreview = (multiPolygon: MultiPolygon | undefined, annotation: string, onClick?: () => void) => {
+  const renderPolygonPreview = (multiPolygon: MultiPolygon | undefined, annotation: string) => {
     if (!multiPolygon || multiPolygon.polygons.length === 0) return null;
 
     // Helper function to detect if a polygon is inverted by checking if outer ring covers the world
@@ -965,34 +913,11 @@ export function AnnotationRules({
         annotation={annotation}
         width={80}
         height={60}
-        className={`rounded-md shadow-sm ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+        className="rounded-md shadow-sm"
       />
     );
 
-    // Add click handler wrapper if needed
-    const clickableElement = onClick ? (
-      <div onClick={onClick}>
-        {previewElement}
-      </div>
-    ) : previewElement;
-
-    // Wrap with tooltip if clickable
-    if (onClick) {
-      return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              {clickableElement}
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Zoom to location</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      );
-    }
-
-    return clickableElement;
+    return previewElement;
   };
 
   if (!selectedSpecies) {
@@ -1123,12 +1048,7 @@ export function AnnotationRules({
                 {/* Polygon preview */}
                 {rule.multiPolygon && (
                   <div className="flex-shrink-0">
-                    {renderPolygonPreview(rule.multiPolygon, rule.annotation, 
-                      onNavigateToPolygon ? () => {
-                        const [lat, lng] = calculatePolygonCenter(rule.multiPolygon!);
-                        onNavigateToPolygon(lat, lng);
-                      } : undefined
-                    )}
+                    {renderPolygonPreview(rule.multiPolygon, rule.annotation)}
                   </div>
                 )}
                 

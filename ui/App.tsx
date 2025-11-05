@@ -6,7 +6,8 @@ import { SavedPolygons } from './components/SavedPolygons';
 import { LoginButton } from './components/LoginButton';
 import { AnnotationRules, AnnotationRule } from './components/AnnotationRules';
 import { toast } from 'sonner';
-import { getGbifApiUrl } from './utils/apiConfig';
+import { getGbifApiUrl, getAnnotationApiUrl } from './utils/apiConfig';
+import { parseWKTGeometry } from './utils/wktParser';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
@@ -69,6 +70,7 @@ export default function App() {
   const loadSpeciesFromURL = async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const taxonKey = urlParams.get('taxonKey');
+    const ruleId = urlParams.get('ruleId') || urlParams.get('id');
     
     if (taxonKey) {
       try {
@@ -98,6 +100,33 @@ export default function App() {
       } catch (error) {
         console.error('Error loading species from URL:', error);
         toast.error(`Failed to load species with taxon key "${taxonKey}"`);
+      }
+    }
+
+    // If there's a rule ID, fetch the rule and display it on the map
+    if (ruleId) {
+      try {
+        const resp = await fetch(getAnnotationApiUrl(`/rule/${ruleId}`));
+        if (resp.ok) {
+          const ruleData = await resp.json();
+          const multiPolygon = parseWKTGeometry(ruleData.geometry || ruleData.wkt || '');
+
+          // Add to local annotationRules so MapComponent will render it
+          const ruleWithCoords = { ...ruleData, multiPolygon } as AnnotationRule;
+          setAnnotationRules(prev => [ruleWithCoords, ...prev]);
+          setShowAnnotationRules(true);
+
+          // Note: Removed automatic zoom to rule - mini map preview shows location
+
+          toast.success(`Viewing rule: ${ruleId.slice(-8)}`, {
+            description: 'Rule has been highlighted on the map',
+          });
+        } else {
+          toast.error(`Rule ${ruleId} not found`);
+        }
+      } catch (err) {
+        console.error('Error fetching rule by id from URL:', err);
+        toast.error('Failed to load rule from URL');
       }
     }
   };
@@ -373,7 +402,6 @@ export default function App() {
               setCurrentAnnotation(newAnnotation);
             }}
             currentAnnotation={currentAnnotation}
-            onNavigateToPolygon={handleNavigateToPolygon}
             onRuleSavedToGBIF={handleRuleSavedToGBIF}
           />
         </div>
@@ -398,7 +426,6 @@ export default function App() {
             showHigherOrderRules={showHigherOrderRules}
             onShowHigherOrderChange={setShowHigherOrderRules}
             onRulesLoad={handleAnnotationRulesLoad}
-            onNavigateToPolygon={handleNavigateToPolygon}
             refreshTrigger={annotationRulesRefreshTrigger}
           />
         </div>
