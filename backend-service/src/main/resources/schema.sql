@@ -37,6 +37,7 @@ CREATE TABLE rule (
     geometry TEXT NOT NULL,
     annotation TEXT NOT NULL,
     basis_of_record TEXT[],
+    basis_of_record_negated BOOLEAN DEFAULT FALSE,
     year_range TEXT,
     ruleset_id INT REFERENCES ruleset ON DELETE CASCADE DEFERRABLE,
     project_id INT REFERENCES project ON DELETE CASCADE DEFERRABLE,

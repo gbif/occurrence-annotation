@@ -28,6 +28,7 @@ public interface RuleMapper {
       @Param("rulesetId") Integer rulesetId,
       @Param("projectId") Integer projectId,
       @Param("basisOfRecord") String[] basisOfRecord,
+      @Param("basisOfRecordNegated") Boolean basisOfRecordNegated,
       @Param("yearRange") String yearRange,
       @Param("createdBy") String createdBy,
       @Param("supportedBy") String supportedBy,

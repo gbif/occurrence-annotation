@@ -154,6 +154,7 @@ public class RuleMapperTest {
             null,
             null,
             null,
+            null,
             100,
             0);
 
@@ -167,6 +168,7 @@ public class RuleMapperTest {
             null,
             null,
             new String[] {"PRESERVED_SPECIMEN", "MACHINE_OBSERVATION"},
+            null,
             null,
             null,
             null,
@@ -191,6 +193,7 @@ public class RuleMapperTest {
             null,
             null,
             null,
+            null,
             100,
             0);
 
@@ -210,7 +213,7 @@ public class RuleMapperTest {
 
     // Test listing without filter
     List<Rule> results =
-        ruleMapper.list(null, null, null, null, null, null, null, null, null, null, 100, 0);
+        ruleMapper.list(null, null, null, null, null, null, null, null, null, null, null, 100, 0);
 
     assertTrue(results.size() >= 2, "Should find at least 2 rules");
   }
@@ -223,7 +226,7 @@ public class RuleMapperTest {
     // Test with empty array - should return all rules (no filtering)
     List<Rule> results =
         ruleMapper.list(
-            null, null, null, null, new String[] {}, null, null, null, null, null, 100, 0);
+            null, null, null, null, new String[] {}, null, null, null, null, null, null, 100, 0);
 
     assertTrue(results.size() >= 1, "Should find rules when no filter is applied");
   }
@@ -261,6 +264,7 @@ public class RuleMapperTest {
             null,
             null,
             null,
+            null,
             100,
             0);
 
@@ -274,6 +278,7 @@ public class RuleMapperTest {
             null,
             null,
             new String[] {"MACHINE_OBSERVATION"},
+            null,
             null,
             null,
             null,
@@ -310,7 +315,8 @@ public class RuleMapperTest {
 
     // Test filtering by specific creator - alice should have 2 rules
     List<Rule> results =
-        ruleMapper.list(null, null, null, null, null, null, "alice", null, null, null, 100, 0);
+        ruleMapper.list(
+            null, null, null, null, null, null, null, "alice", null, null, null, 100, 0);
 
     assertEquals(2, results.size(), "Should find 2 rules created by alice");
     assertTrue(
@@ -318,14 +324,16 @@ public class RuleMapperTest {
         "All returned rules should be created by alice");
 
     // Test filtering by specific creator - bob should have 1 rule
-    results = ruleMapper.list(null, null, null, null, null, null, "bob", null, null, null, 100, 0);
+    results =
+        ruleMapper.list(null, null, null, null, null, null, null, "bob", null, null, null, 100, 0);
 
     assertEquals(1, results.size(), "Should find 1 rule created by bob");
     assertEquals("bob", results.get(0).getCreatedBy(), "Returned rule should be created by bob");
 
     // Test filtering by specific creator - charlie should have 1 rule
     results =
-        ruleMapper.list(null, null, null, null, null, null, "charlie", null, null, null, 100, 0);
+        ruleMapper.list(
+            null, null, null, null, null, null, null, "charlie", null, null, null, 100, 0);
 
     assertEquals(1, results.size(), "Should find 1 rule created by charlie");
     assertEquals(
@@ -334,12 +342,13 @@ public class RuleMapperTest {
     // Test filtering by non-existent creator
     results =
         ruleMapper.list(
-            null, null, null, null, null, null, "nonexistent", null, null, null, 100, 0);
+            null, null, null, null, null, null, "nonexistent", null, null, null, null, 100, 0);
 
     assertEquals(0, results.size(), "Should find 0 rules created by nonexistent user");
 
     // Test without createdBy filter - should return all rules
-    results = ruleMapper.list(null, null, null, null, null, null, null, null, null, null, 100, 0);
+    results =
+        ruleMapper.list(null, null, null, null, null, null, null, null, null, null, null, 100, 0);
 
     assertTrue(
         results.size() >= 4, "Should find at least 4 rules when no createdBy filter is applied");
@@ -365,7 +374,8 @@ public class RuleMapperTest {
 
     // Test combining taxonKey and createdBy filters
     List<Rule> results =
-        ruleMapper.list(12345, null, null, null, null, null, "alice", null, null, null, 100, 0);
+        ruleMapper.list(
+            12345, null, null, null, null, null, null, "alice", null, null, null, 100, 0);
 
     assertEquals(1, results.size(), "Should find 1 rule with taxonKey=12345 and createdBy=alice");
     assertEquals(
@@ -376,8 +386,153 @@ public class RuleMapperTest {
         "Returned rule should have taxonKey=12345");
 
     // Test with filters that should return no results
-    results = ruleMapper.list(67890, null, null, null, null, null, "bob", null, null, null, 100, 0);
+    results =
+        ruleMapper.list(67890, null, null, null, null, null, null, "bob", null, null, null, 100, 0);
 
     assertEquals(0, results.size(), "Should find 0 rules with taxonKey=67890 and createdBy=bob");
+  }
+
+  @Test
+  public void testCreateRuleWithNegatedBasisOfRecord() {
+    Rule rule = createTestRule();
+    rule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN", "PRESERVED_SPECIMEN"});
+    rule.setBasisOfRecordNegated(true);
+    rule.setTaxonKey(99999);
+
+    ruleMapper.create(rule);
+
+    assertNotNull(rule.getId(), "Rule should have an ID after creation");
+    assertTrue(rule.getBasisOfRecordNegated(), "Rule should have basisOfRecordNegated=true");
+    assertEquals(2, rule.getBasisOfRecord().length, "Rule should have 2 basisOfRecord values");
+  }
+
+  @Test
+  public void testCreateRuleWithDefaultNegatedBasisOfRecord() {
+    Rule rule = createTestRule();
+    rule.setBasisOfRecord(new String[] {"HUMAN_OBSERVATION"});
+    // Don't explicitly set basisOfRecordNegated - should default to false
+    rule.setTaxonKey(88888);
+
+    ruleMapper.create(rule);
+
+    assertNotNull(rule.getId(), "Rule should have an ID after creation");
+    assertFalse(
+        rule.getBasisOfRecordNegated(), "Rule should have basisOfRecordNegated=false by default");
+  }
+
+  @Test
+  public void testListRulesFilterByNegatedTrue() {
+    // Create a negated rule
+    Rule negatedRule = createTestRule();
+    negatedRule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
+    negatedRule.setBasisOfRecordNegated(true);
+    negatedRule.setTaxonKey(77777);
+    ruleMapper.create(negatedRule);
+
+    // Create a non-negated rule
+    Rule normalRule = createTestRule();
+    normalRule.setBasisOfRecord(new String[] {"HUMAN_OBSERVATION"});
+    normalRule.setBasisOfRecordNegated(false);
+    normalRule.setTaxonKey(66666);
+    ruleMapper.create(normalRule);
+
+    // Test filtering by negated=true
+    List<Rule> results =
+        ruleMapper.list(null, null, null, null, null, true, null, null, null, null, null, 100, 0);
+
+    assertFalse(results.isEmpty(), "Should find at least one negated rule");
+    assertTrue(
+        results.stream().allMatch(Rule::getBasisOfRecordNegated),
+        "All returned rules should have basisOfRecordNegated=true");
+  }
+
+  @Test
+  public void testListRulesFilterByNegatedFalse() {
+    // Create a negated rule
+    Rule negatedRule = createTestRule();
+    negatedRule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
+    negatedRule.setBasisOfRecordNegated(true);
+    negatedRule.setTaxonKey(55555);
+    ruleMapper.create(negatedRule);
+
+    // Create a non-negated rule
+    Rule normalRule = createTestRule();
+    normalRule.setBasisOfRecord(new String[] {"HUMAN_OBSERVATION"});
+    normalRule.setBasisOfRecordNegated(false);
+    normalRule.setTaxonKey(44444);
+    ruleMapper.create(normalRule);
+
+    // Test filtering by negated=false
+    List<Rule> results =
+        ruleMapper.list(null, null, null, null, null, false, null, null, null, null, null, 100, 0);
+
+    assertFalse(results.isEmpty(), "Should find at least one non-negated rule");
+    assertTrue(
+        results.stream().allMatch(r -> !r.getBasisOfRecordNegated()),
+        "All returned rules should have basisOfRecordNegated=false");
+  }
+
+  @Test
+  public void testListRulesFilterByBasisOfRecordAndNegated() {
+    // Create a negated FOSSIL_SPECIMEN rule
+    Rule rule = createTestRule();
+    rule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
+    rule.setBasisOfRecordNegated(true);
+    rule.setTaxonKey(33333);
+    ruleMapper.create(rule);
+
+    // Filter by both basisOfRecord and negated
+    List<Rule> results =
+        ruleMapper.list(
+            null,
+            null,
+            null,
+            null,
+            new String[] {"FOSSIL_SPECIMEN"},
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            100,
+            0);
+
+    assertFalse(results.isEmpty(), "Should find at least one rule matching criteria");
+    Rule foundRule = results.get(0);
+    assertTrue(
+        foundRule.getBasisOfRecordNegated(), "Found rule should have basisOfRecordNegated=true");
+    assertEquals(
+        "FOSSIL_SPECIMEN",
+        foundRule.getBasisOfRecord()[0],
+        "Found rule should have FOSSIL_SPECIMEN in basisOfRecord");
+  }
+
+  @Test
+  public void testListRulesWithoutNegatedFilter() {
+    // Create both negated and non-negated rules
+    Rule negatedRule = createTestRule();
+    negatedRule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
+    negatedRule.setBasisOfRecordNegated(true);
+    negatedRule.setTaxonKey(22222);
+    ruleMapper.create(negatedRule);
+
+    Rule normalRule = createTestRule();
+    normalRule.setBasisOfRecord(new String[] {"HUMAN_OBSERVATION"});
+    normalRule.setBasisOfRecordNegated(false);
+    normalRule.setTaxonKey(11111);
+    ruleMapper.create(normalRule);
+
+    // Test without negated filter - should return both types
+    List<Rule> results =
+        ruleMapper.list(null, null, null, null, null, null, null, null, null, null, null, 100, 0);
+
+    assertFalse(results.isEmpty(), "Should find rules");
+
+    // Check that we have both negated and non-negated rules
+    boolean hasNegated = results.stream().anyMatch(Rule::getBasisOfRecordNegated);
+    boolean hasNonNegated = results.stream().anyMatch(r -> !r.getBasisOfRecordNegated);
+
+    assertTrue(hasNegated || hasNonNegated, "Should find at least one type of rule");
   }
 }

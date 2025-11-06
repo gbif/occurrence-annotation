@@ -59,6 +59,9 @@ public class RuleController implements Controller<Rule> {
       name = "basisOfRecord",
       description = "Filters by basis of record values (accepts multiple values)")
   @Parameter(
+      name = "basisOfRecordNegated",
+      description = "When true, returns rules where basisOfRecord is negated (excluded)")
+  @Parameter(
       name = "yearRange",
       description = "Filters by year range (e.g., '1000,2025', '*,1990', '1000,*')")
   @Parameter(name = "createdBy", description = "Filters by the username who created the rule")
@@ -76,6 +79,7 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
       @RequestParam(required = false) String[] basisOfRecord,
+      @RequestParam(required = false) Boolean basisOfRecordNegated,
       @RequestParam(required = false) String yearRange,
       @RequestParam(required = false) String createdBy,
       @RequestParam(required = false) String supportedBy,
@@ -91,6 +95,7 @@ public class RuleController implements Controller<Rule> {
         rulesetId,
         projectId,
         basisOfRecord,
+        basisOfRecordNegated,
         yearRange,
         createdBy,
         supportedBy,
@@ -109,6 +114,7 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
       @RequestParam(required = false) String[] basisOfRecord,
+      @RequestParam(required = false) Boolean basisOfRecordNegated,
       @RequestParam(required = false) String yearRange,
       @RequestParam(required = false) String comment,
       @RequestParam(required = false) Integer limit,
@@ -122,6 +128,7 @@ public class RuleController implements Controller<Rule> {
         rulesetId,
         projectId,
         basisOfRecord,
+        basisOfRecordNegated,
         yearRange,
         currentUser, // createdBy = current user
         null, // supportedBy
@@ -140,6 +147,7 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
       @RequestParam(required = false) String[] basisOfRecord,
+      @RequestParam(required = false) Boolean basisOfRecordNegated,
       @RequestParam(required = false) String yearRange,
       @RequestParam(required = false) String comment,
       @RequestParam(required = false) Integer limit,
@@ -153,6 +161,7 @@ public class RuleController implements Controller<Rule> {
         rulesetId,
         projectId,
         basisOfRecord,
+        basisOfRecordNegated,
         yearRange,
         null, // createdBy
         currentUser, // supportedBy = current user
@@ -171,6 +180,7 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
       @RequestParam(required = false) String[] basisOfRecord,
+      @RequestParam(required = false) Boolean basisOfRecordNegated,
       @RequestParam(required = false) String yearRange,
       @RequestParam(required = false) String comment,
       @RequestParam(required = false) Integer limit,
@@ -184,6 +194,7 @@ public class RuleController implements Controller<Rule> {
         rulesetId,
         projectId,
         basisOfRecord,
+        basisOfRecordNegated,
         yearRange,
         null, // createdBy
         null, // supportedBy

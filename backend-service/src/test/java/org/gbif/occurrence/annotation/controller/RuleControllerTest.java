@@ -265,4 +265,131 @@ public class RuleControllerTest {
         .andExpect(status().isOk())
         .andExpect(content().contentType(MediaType.APPLICATION_JSON));
   }
+
+  @Test
+  @WithMockUser(
+      username = "test-user",
+      roles = {"USER"})
+  public void testCreateRuleWithNegatedBasisOfRecord() throws Exception {
+    Rule rule =
+        Rule.builder()
+            .taxonKey(44444)
+            .datasetKey("test-dataset-key-negated")
+            .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
+            .annotation(Rule.ANNOTATION_TYPE.SUSPICIOUS)
+            .basisOfRecord(new String[] {"FOSSIL_SPECIMEN", "PRESERVED_SPECIMEN"})
+            .basisOfRecordNegated(true)
+            .yearRange("2000,2023")
+            .rulesetId(1)
+            .projectId(1)
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id", notNullValue()))
+        .andExpect(jsonPath("$.taxonKey", is(44444)))
+        .andExpect(jsonPath("$.basisOfRecord", hasSize(2)))
+        .andExpect(jsonPath("$.basisOfRecord[0]", is("FOSSIL_SPECIMEN")))
+        .andExpect(jsonPath("$.basisOfRecord[1]", is("PRESERVED_SPECIMEN")))
+        .andExpect(jsonPath("$.basisOfRecordNegated", is(true)));
+  }
+
+  @Test
+  public void testListRulesWithBasisOfRecordNegatedFilter() throws Exception {
+    mockMvc
+        .perform(
+            get("/occurrence/experimental/annotation/rule").param("basisOfRecordNegated", "true"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+  }
+
+  @Test
+  public void testCreateRuleWithNegatedBasisOfRecordDefaults() throws Exception {
+    Rule rule = new Rule();
+    rule.setTaxonKey(99999);
+    rule.setGeometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))");
+    rule.setAnnotation(Rule.ANNOTATION_TYPE.SUSPICIOUS);
+    rule.setBasisOfRecord(new String[] {"HUMAN_OBSERVATION"});
+    // Don't set basisOfRecordNegated - should default to false
+    rule.setRulesetId(1);
+    rule.setProjectId(1);
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.basisOfRecordNegated", is(false)))
+        .andExpect(jsonPath("$.basisOfRecord[0]", is("HUMAN_OBSERVATION")));
+  }
+
+  @Test
+  public void testCreateRuleWithExplicitlyNegatedBasisOfRecord() throws Exception {
+    Rule rule = new Rule();
+    rule.setTaxonKey(88888);
+    rule.setGeometry("POLYGON((10 10, 10 11, 11 11, 11 10, 10 10))");
+    rule.setAnnotation(Rule.ANNOTATION_TYPE.SUSPICIOUS);
+    rule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN", "PRESERVED_SPECIMEN"});
+    rule.setBasisOfRecordNegated(true);
+    rule.setRulesetId(1);
+    rule.setProjectId(1);
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.basisOfRecordNegated", is(true)))
+        .andExpect(jsonPath("$.basisOfRecord", hasSize(2)))
+        .andExpect(jsonPath("$.basisOfRecord[0]", is("FOSSIL_SPECIMEN")))
+        .andExpect(jsonPath("$.basisOfRecord[1]", is("PRESERVED_SPECIMEN")));
+  }
+
+  @Test
+  public void testFilterRulesByBasisOfRecordAndNegated() throws Exception {
+    // Create a negated rule first
+    Rule negatedRule = new Rule();
+    negatedRule.setTaxonKey(77777);
+    negatedRule.setGeometry("POLYGON((20 20, 20 21, 21 21, 21 20, 20 20))");
+    negatedRule.setAnnotation(Rule.ANNOTATION_TYPE.SUSPICIOUS);
+    negatedRule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
+    negatedRule.setBasisOfRecordNegated(true);
+    negatedRule.setRulesetId(1);
+    negatedRule.setProjectId(1);
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(negatedRule)))
+        .andExpect(status().isOk());
+
+    // Now test filtering by both basisOfRecord and negated flag
+    mockMvc
+        .perform(
+            get("/occurrence/experimental/annotation/rule")
+                .param("basisOfRecord", "FOSSIL_SPECIMEN")
+                .param("basisOfRecordNegated", "true"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(
+            jsonPath(
+                    "$[?(@.basisOfRecordNegated == true && @.basisOfRecord[0] == 'FOSSIL_SPECIMEN')]")
+                .exists());
+  }
+
+  @Test
+  public void testListRulesFilterByNegatedFalse() throws Exception {
+    mockMvc
+        .perform(
+            get("/occurrence/experimental/annotation/rule").param("basisOfRecordNegated", "false"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+  }
 }
