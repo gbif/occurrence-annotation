@@ -73,6 +73,7 @@ export interface AnnotationRule {
   geometry: string; // WKT format (POLYGON or MULTIPOLYGON)
   annotation: string;
   basisOfRecord?: string[] | null;
+  basisOfRecordNegated?: boolean | null;
   yearRange?: string | null;
   rulesetId: number | null;
   projectId: number | null;
@@ -1071,7 +1072,11 @@ export function AnnotationRules({
                       <p className="text-sm">
                         <span className="text-gray-500">This rule designates all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <SpeciesLink scientificName={rule.scientificName} taxonKey={rule.taxonKey} className="font-semibold" />
                         {rule.basisOfRecord && rule.basisOfRecord.length > 0 && (
-                          <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold">"{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                          rule.basisOfRecordNegated ? (
+                            <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold">NOT "{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                          ) : (
+                            <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold">"{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                          )
                         )}
                         {rule.datasetKey && (
                           <><span className="text-gray-500"> from dataset</span> <span className="font-semibold">"{rule.datasetKey}"</span></>

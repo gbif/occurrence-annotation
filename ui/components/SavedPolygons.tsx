@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { coordinatesToWKT } from '../utils/wktParser';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
+import { Checkbox } from './ui/checkbox';
 
 // Helper function to generate species page URL
 const getSpeciesPageUrl = (taxonKey: number): string => {
@@ -425,6 +426,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
   const [showComplexOptions, setShowComplexOptions] = useState(false);
   const [selectedAnnotation, setSelectedAnnotation] = useState(annotation);
   const [basisOfRecord, setBasisOfRecord] = useState<string[]>([]);
+  const [basisOfRecordNegated, setBasisOfRecordNegated] = useState<boolean>(false);
   const [datasetKey, setDatasetKey] = useState<string>('');
   const [yearRange, setYearRange] = useState<string>('');
   const [basisOfRecordOptions, setBasisOfRecordOptions] = useState<string[]>([]);
@@ -780,6 +782,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
       if (showComplexOptions) {
         if (basisOfRecord.length > 0) {
           payload.basisOfRecord = basisOfRecord;
+          payload.basisOfRecordNegated = basisOfRecordNegated;
         }
         if (datasetKey.trim()) {
           payload.datasetKey = datasetKey.trim();
@@ -1004,6 +1007,34 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
                     onChange={setBasisOfRecord}
                   />
 
+                  {/* Basis of Record Negation Checkbox (always visible, disabled until a selection is made) */}
+                  <div className="flex items-center space-x-2 pt-1">
+                    <Checkbox
+                      id="basis-of-record-negated"
+                      checked={basisOfRecordNegated}
+                      disabled={basisOfRecord.length === 0}
+                      onCheckedChange={(checked) => setBasisOfRecordNegated(checked === true)}
+                    />
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Label
+                            htmlFor="basis-of-record-negated"
+                            className={`text-xs font-medium cursor-pointer ${basisOfRecord.length === 0 ? 'text-gray-400' : 'text-gray-900'}`}
+                          >
+                            Negate
+                          </Label>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Apply rule to all records that do NOT have the selected basis of record</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  {basisOfRecord.length === 0 && (
+                    <p className="text-xs text-gray-500 italic mt-1">Select one or more basis of record values to enable negation</p>
+                  )}
+
                   {/* Dataset Key */}
                   <div className="space-y-1 relative">
                     <Label htmlFor="dataset-key" className="text-xs text-gray-700">Dataset (optional)</Label>
@@ -1138,7 +1169,11 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
                   <p className="text-base text-gray-800">
                     This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of <SpeciesLink species={polygon.species} className="font-bold" />
                     {basisOfRecord && basisOfRecord.length > 0 && (
-                      <> with basis of record <span className="font-bold">"{basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                      basisOfRecordNegated ? (
+                        <> with basis of record <span className="font-bold">NOT "{basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                      ) : (
+                        <> with basis of record <span className="font-bold">"{basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                      )
                     )}
                     {selectedDataset && (
                       <> from dataset <span className="font-bold">"{selectedDataset.title}"</span></>
