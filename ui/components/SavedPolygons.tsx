@@ -1562,24 +1562,6 @@ function PolygonCard({
             </p>
           </div>
 
-          {/* Delete button */}
-          <div className="flex-shrink-0">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  onClick={() => onDelete(polygon.id)}
-                  className="h-9 w-9 text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Delete polygon</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
         </div>
 
         {/* Rule Description */}
@@ -1646,6 +1628,23 @@ function PolygonCard({
               </TooltipTrigger>
               <TooltipContent>
                 <p>Save to GBIF</p>
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Delete button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => onDelete(polygon.id)}
+                  className="h-9 w-9 text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Delete polygon</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -1757,43 +1756,6 @@ export function SavedPolygons({
 
   return (
     <div className="space-y-3">
-      {/* Current Polygon Preview */}
-      {currentPolygon && currentPolygon.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-gray-600">Current Polygon</h4>
-          <Card className="p-3 bg-blue-50 border-blue-200">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 flex flex-col items-center gap-1">
-                <MiniMapPreview 
-                  coordinates={currentPolygon} 
-                  isMultiPolygon={false}
-                  isInverted={isCurrentInverted}
-                  annotation={currentAnnotation || "SUSPICIOUS"}
-                  width={100}
-                  height={70}
-                  className="rounded-md shadow-sm"
-                />
-                <p className="text-gray-500 text-xs">
-                  {currentPolygon.length} pts
-                </p>
-              </div>
-              <div className="flex-1 min-w-0 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Badge variant={isCurrentInverted ? "destructive" : "default"} className="text-xs">
-                    {isCurrentInverted ? "Inverted" : "Normal"}
-                  </Badge>
-                  <Badge variant="secondary" className="text-xs">
-                    {currentAnnotation}
-                  </Badge>
-                </div>
-                <p className="text-xs text-gray-600">
-                  Click "Save & Edit" to finalize this polygon
-                </p>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
       
       {/* Active Rules Section with Green Border */}
       <div className="border-2 rounded-lg p-4" style={{ borderColor: '#4C9C2E', backgroundColor: '#4C9C2E08' }}>

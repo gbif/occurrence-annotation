@@ -1,12 +1,32 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Button } from './ui/button';
-import { ArrowLeft, User, MapPin } from 'lucide-react';
+import { Badge } from './ui/badge';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from './ui/alert-dialog';
+import { 
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from './ui/table';
+import { ArrowLeft, User, MapPin, Eye, ExternalLink, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { UserRuleCard } from './UserRuleCard';
 import { UserPageFilters } from './UserPageFilters';
 import { SelectedSpecies } from './SpeciesSelector';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
+import { getSpeciesInfo } from '../utils/speciesCache';
 import { 
   Pagination, 
   PaginationContent, 
@@ -35,6 +55,14 @@ interface UserRule {
   deletedBy?: string;
 }
 
+interface SpeciesInfo {
+  key: number;
+  scientificName: string;
+  canonicalName?: string;
+  vernacularName?: string;
+  rank?: string;
+}
+
 interface UserPageProps {
   onNavigateToRule?: (rule: UserRule) => void;
 }
@@ -46,6 +74,9 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Species info cache
+  const [speciesCache, setSpeciesCache] = useState<Map<number, SpeciesInfo>>(new Map());
+  
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [totalRules, setTotalRules] = useState(0);
@@ -56,6 +87,69 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
 
   // Calculate pagination values
   const totalPages = Math.ceil(totalRules / pageSize);
+
+  // Helper functions
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getAnnotationColor = (annotation: string) => {
+    switch (annotation?.toLowerCase()) {
+      case 'suspicious':
+        return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'valid':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'invalid':
+        return 'bg-red-100 text-red-800 border-red-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getGeometryDescription = (geometry: string) => {
+    if (!geometry) return 'Unknown geometry';
+    
+    // Parse WKT geometry string to get basic info
+    const wkt = geometry.toUpperCase();
+    if (wkt.startsWith('POLYGON')) {
+      // Count coordinate pairs roughly
+      const coordPairs = (geometry.match(/[-\d\.]+\s+[-\d\.]+/g) || []).length;
+      return `Polygon (${coordPairs} points)`;
+    } else if (wkt.startsWith('MULTIPOLYGON')) {
+      const polygonCount = (geometry.match(/\(\(/g) || []).length;
+      return `MultiPolygon (${polygonCount} polygons)`;
+    }
+    
+    return 'Geometry';
+  };
+
+  // Fetch species info for a rule
+  const fetchSpeciesInfo = async (taxonKey: number) => {
+    if (speciesCache.has(taxonKey)) {
+      return speciesCache.get(taxonKey);
+    }
+
+    try {
+      const data = await getSpeciesInfo(taxonKey);
+      if (data) {
+        setSpeciesCache(prev => new Map(prev).set(taxonKey, data));
+        return data;
+      }
+    } catch (error) {
+      console.error('Error fetching species info:', error);
+    }
+    return null;
+  };
 
   // Filtered rules (client-side filtering on current page)
   const filteredRules = useMemo(() => {
@@ -119,6 +213,15 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     }
   }, [allRules, currentPage, pageSize]);
 
+  // Prefetch species info for visible rules
+  useEffect(() => {
+    rules.forEach(rule => {
+      if (rule.taxonKey && !speciesCache.has(rule.taxonKey)) {
+        fetchSpeciesInfo(rule.taxonKey);
+      }
+    });
+  }, [rules, speciesCache, fetchSpeciesInfo]);
+
   const handleViewRule = (rule: UserRule) => {
     if (onNavigateToRule) {
       onNavigateToRule(rule);
@@ -126,6 +229,10 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
       // Fallback: navigate to main app with rule context
       window.location.href = `/`;
     }
+  };
+
+  const handleViewRuleAPI = (ruleId: number) => {
+    window.open(`http://localhost:8080/occurrence/experimental/annotation/rule/${ruleId}`, '_blank');
   };
 
   const handleDeleteRule = async (ruleId: number) => {
@@ -351,17 +458,171 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
             </p>
           </div>
         ) : (
-          <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-              {filteredRules.map((rule) => (
-                <UserRuleCard
-                  key={rule.id}
-                  rule={rule}
-                  onViewRule={handleViewRule}
-                  onDeleteRule={handleDeleteRule}
-                  highlightTaxonKey={speciesFilter?.key}
-                />
-              ))}
+          <div className="max-w-full mx-auto">
+            <div className="bg-white rounded-lg border shadow-sm mb-8">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Rule ID</TableHead>
+                    <TableHead>TaxonKey</TableHead>
+                    <TableHead>Species</TableHead>
+                    <TableHead>Rank</TableHead>
+                    <TableHead>Annotation</TableHead>
+                    <TableHead>Geometry</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredRules.map((rule) => {
+                    const speciesInfo = rule.taxonKey ? speciesCache.get(rule.taxonKey) : null;
+                    
+                    return (
+                      <TableRow key={rule.id}>
+                        <TableCell>
+                          <div className="font-medium">#{rule.id}</div>
+                        </TableCell>
+                        
+                        <TableCell>
+                          {rule.taxonKey ? (
+                            <Badge 
+                              variant="secondary" 
+                              className={`text-xs ${
+                                speciesFilter?.key === rule.taxonKey 
+                                  ? 'bg-blue-100 text-blue-800 border-blue-200' 
+                                  : ''
+                              }`}
+                            >
+                              {rule.taxonKey}
+                            </Badge>
+                          ) : (
+                            <span className="text-gray-500 text-sm">-</span>
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          {rule.taxonKey ? (
+                            <div className="space-y-1">
+                              {speciesInfo ? (
+                                <>
+                                  <div className="italic text-gray-900">{speciesInfo.scientificName}</div>
+                                  {speciesInfo.vernacularName && (
+                                    <div className="text-sm text-gray-600">{speciesInfo.vernacularName}</div>
+                                  )}
+                                </>
+                              ) : (
+                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  Loading...
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-500 text-sm">No species</span>
+                          )}
+                        </TableCell>
+                        
+                        <TableCell>
+                          {rule.taxonKey && speciesInfo?.rank ? (
+                            <Badge variant="outline" className="text-xs">
+                              {speciesInfo.rank}
+                            </Badge>
+                          ) : rule.taxonKey && !speciesInfo ? (
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            </div>
+                          ) : (
+                            <span className="text-gray-500 text-sm">-</span>
+                          )}
+                        </TableCell>
+                        
+                        <TableCell>
+                          <Badge 
+                            variant="outline" 
+                            className={getAnnotationColor(rule.annotation)}
+                          >
+                            {rule.annotation || 'Unknown'}
+                          </Badge>
+                          {rule.deleted && (
+                            <div className="text-xs text-red-600 mt-1">Deleted</div>
+                          )}
+                        </TableCell>
+                        
+                        <TableCell>
+                          <div className="text-sm text-gray-600">
+                            {getGeometryDescription(rule.geometry)}
+                          </div>
+                        </TableCell>
+                        
+                        <TableCell>
+                          <div className="text-sm text-gray-600">
+                            {formatDate(rule.created)}
+                          </div>
+                          {rule.deleted && (
+                            <div className="text-xs text-red-600 mt-1">
+                              Deleted: {formatDate(rule.deleted)}
+                            </div>
+                          )}
+                        </TableCell>
+                        
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewRule(rule)}
+                              title="View on Map"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            
+                            {!rule.deleted && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    title="Delete this rule"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Annotation Rule</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete this annotation rule (ID: {rule.id})?
+                                      This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteRule(rule.id)}
+                                      className="bg-red-600 hover:bg-red-700"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                            
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewRuleAPI(rule.id)}
+                              title="View rule details in API"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
 
             {/* Pagination Controls */}
