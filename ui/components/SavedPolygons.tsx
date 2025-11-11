@@ -51,11 +51,15 @@ const SpeciesLink = ({ species, className = "" }: {
 function BasisOfRecordMultiSelect({ 
   options, 
   selected, 
-  onChange 
+  onChange,
+  negated,
+  onNegatedChange
 }: { 
   options: string[]; 
   selected: string[]; 
   onChange: (selected: string[]) => void;
+  negated?: boolean;
+  onNegatedChange?: (negated: boolean) => void;
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -148,21 +152,51 @@ function BasisOfRecordMultiSelect({
             <span className="ml-1 text-blue-600 font-medium">({selected.length} selected)</span>
           )}
         </Label>
-        <div className="flex space-x-2">
-          <button
-            type="button"
-            onClick={() => onChange(options)}
-            className="text-xs text-blue-600 hover:text-blue-800 underline"
-          >
-            Select All
-          </button>
-          <button
-            type="button"
-            onClick={() => onChange([])}
-            className="text-xs text-gray-600 hover:text-gray-800 underline"
-          >
-            Clear
-          </button>
+        <div className="flex items-center space-x-3">
+          <div className="flex space-x-2">
+            <button
+              type="button"
+              onClick={() => onChange(options)}
+              className="text-xs text-blue-600 hover:text-blue-800 underline"
+            >
+              Select All
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="text-xs text-gray-600 hover:text-gray-800 underline"
+            >
+              Clear
+            </button>
+          </div>
+          
+          {/* Negate checkbox inline with buttons */}
+          {onNegatedChange && (
+            <div className="flex items-center space-x-1">
+              <Checkbox
+                id="basis-of-record-negated-inline"
+                checked={negated || false}
+                disabled={selected.length === 0}
+                onCheckedChange={(checked) => onNegatedChange(checked === true)}
+                className="h-3 w-3"
+              />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Label
+                      htmlFor="basis-of-record-negated-inline"
+                      className={`text-xs font-medium cursor-pointer ${selected.length === 0 ? 'text-gray-400' : 'text-gray-900'}`}
+                    >
+                      Negate
+                    </Label>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Apply rule to all records that do NOT have the selected basis of record</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )}
         </div>
       </div>
       
@@ -1005,35 +1039,9 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
                     options={basisOfRecordOptions}
                     selected={basisOfRecord}
                     onChange={setBasisOfRecord}
+                    negated={basisOfRecordNegated}
+                    onNegatedChange={setBasisOfRecordNegated}
                   />
-
-                  {/* Basis of Record Negation Checkbox (always visible, disabled until a selection is made) */}
-                  <div className="flex items-center space-x-2 pt-1">
-                    <Checkbox
-                      id="basis-of-record-negated"
-                      checked={basisOfRecordNegated}
-                      disabled={basisOfRecord.length === 0}
-                      onCheckedChange={(checked) => setBasisOfRecordNegated(checked === true)}
-                    />
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Label
-                            htmlFor="basis-of-record-negated"
-                            className={`text-xs font-medium cursor-pointer ${basisOfRecord.length === 0 ? 'text-gray-400' : 'text-gray-900'}`}
-                          >
-                            Negate
-                          </Label>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Apply rule to all records that do NOT have the selected basis of record</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  {basisOfRecord.length === 0 && (
-                    <p className="text-xs text-gray-500 italic mt-1">Select one or more basis of record values to enable negation</p>
-                  )}
 
                   {/* Dataset Key */}
                   <div className="space-y-1 relative">
