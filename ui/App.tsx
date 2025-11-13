@@ -101,6 +101,19 @@ export default function App() {
         console.error('Error loading species from URL:', error);
         toast.error(`Failed to load species with taxon key "${taxonKey}"`);
       }
+    } else {
+      // No URL parameters, try to load last selected species from localStorage
+      try {
+        const lastSpeciesStr = localStorage.getItem('lastSelectedSpecies');
+        if (lastSpeciesStr) {
+          const lastSpecies = JSON.parse(lastSpeciesStr);
+          setSelectedSpecies(lastSpecies);
+          console.log('🔗 Restored last selected species:', lastSpecies.scientificName);
+          // Don't show a toast for restored species to avoid noise on page load
+        }
+      } catch (error) {
+        console.error('Error loading last selected species from localStorage:', error);
+      }
     }
 
     // If there's a rule ID, fetch the rule and display it on the map
@@ -169,6 +182,15 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('savedPolygons', JSON.stringify(savedPolygons));
   }, [savedPolygons]);
+
+  // Save selected species to localStorage whenever it changes
+  useEffect(() => {
+    if (selectedSpecies) {
+      localStorage.setItem('lastSelectedSpecies', JSON.stringify(selectedSpecies));
+    } else {
+      localStorage.removeItem('lastSelectedSpecies');
+    }
+  }, [selectedSpecies]);
 
   const handleAutoSavePolygon = useCallback((coords: [number, number][]) => {
     // Sync the map's stable refs before saving to prevent coordinate shift

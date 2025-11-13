@@ -73,6 +73,20 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   const [allRules, setAllRules] = useState<UserRule[]>([]); // Store all rules for client-side pagination
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Helper function to get back-to-map URL with last species context
+  const getBackToMapUrl = () => {
+    try {
+      const lastSpeciesStr = localStorage.getItem('lastSelectedSpecies');
+      if (lastSpeciesStr) {
+        const lastSpecies = JSON.parse(lastSpeciesStr);
+        return `/?taxonKey=${lastSpecies.key}`;
+      }
+    } catch (error) {
+      console.error('Error loading last species for navigation:', error);
+    }
+    return '/';
+  };
   
   // Species info cache
   const [speciesCache, setSpeciesCache] = useState<Map<number, SpeciesInfo>>(new Map());
@@ -342,7 +356,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
       <div className="h-screen flex flex-col">
         <div className="p-6 border-b bg-white">
           <div className="flex items-center gap-4">
-            <Link to="/">
+            <Link to={getBackToMapUrl()}>
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Map
@@ -369,7 +383,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
       <div className="h-screen flex flex-col">
         <div className="p-6 border-b bg-white">
           <div className="flex items-center gap-4">
-            <Link to="/">
+            <Link to={getBackToMapUrl()}>
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Map
@@ -403,7 +417,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
       <div className="border-b bg-white">
         <div className="p-6">
           <div className="flex items-center gap-4">
-            <Link to="/">
+            <Link to={getBackToMapUrl()}>
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Map

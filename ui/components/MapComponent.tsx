@@ -2225,17 +2225,6 @@ export function MapComponent({
         </svg>
       )}
 
-      {/* Investigate Mode Indicator */}
-      {isInvestigateMode && (
-        <div className="absolute top-4 right-4 bg-blue-600 text-white rounded-lg shadow-lg p-3 z-20">
-          <div className="flex items-center gap-2">
-            <Search className="w-4 h-4" />
-            <span className="text-sm font-medium">Investigate Mode</span>
-          </div>
-          <p className="text-xs mt-1 opacity-90">Click anywhere to search for occurrences</p>
-        </div>
-      )}
-
       {/* Map Controls - Always visible */}
       <div 
         className="absolute top-4 left-4 bg-white rounded-lg shadow-lg p-2 flex flex-col gap-2 z-20"
