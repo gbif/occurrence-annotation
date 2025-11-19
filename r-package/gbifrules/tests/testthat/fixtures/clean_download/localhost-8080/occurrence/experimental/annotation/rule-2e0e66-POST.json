@@ -1,0 +1,22 @@
+{
+    "id": 49,
+    "taxonKey": 0,
+    "datasetKey": null,
+    "geometry": "POLYGON ((-13.0078125 11.723041818049527, 13.0078125 11.723041818049527, 13.0078125 -12.69842022271124, -13.0078125 -12.69842022271124, -13.0078125 11.723041818049527))",
+    "annotation": "SUSPICIOUS",
+    "basisOfRecord": null,
+    "basisOfRecordNegated": false,
+    "yearRange": null,
+    "rulesetId": null,
+    "projectId": null,
+    "supportedBy": [
+
+    ],
+    "contestedBy": [
+
+    ],
+    "created": "2025-11-19T13:42:12.099+00:00",
+    "createdBy": "jwaller",
+    "deleted": null,
+    "deletedBy": null
+}

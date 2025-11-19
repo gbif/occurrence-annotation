@@ -1,0 +1,15 @@
+{
+    "id": 42,
+    "projectId": 53,
+    "name": "test ruleset",
+    "description": "test ruleset",
+    "members": [
+        "jwaller"
+    ],
+    "created": "2024-02-08T15:06:24.150+00:00",
+    "createdBy": "jwaller",
+    "modified": null,
+    "modifiedBy": null,
+    "deleted": null,
+    "deletedBy": null
+}

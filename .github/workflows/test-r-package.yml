@@ -9,8 +9,8 @@ jobs:
     env:
       GBIF_USER: ${{ secrets.GBIF_USER }}
       GBIF_PWD: ${{ secrets.GBIF_PWD }}
-      GBIFAN_URL: http://localhost:8080/occurrence/experimental/annotation/
-      GBIFAN_GITHUB_ACTIONS: true
+      GBIFRULES_URL: http://localhost:8080/occurrence/experimental/annotation/
+      GBIFRULES_GITHUB_ACTIONS: true
 
     services:
       postgres:
@@ -69,13 +69,13 @@ jobs:
       - name: Install package dependencies (remotes)
         run: |
           list.files()
-          setwd("r-package/gbifan")
+          setwd("r-package/gbifrules")
           install.packages("remotes")
           remotes::install_deps(dependencies = TRUE)
         shell: Rscript {0}
 
       - name: Test R package
-        run: R CMD check r-package/gbifan
+        run: R CMD check r-package/gbifrules
 
       - name: Display spring boot nohup output
         run: cat backend-service/spring_boot.log

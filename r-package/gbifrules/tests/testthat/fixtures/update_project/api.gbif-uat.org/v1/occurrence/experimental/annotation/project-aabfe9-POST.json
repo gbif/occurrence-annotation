@@ -1,0 +1,14 @@
+{
+    "id": 52,
+    "name": "test project",
+    "description": "test project",
+    "members": [
+        "jwaller"
+    ],
+    "created": "2024-02-08T15:06:23.475+00:00",
+    "createdBy": "jwaller",
+    "modified": null,
+    "modifiedBy": null,
+    "deleted": null,
+    "deletedBy": null
+}
