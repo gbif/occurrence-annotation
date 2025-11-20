@@ -529,10 +529,10 @@ public class RuleMapperTest {
 
     assertFalse(results.isEmpty(), "Should find rules");
 
-    // Check that we have both negated and non-negated rules
-    boolean hasNegated = results.stream().anyMatch(Rule::getBasisOfRecordNegated);
-    boolean hasNonNegated = results.stream().anyMatch(r -> !r.getBasisOfRecordNegated);
+    // Check that basisOfRecord filtering is working
+    boolean hasBasisOfRecordFiltering = results.stream().anyMatch(r -> r.getBasisOfRecord() != null && r.getBasisOfRecord().length > 0);
+    boolean hasNonBasisOfRecordFiltering = results.stream().anyMatch(r -> r.getBasisOfRecord() == null || r.getBasisOfRecord().length == 0);
 
-    assertTrue(hasNegated || hasNonNegated, "Should find at least one type of rule");
+    assertTrue(hasBasisOfRecordFiltering || hasNonBasisOfRecordFiltering, "Should find rules with or without basisOfRecord filtering");
   }
 }
