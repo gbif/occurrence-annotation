@@ -9,3 +9,25 @@
 
 # Docker utility scripts
 Start-DockerClean.ps1
+
+# Vite build artifacts and UI dependencies
+ui/node_modules/.vite/deps/
+ui/node_modules/.vite/
+ui/dist/
+ui/.vite/
+
+# Node.js
+ui/node_modules/
+**/node_modules/
+
+# Environment files
+ui/.env.local
+ui/.env.*.local
+
+# Build outputs
+ui/build/
+ui/out/
+
+# Temporary files
+ui/.temp/
+ui/.tmp/
