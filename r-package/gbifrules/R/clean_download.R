@@ -68,7 +68,7 @@ clean_download <- function(d,
   
   # Handle conflicts if specified
   if (handle_conflicts == "favor_suspicious" && any(out$has_conflict, na.rm = TRUE)) {
-    message("Handling conflicts by favoring suspicious annotations")
+    # message("Handling conflicts by favoring suspicious annotations")
     out <- out |>
       dplyr::group_by(record_id) |>
       dplyr::summarise(
@@ -129,9 +129,10 @@ get_suspicious_annotations <- function(d) {
       ))
   }
   
-  # Convert occurrence data to spatial points
+  # Convert occurrence data to spatial points and transform to projected CRS
   d_sf <- d |>
-    sf::st_as_sf(coords = c("decimalLongitude", "decimalLatitude"), crs = 4326)
+    sf::st_as_sf(coords = c("decimalLongitude", "decimalLatitude"), crs = 4326) |>
+    sf::st_transform(crs = 3857)  # Web Mercator - good for global data
   
   # Process each rule
   annotation_results <- all_rules |>
@@ -139,20 +140,22 @@ get_suspicious_annotations <- function(d) {
     purrr::map_dfr(~ {
       rule <- .x
       
-      # Detect if this is an inverted polygon (global extent with holes)
+      # Detect if this is an inverted polygon (global extent with holes) BEFORE st_make_valid
       is_inverted <- FALSE
       tryCatch({
+        # Parse geometry directly from WKT to check original structure
         geom_sf <- sf::st_as_sfc(rule$geometry, crs = 4326)
         if (length(geom_sf) > 0) {
           coords <- sf::st_coordinates(geom_sf[[1]])
-          # Check if polygon has multiple rings (L2 column indicates ring number)
-          if ("L2" %in% colnames(coords) && max(coords[,"L2"]) > 1) {
-            # Get outer ring coordinates (L2 == 1)
-            outer_ring <- coords[coords[,"L2"] == 1, c("X", "Y")]
+          # Check if polygon has multiple rings (L1 column indicates ring number for polygon parts)
+          if ("L1" %in% colnames(coords) && max(coords[,"L1"]) > 1) {
+            # Get outer ring coordinates (L1 == 1)
+            outer_ring <- coords[coords[,"L1"] == 1, c("X", "Y")]
             x_range <- max(outer_ring[,"X"]) - min(outer_ring[,"X"])
             y_range <- max(outer_ring[,"Y"]) - min(outer_ring[,"Y"])
             # Consider inverted if outer ring spans most of the globe (>300° lon, >150° lat)
             is_inverted <- x_range > 300 && y_range > 150
+            # message("Rule ", rule$id, " - Inverted polygon detected (X: ", round(x_range, 1), "°, Y: ", round(y_range, 1), "°)")
           }
         }
       }, error = function(e) {
@@ -160,21 +163,38 @@ get_suspicious_annotations <- function(d) {
         message("Geometry parsing failed for rule ", rule$id, ": ", e$message)
         is_inverted <- FALSE
       })
-      
+
       # Convert WKT geometry to sf polygon
+      # Disable s2 for better handling of global polygons with holes
+      old_s2 <- sf::sf_use_s2()
+      suppressMessages(sf::sf_use_s2(FALSE))
+      
       polygon <- rule |>
         dplyr::mutate(geometry = sf::st_as_sfc(geometry, crs = 4326)) |>
         sf::st_sf() |>
         sf::st_geometry() |>
-        sf::st_make_valid()
+        sf::st_make_valid() |>
+        sf::st_transform(crs = 3857)  # Transform to same CRS as points
       
       # Determine which points are within the polygon
-      # For both normal and inverted polygons, st_within() gives us what we need:
-      # - Normal polygons: TRUE if point is inside the polygon
-      # - Inverted polygons (global with holes): TRUE if point is in the solid part 
-      #   (not in the holes), FALSE if point is in a hole
-      # This is the correct behavior for both cases
       within <- as.vector(sf::st_within(d_sf, polygon, sparse = FALSE))
+      
+      # Restore s2 setting
+      suppressMessages(sf::sf_use_s2(old_s2))
+      
+
+      
+      # For inverted polygons, the logic is different:
+      # - st_within() returns TRUE for points in the solid part (should be suspicious)
+      # - st_within() returns FALSE for points in holes (should NOT be suspicious)
+      # For normal polygons:
+      # - st_within() returns TRUE for points inside (should be suspicious)
+      # - st_within() returns FALSE for points outside (should NOT be suspicious)
+      # So the logic is the same for both cases: within = suspicious
+      
+      # Debug info can be enabled if needed:
+      # message("Rule ", rule$id, " (inverted: ", is_inverted, ") processed ", 
+      #        sum(d_sf$taxonKey == rule$taxonKey), " points")
       
       # Return results for this rule
       d |>

@@ -1,5 +1,115 @@
 [
     {
+        "id": 55,
+        "taxonKey": 8,
+        "datasetKey": null,
+        "geometry": "POLYGON ((-180 -85.0511287798, 180 -85.0511287798, 180 85.0511287798, -180 85.0511287798, -180 -85.0511287798), (-12.3046875 11.723041818049527, -12.3046875 6.134097132761074, -12.3046875 0.5451524474726206, -12.3046875 -5.043792237815833, -12.3046875 -10.632736923104286, -5.44921875 -10.632736923104286, 1.40625 -10.632736923104286, 8.26171875 -10.632736923104286, 15.1171875 -10.632736923104286, 15.1171875 -5.043792237815833, 15.1171875 0.5451524474726206, 15.1171875 6.134097132761074, 15.1171875 11.723041818049527, 8.26171875 11.723041818049527, 1.40625 11.723041818049527, -5.44921875 11.723041818049527, -12.3046875 11.723041818049527))",
+        "annotation": "SUSPICIOUS",
+        "basisOfRecord": null,
+        "basisOfRecordNegated": false,
+        "yearRange": null,
+        "rulesetId": null,
+        "projectId": null,
+        "supportedBy": [
+
+        ],
+        "contestedBy": [
+
+        ],
+        "created": "2025-11-19T15:23:30.895+00:00",
+        "createdBy": "jwaller",
+        "deleted": null,
+        "deletedBy": null
+    },
+    {
+        "id": 54,
+        "taxonKey": 0,
+        "datasetKey": null,
+        "geometry": "POLYGON ((-13.0078125 11.723041818049527, 13.0078125 11.723041818049527, 13.0078125 -12.69842022271124, -13.0078125 -12.69842022271124, -13.0078125 11.723041818049527))",
+        "annotation": "SUSPICIOUS",
+        "basisOfRecord": null,
+        "basisOfRecordNegated": false,
+        "yearRange": null,
+        "rulesetId": null,
+        "projectId": null,
+        "supportedBy": [
+
+        ],
+        "contestedBy": [
+
+        ],
+        "created": "2025-11-19T15:23:30.287+00:00",
+        "createdBy": "jwaller",
+        "deleted": null,
+        "deletedBy": null
+    },
+    {
+        "id": 53,
+        "taxonKey": 0,
+        "datasetKey": null,
+        "geometry": "POLYGON ((-13.0078125 11.723041818049527, 13.0078125 11.723041818049527, 13.0078125 -12.69842022271124, -13.0078125 -12.69842022271124, -13.0078125 11.723041818049527))",
+        "annotation": "SUSPICIOUS",
+        "basisOfRecord": null,
+        "basisOfRecordNegated": false,
+        "yearRange": null,
+        "rulesetId": null,
+        "projectId": null,
+        "supportedBy": [
+
+        ],
+        "contestedBy": [
+
+        ],
+        "created": "2025-11-19T15:22:21.593+00:00",
+        "createdBy": "jwaller",
+        "deleted": null,
+        "deletedBy": null
+    },
+    {
+        "id": 52,
+        "taxonKey": 8,
+        "datasetKey": null,
+        "geometry": "POLYGON ((-180 -85.0511287798, 180 -85.0511287798, 180 85.0511287798, -180 85.0511287798, -180 -85.0511287798), (-12.3046875 11.723041818049527, -12.3046875 6.134097132761074, -12.3046875 0.5451524474726206, -12.3046875 -5.043792237815833, -12.3046875 -10.632736923104286, -5.44921875 -10.632736923104286, 1.40625 -10.632736923104286, 8.26171875 -10.632736923104286, 15.1171875 -10.632736923104286, 15.1171875 -5.043792237815833, 15.1171875 0.5451524474726206, 15.1171875 6.134097132761074, 15.1171875 11.723041818049527, 8.26171875 11.723041818049527, 1.40625 11.723041818049527, -5.44921875 11.723041818049527, -12.3046875 11.723041818049527))",
+        "annotation": "SUSPICIOUS",
+        "basisOfRecord": null,
+        "basisOfRecordNegated": false,
+        "yearRange": null,
+        "rulesetId": null,
+        "projectId": null,
+        "supportedBy": [
+
+        ],
+        "contestedBy": [
+
+        ],
+        "created": "2025-11-19T14:34:24.290+00:00",
+        "createdBy": "jwaller",
+        "deleted": null,
+        "deletedBy": null
+    },
+    {
+        "id": 51,
+        "taxonKey": 0,
+        "datasetKey": null,
+        "geometry": "POLYGON ((-13.0078125 11.723041818049527, 13.0078125 11.723041818049527, 13.0078125 -12.69842022271124, -13.0078125 -12.69842022271124, -13.0078125 11.723041818049527))",
+        "annotation": "SUSPICIOUS",
+        "basisOfRecord": null,
+        "basisOfRecordNegated": false,
+        "yearRange": null,
+        "rulesetId": null,
+        "projectId": null,
+        "supportedBy": [
+
+        ],
+        "contestedBy": [
+
+        ],
+        "created": "2025-11-19T14:34:24.183+00:00",
+        "createdBy": "jwaller",
+        "deleted": null,
+        "deletedBy": null
+    },
+    {
         "id": 49,
         "taxonKey": 0,
         "datasetKey": null,
