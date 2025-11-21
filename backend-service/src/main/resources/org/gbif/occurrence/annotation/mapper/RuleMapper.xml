@@ -22,14 +22,21 @@
         <if test="projectId != null" >
             AND project_id = #{projectId}
         </if>
-        <if test="basisOfRecord != null" >
-            AND (basis_of_record <![CDATA[&&]]> #{basisOfRecord,typeHandler=org.apache.ibatis.type.ArrayTypeHandler})
+        <if test="basisOfRecord != null and basisOfRecord.length > 0" >
+            AND (
+                <foreach collection="basisOfRecord" item="item" separator=" OR ">
+                    #{item} = ANY(basis_of_record)
+                </foreach>
+            )
         </if>
         <if test="basisOfRecordNegated != null" >
             AND basis_of_record_negated = #{basisOfRecordNegated}
         </if>
         <if test="yearRange != null" >
             AND year_range = #{yearRange}
+        </if>
+        <if test="geometry != null" >
+            AND geometry = #{geometry}
         </if>
         <if test="createdBy != null" >
             AND created_by = #{createdBy}

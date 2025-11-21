@@ -155,6 +155,7 @@ public class RuleMapperTest {
             null,
             null,
             null,
+            null,
             100,
             0);
 
@@ -168,6 +169,7 @@ public class RuleMapperTest {
             null,
             null,
             new String[] {"PRESERVED_SPECIMEN", "MACHINE_OBSERVATION"},
+            null,
             null,
             null,
             null,
@@ -194,6 +196,7 @@ public class RuleMapperTest {
             null,
             null,
             null,
+            null,
             100,
             0);
 
@@ -213,7 +216,7 @@ public class RuleMapperTest {
 
     // Test listing without filter
     List<Rule> results =
-        ruleMapper.list(null, null, null, null, null, null, null, null, null, null, null, 100, 0);
+        ruleMapper.list(null, null, null, null, null, null, null, null, null, null, null, null, 100, 0);
 
     assertTrue(results.size() >= 2, "Should find at least 2 rules");
   }
@@ -226,7 +229,7 @@ public class RuleMapperTest {
     // Test with empty array - should return all rules (no filtering)
     List<Rule> results =
         ruleMapper.list(
-            null, null, null, null, new String[] {}, null, null, null, null, null, null, 100, 0);
+            null, null, null, null, new String[] {}, null, null, null, null, null, null, null, 100, 0);
 
     assertTrue(results.size() >= 1, "Should find rules when no filter is applied");
   }
@@ -265,6 +268,7 @@ public class RuleMapperTest {
             null,
             null,
             null,
+            null,
             100,
             0);
 
@@ -278,6 +282,7 @@ public class RuleMapperTest {
             null,
             null,
             new String[] {"MACHINE_OBSERVATION"},
+            null,
             null,
             null,
             null,
@@ -316,7 +321,7 @@ public class RuleMapperTest {
     // Test filtering by specific creator - alice should have 2 rules
     List<Rule> results =
         ruleMapper.list(
-            null, null, null, null, null, null, null, "alice", null, null, null, 100, 0);
+            null, null, null, null, null, null, null, "alice", null, null, null, null, 100, 0);
 
     assertEquals(2, results.size(), "Should find 2 rules created by alice");
     assertTrue(
@@ -325,7 +330,7 @@ public class RuleMapperTest {
 
     // Test filtering by specific creator - bob should have 1 rule
     results =
-        ruleMapper.list(null, null, null, null, null, null, null, "bob", null, null, null, 100, 0);
+        ruleMapper.list(null, null, null, null, null, null, null, null, "bob", null, null, null, 100, 0);
 
     assertEquals(1, results.size(), "Should find 1 rule created by bob");
     assertEquals("bob", results.get(0).getCreatedBy(), "Returned rule should be created by bob");
@@ -333,7 +338,7 @@ public class RuleMapperTest {
     // Test filtering by specific creator - charlie should have 1 rule
     results =
         ruleMapper.list(
-            null, null, null, null, null, null, null, "charlie", null, null, null, 100, 0);
+            null, null, null, null, null, null, null, "charlie", null, null, null, null, 100, 0);
 
     assertEquals(1, results.size(), "Should find 1 rule created by charlie");
     assertEquals(
@@ -342,13 +347,13 @@ public class RuleMapperTest {
     // Test filtering by non-existent creator
     results =
         ruleMapper.list(
-            null, null, null, null, null, null, "nonexistent", null, null, null, null, 100, 0);
+            null, null, null, null, null, null, "nonexistent", null, null, null, null, null, 100, 0);
 
     assertEquals(0, results.size(), "Should find 0 rules created by nonexistent user");
 
     // Test without createdBy filter - should return all rules
     results =
-        ruleMapper.list(null, null, null, null, null, null, null, null, null, null, null, 100, 0);
+        ruleMapper.list(null, null, null, null, null, null, null, null, null, null, null, null, 100, 0);
 
     assertTrue(
         results.size() >= 4, "Should find at least 4 rules when no createdBy filter is applied");
@@ -375,7 +380,7 @@ public class RuleMapperTest {
     // Test combining taxonKey and createdBy filters
     List<Rule> results =
         ruleMapper.list(
-            12345, null, null, null, null, null, null, "alice", null, null, null, 100, 0);
+            12345, null, null, null, null, null, null, "alice", null, null, null, null, 100, 0);
 
     assertEquals(1, results.size(), "Should find 1 rule with taxonKey=12345 and createdBy=alice");
     assertEquals(
@@ -387,7 +392,7 @@ public class RuleMapperTest {
 
     // Test with filters that should return no results
     results =
-        ruleMapper.list(67890, null, null, null, null, null, null, "bob", null, null, null, 100, 0);
+        ruleMapper.list(67890, null, null, null, null, null, null, null, "bob", null, null, null, 100, 0);
 
     assertEquals(0, results.size(), "Should find 0 rules with taxonKey=67890 and createdBy=bob");
   }
@@ -438,7 +443,7 @@ public class RuleMapperTest {
 
     // Test filtering by negated=true
     List<Rule> results =
-        ruleMapper.list(null, null, null, null, null, true, null, null, null, null, null, 100, 0);
+        ruleMapper.list(null, null, null, null, null, true, null, null, null, null, null, null, 100, 0);
 
     assertFalse(results.isEmpty(), "Should find at least one negated rule");
     assertTrue(
@@ -464,7 +469,7 @@ public class RuleMapperTest {
 
     // Test filtering by negated=false
     List<Rule> results =
-        ruleMapper.list(null, null, null, null, null, false, null, null, null, null, null, 100, 0);
+        ruleMapper.list(null, null, null, null, null, false, null, null, null, null, null, null, 100, 0);
 
     assertFalse(results.isEmpty(), "Should find at least one non-negated rule");
     assertTrue(
@@ -490,6 +495,7 @@ public class RuleMapperTest {
             null,
             new String[] {"FOSSIL_SPECIMEN"},
             true,
+            null,
             null,
             null,
             null,
@@ -525,7 +531,7 @@ public class RuleMapperTest {
 
     // Test without negated filter - should return both types
     List<Rule> results =
-        ruleMapper.list(null, null, null, null, null, null, null, null, null, null, null, 100, 0);
+        ruleMapper.list(null, null, null, null, null, null, null, null, null, null, null, null, 100, 0);
 
     assertFalse(results.isEmpty(), "Should find rules");
 
@@ -534,5 +540,32 @@ public class RuleMapperTest {
     boolean hasNonBasisOfRecordFiltering = results.stream().anyMatch(r -> r.getBasisOfRecord() == null || r.getBasisOfRecord().length == 0);
 
     assertTrue(hasBasisOfRecordFiltering || hasNonBasisOfRecordFiltering, "Should find rules with or without basisOfRecord filtering");
+  }
+
+  @Test
+  public void testGeometryFilter() {
+    // Create a test rule with a specific geometry
+    Rule rule = createTestRule();
+    rule.setGeometry("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))");
+    ruleMapper.create(rule);
+
+    // Test geometry intersection - this polygon should intersect with the rule's geometry
+    String intersectingGeometry = "POLYGON((5 5, 15 5, 15 15, 5 15, 5 5))";
+    List<Rule> results = ruleMapper.list(
+        null, null, null, null, null, null, null, 
+        intersectingGeometry, // geometry parameter
+        null, null, null, null, 100, 0);
+    
+    assertTrue(results.size() >= 1, "Should find at least 1 rule that intersects with the test geometry");
+    
+    // Test non-intersecting geometry - this should return no results for our specific rule
+    String nonIntersectingGeometry = "POLYGON((20 20, 30 20, 30 30, 20 30, 20 20))";
+    List<Rule> noResults = ruleMapper.list(
+        null, null, null, null, null, null, null,
+        nonIntersectingGeometry, // geometry parameter  
+        null, null, null, null, 100, 0);
+    
+    // Clean up
+    ruleMapper.delete(rule.getId(), "testuser");
   }
 }

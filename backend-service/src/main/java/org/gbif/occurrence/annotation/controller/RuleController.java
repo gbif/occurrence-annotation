@@ -68,6 +68,9 @@ public class RuleController implements Controller<Rule> {
   @Parameter(name = "supportedBy", description = "Filters by rules supported by the given username")
   @Parameter(name = "contestedBy", description = "Filters by rules contested by the given username")
   @Parameter(
+      name = "geometry",
+      description = "Filters by geometry using WKT string. Finds rules with geometries that intersect with the provided geometry. URL encoding should be applied to WKT strings.")
+  @Parameter(
       name = "comment",
       description = "Filters to rules with a non-deleted comment containing the given text")
   @Parameter(name = "limit", description = "The limit for paging")
@@ -81,6 +84,7 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) String[] basisOfRecord,
       @RequestParam(required = false) Boolean basisOfRecordNegated,
       @RequestParam(required = false) String yearRange,
+      @RequestParam(required = false) String geometry,
       @RequestParam(required = false) String createdBy,
       @RequestParam(required = false) String supportedBy,
       @RequestParam(required = false) String contestedBy,
@@ -97,6 +101,7 @@ public class RuleController implements Controller<Rule> {
         basisOfRecord,
         basisOfRecordNegated,
         yearRange,
+        geometry,
         createdBy,
         supportedBy,
         contestedBy,
@@ -116,6 +121,7 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) String[] basisOfRecord,
       @RequestParam(required = false) Boolean basisOfRecordNegated,
       @RequestParam(required = false) String yearRange,
+      @RequestParam(required = false) String geometry,
       @RequestParam(required = false) String comment,
       @RequestParam(required = false) Integer limit,
       @RequestParam(required = false) Integer offset) {
@@ -130,6 +136,7 @@ public class RuleController implements Controller<Rule> {
         basisOfRecord,
         basisOfRecordNegated,
         yearRange,
+        geometry,
         currentUser, // createdBy = current user
         null, // supportedBy
         null, // contestedBy
@@ -149,6 +156,7 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) String[] basisOfRecord,
       @RequestParam(required = false) Boolean basisOfRecordNegated,
       @RequestParam(required = false) String yearRange,
+      @RequestParam(required = false) String geometry,
       @RequestParam(required = false) String comment,
       @RequestParam(required = false) Integer limit,
       @RequestParam(required = false) Integer offset) {
@@ -163,6 +171,7 @@ public class RuleController implements Controller<Rule> {
         basisOfRecord,
         basisOfRecordNegated,
         yearRange,
+        geometry,
         null, // createdBy
         currentUser, // supportedBy = current user
         null, // contestedBy
@@ -182,6 +191,7 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) String[] basisOfRecord,
       @RequestParam(required = false) Boolean basisOfRecordNegated,
       @RequestParam(required = false) String yearRange,
+      @RequestParam(required = false) String geometry,
       @RequestParam(required = false) String comment,
       @RequestParam(required = false) Integer limit,
       @RequestParam(required = false) Integer offset) {
@@ -196,6 +206,7 @@ public class RuleController implements Controller<Rule> {
         basisOfRecord,
         basisOfRecordNegated,
         yearRange,
+        geometry,
         null, // createdBy
         null, // supportedBy
         currentUser, // contestedBy = current user
