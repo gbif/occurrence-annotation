@@ -41,10 +41,18 @@ clean_download <- function(d,
     dplyr::mutate(
       lon = decimalLongitude,
       lat = decimalLatitude,
-      record_id = paste(taxonKey, decimalLatitude, decimalLongitude, sep = "_")
+      # Create unique record_id including basisOfRecord if present to handle duplicates
+      record_id = if ("basisOfRecord" %in% colnames(d)) {
+        paste(taxonKey, decimalLatitude, decimalLongitude, 
+              ifelse(is.na(basisOfRecord), "NA", basisOfRecord), 
+              dplyr::row_number(), sep = "_")
+      } else {
+        paste(taxonKey, decimalLatitude, decimalLongitude, dplyr::row_number(), sep = "_")
+      }
     ) 
   
   # Prepare simplified dataset for rule checking
+  # Include basisOfRecord and datasetKey if they exist in the data
   d_clean <- d_org |>
     dplyr::select(
       decimalLongitude,
@@ -52,7 +60,9 @@ clean_download <- function(d,
       taxonKey,
       record_id,
       lon,
-      lat
+      lat,
+      # Include basisOfRecord and datasetKey if present
+      dplyr::any_of(c("basisOfRecord", "datasetKey"))
     ) |>
     unique()
   
@@ -176,8 +186,12 @@ get_suspicious_annotations <- function(d) {
         sf::st_make_valid() |>
         sf::st_transform(crs = 3857)  # Transform to same CRS as points
       
-      # Determine which points are within the polygon
-      within <- as.vector(sf::st_within(d_sf, polygon, sparse = FALSE))
+      # Filter points to only those matching this rule's taxonKey
+      # This ensures the spatial result has the same length as records_for_rule
+      d_sf_for_rule <- d_sf[d_sf$taxonKey == rule$taxonKey, ]
+      
+      # Determine which points (for this taxon) are within the polygon
+      within <- as.vector(sf::st_within(d_sf_for_rule, polygon, sparse = FALSE))
       
       # Restore s2 setting
       suppressMessages(sf::sf_use_s2(old_s2))
@@ -196,14 +210,70 @@ get_suspicious_annotations <- function(d) {
       # message("Rule ", rule$id, " (inverted: ", is_inverted, ") processed ", 
       #        sum(d_sf$taxonKey == rule$taxonKey), " points")
       
-      # Return results for this rule
-      d |>
+      # Apply basisOfRecord filtering if specified in the rule
+      records_for_rule <- d |>
+        dplyr::filter(taxonKey == rule$taxonKey) |>
         dplyr::mutate(
-          is_suspicious = within,
+          is_suspicious_spatial = within,
           rule_id = rule$id,
           taxon_key_rule = rule$taxonKey
-        ) |>
-        dplyr::filter(is_suspicious, taxonKey == rule$taxonKey) |>
+        )
+      
+      # Apply basisOfRecord filter if specified in the rule AND the data has basisOfRecord column
+      # Check if rule has actual basisOfRecord values (not NULL, not empty, not just NAs)
+      rule_basis_values <- if (!is.null(rule$basisOfRecord)) unlist(rule$basisOfRecord) else character(0)
+      rule_basis_values <- rule_basis_values[!is.na(rule_basis_values)]  # Remove any NA values
+      
+      has_basis_filter <- length(rule_basis_values) > 0 && "basisOfRecord" %in% colnames(records_for_rule)
+      
+      if (has_basis_filter) {
+        # Apply basisOfRecord filtering
+        if (isTRUE(rule$basisOfRecordNegated)) {
+          # Negated: rule applies to records NOT in the basisOfRecord list
+          records_for_rule <- records_for_rule |>
+            dplyr::mutate(
+              is_suspicious_basis = is.na(basisOfRecord) | !(basisOfRecord %in% rule_basis_values)
+            )
+        } else {
+          # Normal: rule applies to records IN the basisOfRecord list
+          records_for_rule <- records_for_rule |>
+            dplyr::mutate(
+              is_suspicious_basis = !is.na(basisOfRecord) & (basisOfRecord %in% rule_basis_values)
+            )
+        }
+        
+        # Combined filter: both spatial AND basisOfRecord conditions must be met
+        records_for_rule <- records_for_rule |>
+          dplyr::mutate(is_suspicious = is_suspicious_spatial & is_suspicious_basis)
+      } else {
+        # No basisOfRecord filter, only spatial
+        records_for_rule <- records_for_rule |>
+          dplyr::mutate(is_suspicious = is_suspicious_spatial)
+      }
+      
+      # Apply datasetKey filter if specified in the rule AND the data has datasetKey column
+      # Guard against NA values which would cause nchar() to return NA
+      has_dataset_filter <- !is.null(rule$datasetKey) && 
+                            !is.na(rule$datasetKey) && 
+                            nchar(rule$datasetKey) > 0 && 
+                            "datasetKey" %in% colnames(records_for_rule)
+      
+      if (has_dataset_filter) {
+        # datasetKey is a single value (UUID string), not an array like basisOfRecord
+        rule_dataset_key <- rule$datasetKey
+        
+        # Filter: rule applies only to records from the specified dataset
+        records_for_rule <- records_for_rule |>
+          dplyr::mutate(
+            is_suspicious_dataset = !is.na(datasetKey) & (datasetKey == rule_dataset_key),
+            # Combine with existing is_suspicious (from spatial + basisOfRecord)
+            is_suspicious = is_suspicious & is_suspicious_dataset
+          )
+      }
+      
+      # Return results for this rule
+      records_for_rule |>
+        dplyr::filter(is_suspicious) |>
         dplyr::select(record_id, is_suspicious, rule_id)
     })
   
@@ -241,11 +311,45 @@ get_suspicious_annotations <- function(d) {
 #' @method print rule_download
 #' @export
 print.rule_download <- function(x, ...) {
-  cat("─ Cleaning Summary ────────────────────────\n")
-  cat("Number of records in original download: ", attr(x, "n_records_org"), "\n")
-  cat("Number of suspicious records removed: ", attr(x, "n_records_removed"), "\n")
-  cat("Percentage of records removed: ", attr(x, "n_records_removed_pct"), "%\n")
-  cat("Number of records remaining: ", nrow(x), "\n")
+  # Extract attributes
+
+  n_org <- attr(x, "n_records_org")
+  n_removed <- attr(x, "n_records_removed")
+  n_pct <- attr(x, "n_records_removed_pct")
+  n_remaining <- nrow(x)
+  
+
+  # Header
+  cli::cli_h1("Cleaning Summary")
+  
+  # Format numbers with commas for display
+  n_org_fmt <- format(n_org, big.mark = ",")
+  n_removed_fmt <- format(n_removed, big.mark = ",")
+  n_remaining_fmt <- format(n_remaining, big.mark = ",")
+  
+  # Use cli for formatted output
+  cli::cli_bullets(c(
+    "*" = "Records in original download: {.strong {n_org_fmt}}",
+    "x" = "Suspicious records removed:   {.strong {n_removed_fmt}} ({n_pct}%)",
+    "v" = "Records remaining:            {.strong {n_remaining_fmt}}"
+  ))
+  
+  # Progress bar style visual
+  if (n_org > 0) {
+    bar_width <- 30
+    kept_pct <- (n_remaining / n_org)
+    kept_bars <- round(kept_pct * bar_width)
+    removed_bars <- bar_width - kept_bars
+    
+    bar <- paste0(
+      cli::col_green(strrep("\u2588", kept_bars)),
+      cli::col_red(strrep("\u2588", removed_bars))
+    )
+    cat("\n")
+    cli::cli_text("{.emph Kept}: {bar}")
+  }
+  
+  invisible(x)
 }
 
 

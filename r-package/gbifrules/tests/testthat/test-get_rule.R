@@ -1,39 +1,40 @@
 
-with_mock_dir("fixtures/get_rule", {
-  test_that("test make rule works as expected", {
-  withr::with_envvar(list(GBIFRULES_URL = "https://api.gbif-uat.org/v1/occurrence/experimental/annotation/"), {
-    p <- make_project(name="test project", description = "test project")
-    rs <- make_ruleset(projectId=p$id,name="test project", description = "test project")
-    r <- make_rule(taxonKey=1,geometry="WKT",annotation="NATIVE",projectId=p$id,rulesetId=rs$id)
-    rd <- get_rule()
-    expect_s3_class(rd,"tbl_df")
-    expect_true(r$id %in% rd$id)
-    expect_true(all(is.na(rd$deleted)))
+test_that("test get rule works as expected", {
     
-    rd1 <- get_rule(projectId = p$id)
-    expect_s3_class(rd1,"tbl_df")
-    expect_true(all(p$id == rd1$projectId))
-    expect_true(all(is.na(rd1$deleted)))
-    expect_type(rd1$supportedBy, "list")
+    r <- get_rule(taxonKey=-999999) 
+    if(!nrow(r) == 4) {
+      # fake taxonKey for test rules 
+      r1 <- make_rule(taxonKey=-999999,geometry="WKT",annotation="SUSPICIOUS")
+      r2 <- make_rule(taxonKey=-999999,geometry="WKT",annotation="SUSPICIOUS",basisOfRecord="HUMAN_OBSERVATION")
+      r3 <- make_rule(taxonKey=-999999,geometry="WKT",annotation="SUSPICIOUS",yearRange="<1800")
+      r4 <- make_rule(taxonKey=-999999,geometry="WKT",annotation="SUSPICIOUS",datasetKey="4fa7b334-ce0d-4e88-aaae-2e0c138d049e")
+    }
+    
+    gr1 <- get_rule(taxonKey=-999999,annotation="SUSPICIOUS")
+    expect_s3_class(gr1,"tbl_df")
+    expect_equal(nrow(gr1),4)
+    expect_true(all(gr1$taxonKey == -999999))
+    expect_true(all(gr1$annotation == "SUSPICIOUS"))
 
-    rd2 <- get_rule(rulesetId = rs$id)
-    expect_s3_class(rd2,"tbl_df")
-    expect_true(all(rs$id == rd2$rulesetId))
-    expect_true(all(is.na(rd2$deleted)))
+    gr2 <- get_rule(taxonKey=-999999,annotation="SUSPICIOUS",basisOfRecord="HUMAN_OBSERVATION")
+    expect_s3_class(gr2,"tbl_df")
+    expect_equal(nrow(gr2),1)
+    expect_true(all(gr2$taxonKey == -999999))
+    expect_true(all(gr2$annotation == "SUSPICIOUS"))
+    expect_true(all(gr2$basisOfRecord == "HUMAN_OBSERVATION"))
 
-    rd3 <- get_rule(taxonKey=1)
-    expect_s3_class(rd3,"tbl_df")
-    expect_true(all(rd3$taxonKey == 1))
-    expect_true(all(is.na(rd3$deleted)))
+    gr3 <- get_rule(taxonKey=-999999,annotation="SUSPICIOUS",yearRange="<1800")
+    expect_s3_class(gr3,"tbl_df") 
+    expect_equal(nrow(gr3),1)
+    expect_true(all(gr3$taxonKey == -999999))
+    expect_true(all(gr3$annotation == "SUSPICIOUS"))
+    expect_true(all(gr3$yearRange == "<1800"))
+
+    gr4 <- get_rule(taxonKey=-999999,annotation="SUSPICIOUS",datasetKey="4fa7b334-ce0d-4e88-aaae-2e0c138d049e")
+    expect_s3_class(gr4,"tbl_df")
+    expect_equal(nrow(gr4),1)
+    expect_true(all(gr4$taxonKey == -999999))
+    expect_true(all(gr4$annotation == "SUSPICIOUS"))
+    expect_true(all(gr4$datasetKey == "4fa7b334-ce0d-4e88-aaae-2e0c138d049e"))
     
-    rd4 <- get_rule(id=r$id)
-    expect_s3_class(rd4,"tbl_df")
-    expect_true(nrow(rd4) == 1)
-    expect_true(all(rd4$id == r$id))
-    
-    rd5 <- get_rule(limit=3)
-    expect_s3_class(rd5,"tbl_df")
-    expect_true(nrow(rd5) <= 3)
-  })
-  })
 })
