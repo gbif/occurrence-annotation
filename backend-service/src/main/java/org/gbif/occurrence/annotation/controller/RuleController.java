@@ -52,18 +52,18 @@ public class RuleController implements Controller<Rule> {
       summary =
           "List all rules that are not deleted, optionally filtered by taxonKey, datasetKey, rulesetId, basisOfRecord, yearRange, createdBy, supportedBy, contestedBy and containing the comment text")
   @Parameter(name = "taxonKey", description = "Filters by taxonKey")
-  @Parameter(name = "contextKey", description = "Filters by context key")
+  @Parameter(name = "contextKey", description = "Filters by context key. Use 'null' to find rules with no datasetKey")
   @Parameter(name = "rulesetId", description = "Filters by the given ruleset")
   @Parameter(name = "projectId", description = "Filters by the given project")
   @Parameter(
       name = "basisOfRecord",
-      description = "Filters by basis of record values (accepts multiple values)")
+      description = "Filters by basis of record values (accepts multiple values). Use 'null' to find rules with no basisOfRecord")
   @Parameter(
       name = "basisOfRecordNegated",
       description = "When true, returns rules where basisOfRecord is negated (excluded)")
   @Parameter(
       name = "yearRange",
-      description = "Filters by year range (e.g., '1000,2025', '*,1990', '1000,*')")
+      description = "Filters by year range (e.g., '1000,2025', '*,1990', '1000,*'). Use 'null' to find rules with no yearRange")
   @Parameter(name = "createdBy", description = "Filters by the username who created the rule")
   @Parameter(name = "supportedBy", description = "Filters by rules supported by the given username")
   @Parameter(name = "contestedBy", description = "Filters by rules contested by the given username")

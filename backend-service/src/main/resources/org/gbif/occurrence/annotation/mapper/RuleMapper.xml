@@ -14,7 +14,14 @@
             AND taxon_key = #{taxonKey}
         </if>
         <if test="datasetKey != null" >
-            AND dataset_key = #{datasetKey}
+            <choose>
+                <when test="datasetKey == 'null'">
+                    AND dataset_key IS NULL
+                </when>
+                <otherwise>
+                    AND dataset_key = #{datasetKey}
+                </otherwise>
+            </choose>
         </if>
         <if test="rulesetId != null" >
             AND ruleset_id = #{rulesetId}
@@ -23,17 +30,31 @@
             AND project_id = #{projectId}
         </if>
         <if test="basisOfRecord != null and basisOfRecord.length > 0" >
-            AND (
-                <foreach collection="basisOfRecord" item="item" separator=" OR ">
-                    #{item} = ANY(basis_of_record)
-                </foreach>
-            )
+            <choose>
+                <when test="basisOfRecord.length == 1 and basisOfRecord[0] == 'null'">
+                    AND basis_of_record IS NULL
+                </when>
+                <otherwise>
+                    AND (
+                        <foreach collection="basisOfRecord" item="item" separator=" OR ">
+                            #{item} = ANY(basis_of_record)
+                        </foreach>
+                    )
+                </otherwise>
+            </choose>
         </if>
         <if test="basisOfRecordNegated != null" >
             AND basis_of_record_negated = #{basisOfRecordNegated}
         </if>
         <if test="yearRange != null" >
-            AND year_range = #{yearRange}
+            <choose>
+                <when test="yearRange == 'null'">
+                    AND year_range IS NULL
+                </when>
+                <otherwise>
+                    AND year_range = #{yearRange}
+                </otherwise>
+            </choose>
         </if>
         <if test="geometry != null" >
             AND geometry = #{geometry}
@@ -107,7 +128,14 @@
             AND taxon_key = #{taxonKey}
         </if>
         <if test="datasetKey != null" >
-            AND dataset_key = #{datasetKey}
+            <choose>
+                <when test="datasetKey == 'null'">
+                    AND dataset_key IS NULL
+                </when>
+                <otherwise>
+                    AND dataset_key = #{datasetKey}
+                </otherwise>
+            </choose>
         </if>
         <if test="rulesetId != null" >
             AND ruleset_id = #{rulesetId}
