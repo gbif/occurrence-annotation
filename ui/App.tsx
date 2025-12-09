@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { MapComponent } from './components/MapComponent';
 import { MapLibreTest } from './components/MapLibreTest';
 import { SpeciesSelector, SelectedSpecies } from './components/SpeciesSelector';
@@ -12,6 +13,7 @@ import { parseWKTGeometry } from './utils/wktParser';
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
 import { Eye, EyeOff, Share2 } from 'lucide-react';
+import gbifLogo from './gbif-mark-green-logo.svg';
 
 export interface PolygonData {
   id: string;
@@ -24,6 +26,7 @@ export interface PolygonData {
 }
 
 export default function App() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedSpecies, setSelectedSpecies] = useState<SelectedSpecies | null>(null);
   const [savedPolygons, setSavedPolygons] = useState<PolygonData[]>([]);
   const [currentPolygon, setCurrentPolygon] = useState<[number, number][] | null>(null);
@@ -35,24 +38,22 @@ export default function App() {
   const [showHigherOrderRules, setShowHigherOrderRules] = useState(false);
   const [annotationRulesRefreshTrigger, setAnnotationRulesRefreshTrigger] = useState(0);
 
-  // URL state management functions
+  // URL state management functions - uses react-router's searchParams for HashRouter compatibility
   const updateURLWithSpecies = (species: SelectedSpecies | null) => {
-    const url = new URL(window.location.href);
     if (species) {
-      url.searchParams.set('taxonKey', species.key.toString());
+      setSearchParams({ taxonKey: species.key.toString() }, { replace: true });
     } else {
-      url.searchParams.delete('taxonKey');
+      setSearchParams({}, { replace: true });
     }
-    window.history.replaceState({}, '', url.toString());
   };
 
   // Generate shareable URL for current state
   const getShareableURL = () => {
-    const url = new URL(window.location.href);
+    const base = window.location.origin + window.location.pathname;
     if (selectedSpecies) {
-      url.searchParams.set('taxonKey', selectedSpecies.key.toString());
+      return `${base}#/?taxonKey=${selectedSpecies.key}`;
     }
-    return url.toString();
+    return `${base}#/`;
   };
 
   // Copy shareable URL to clipboard
@@ -68,9 +69,9 @@ export default function App() {
   };
 
   const loadSpeciesFromURL = async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const taxonKey = urlParams.get('taxonKey');
-    const ruleId = urlParams.get('ruleId') || urlParams.get('id');
+    // Use searchParams from react-router (reads from hash with HashRouter)
+    const taxonKey = searchParams.get('taxonKey');
+    const ruleId = searchParams.get('ruleId') || searchParams.get('id');
     
     if (taxonKey) {
       try {
@@ -144,22 +145,19 @@ export default function App() {
     }
   };
 
-  // Load species from URL on mount
+  // Load species from URL on mount and when searchParams change (e.g., navigation)
   useEffect(() => {
     loadSpeciesFromURL();
-    
-    // Handle browser back/forward navigation
-    const handlePopState = () => {
-      loadSpeciesFromURL();
-    };
-    
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [searchParams]);
 
-  // Update URL when species selection changes
+  // Update URL when species selection changes (but not on initial load from URL)
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   useEffect(() => {
-    updateURLWithSpecies(selectedSpecies);
+    if (initialLoadComplete) {
+      updateURLWithSpecies(selectedSpecies);
+    } else {
+      setInitialLoadComplete(true);
+    }
   }, [selectedSpecies]);
 
 
@@ -393,9 +391,9 @@ export default function App() {
           {/* Logo and title section */}
           <div className="px-4 py-3 border-b">
             <div className="flex items-center gap-2 mb-1">
-              <img 
-                src="/gbif-mark-green-logo.svg" 
-                alt="GBIF Logo" 
+              <img
+                src={gbifLogo}
+                alt="GBIF Logo"
                 className="h-8 w-8"
               />
               <h1 className="text-black font-bold text-2xl">Rules</h1>

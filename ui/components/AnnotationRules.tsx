@@ -967,12 +967,12 @@ export function AnnotationRules({
             {showHigherOrderRules ? (
               <>
                 <Minus className="h-3 w-3 mr-1" />
-                Hide Higher Order Rules
+                Hide Higher Rank Rules
               </>
             ) : (
               <>
                 <Plus className="h-3 w-3 mr-1" />
-                Show Higher Order Rules
+                Show Higher Rank Rules
               </>
             )}
           </Button>
