@@ -17,10 +17,20 @@ import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
+
+import java.time.Duration;
 
 public class EmbeddedPostgres implements BeforeAllCallback, AfterAllCallback {
   private static final PostgreSQLContainer postgres =
       new PostgreSQLContainer("postgres:17.2").withDatabaseName("annotations");
+
+  static {
+    postgres.withReuse(true).withLabel("reuse.tag", "annotations_ITs_PG_container");
+    postgres.setWaitStrategy(
+      Wait.defaultWaitStrategy().withStartupTimeout(Duration.ofSeconds(60)));
+    postgres.withInitScript("schema.sql");
+  }
 
   @Override
   public void beforeAll(ExtensionContext context) {
