@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { coordinatesToWKT } from '../utils/wktParser';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
+import { getSelectedProjectName } from '../utils/projectSelection';
 import { Checkbox } from './ui/checkbox';
 
 // Helper function to generate species page URL
@@ -479,6 +480,9 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
   // WKT editing state
   const [showWktEditor, setShowWktEditor] = useState(false);
 
+  // Selected project name (if any) for reminding where new rules will be saved
+  const selectedProjectName = getSelectedProjectName();
+
   // Year range validation state
   const [yearRangeError, setYearRangeError] = useState<string>('');
 
@@ -803,9 +807,12 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
         return;
       }
       
+      // Get selected project ID from localStorage
+      const selectedProjectId = localStorage.getItem('selectedProjectId');
+      
       // Prepare the payload
       const payload: any = {
-        projectId: null,
+        projectId: selectedProjectId ? parseInt(selectedProjectId, 10) : null,
         rulesetId: null,
         taxonKey: polygon.species.key,
         geometry: wktGeometry,
@@ -968,6 +975,23 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
                     {!getLoginStatus() && <li>You are not logged into GBIF</li>}
                     {!polygon.species && <li>No species selected for this polygon</li>}
                   </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Reminder about active project */}
+          {selectedProjectName && (
+            <div className="p-2 bg-green-50 border border-green-100 rounded text-sm text-green-700">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-green-700" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M5 12l4 4L19 6" stroke="#166534" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <div>
+                  <div className="text-xs">
+                    <strong>Active project:</strong> {selectedProjectName}
+                  </div>
+                  <div className="text-xs text-green-700/80">New rules you save will be assigned to this project.</div>
                 </div>
               </div>
             </div>

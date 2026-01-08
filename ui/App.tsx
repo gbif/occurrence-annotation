@@ -12,8 +12,10 @@ import { parseWKTGeometry } from './utils/wktParser';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
-import { Eye, EyeOff, Share2 } from 'lucide-react';
+import { Badge } from './components/ui/badge';
+import { Eye, EyeOff, Share2, Folder, X, Network } from 'lucide-react';
 import gbifLogo from './gbif-mark-green-logo.svg';
+import { getSelectedProjectId, getSelectedProjectName } from './utils/projectSelection';
 
 export interface PolygonData {
   id: string;
@@ -37,6 +39,11 @@ export default function App() {
   const [showAnnotationRules, setShowAnnotationRules] = useState(true);
   const [showHigherOrderRules, setShowHigherOrderRules] = useState(false);
   const [annotationRulesRefreshTrigger, setAnnotationRulesRefreshTrigger] = useState(0);
+  const [filterByActiveProject, setFilterByActiveProject] = useState(false);
+  
+  // Selected project for new rules
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(() => getSelectedProjectId());
+  const [selectedProjectName, setSelectedProjectName] = useState<string | null>(() => getSelectedProjectName());
 
   // URL state management functions - uses react-router's searchParams for HashRouter compatibility
   const updateURLWithSpecies = (species: SelectedSpecies | null) => {
@@ -149,6 +156,28 @@ export default function App() {
   useEffect(() => {
     loadSpeciesFromURL();
   }, [searchParams]);
+
+  // Listen for changes to selected project from other tabs/windows
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'selectedProjectId') {
+        setSelectedProjectId(getSelectedProjectId());
+        setSelectedProjectName(getSelectedProjectName());
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Handle clearing project selection
+  const handleClearProjectSelection = () => {
+    localStorage.removeItem('selectedProjectId');
+    localStorage.removeItem('selectedProjectName');
+    setSelectedProjectId(null);
+    setSelectedProjectName(null);
+    toast.info('Project selection cleared');
+  };
 
   // Update URL when species selection changes (but not on initial load from URL)
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -401,6 +430,32 @@ export default function App() {
             <p className="text-gray-600 text-sm">
               Create rules that will apply to past and future occurrence records
             </p>
+            
+            {/* Active Project Indicator */}
+            {selectedProjectId && selectedProjectName && (
+              <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded-md">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <Folder className="w-4 h-4 text-green-700 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-green-900 truncate" title={selectedProjectName}>
+                        {selectedProjectName}
+                      </p>
+                      <p className="text-xs text-green-700">Active project for new rules</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClearProjectSelection}
+                    className="h-6 w-6 p-0 hover:bg-green-100 flex-shrink-0"
+                    title="Clear project selection"
+                  >
+                    <X className="h-3 w-3 text-green-700" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
       
       <div className="flex-1 overflow-auto">
@@ -429,17 +484,41 @@ export default function App() {
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-3">
             <h3 className="flex-1 text-sm">Previous Rules</h3>
-            {annotationRules.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowAnnotationRules(!showAnnotationRules)}
-                className="h-7 w-7 p-0"
-                title={showAnnotationRules ? 'Hide rules on map' : 'Show rules on map'}
-              >
-                {showAnnotationRules ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-              </Button>
-            )}
+            <div className="flex items-center gap-1">
+              {selectedSpecies && (selectedSpecies.genusKey || selectedSpecies.familyKey || selectedSpecies.orderKey || selectedSpecies.classKey || selectedSpecies.phylumKey || selectedSpecies.kingdomKey) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowHigherOrderRules(!showHigherOrderRules)}
+                  className={`h-7 w-7 p-0 ${showHigherOrderRules ? 'bg-blue-100 hover:bg-blue-200' : ''}`}
+                  title={showHigherOrderRules ? 'Hide higher taxonomic rank rules' : 'Show higher taxonomic rank rules'}
+                >
+                  <Network className={`h-4 w-4 ${showHigherOrderRules ? 'text-blue-700' : ''}`} />
+                </Button>
+              )}
+              {selectedProjectId && annotationRules.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFilterByActiveProject(!filterByActiveProject)}
+                  className={`h-7 w-7 p-0 ${filterByActiveProject ? 'bg-green-100 hover:bg-green-200' : ''}`}
+                  title={filterByActiveProject ? `Showing only rules in ${selectedProjectName}` : 'Show only rules in active project'}
+                >
+                  <Folder className={`h-4 w-4 ${filterByActiveProject ? 'text-green-700' : ''}`} />
+                </Button>
+              )}
+              {annotationRules.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAnnotationRules(!showAnnotationRules)}
+                  className="h-7 w-7 p-0"
+                  title={showAnnotationRules ? 'Hide rules on map' : 'Show rules on map'}
+                >
+                  {showAnnotationRules ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                </Button>
+              )}
+            </div>
           </div>
           <AnnotationRules 
             selectedSpecies={selectedSpecies}
@@ -447,6 +526,7 @@ export default function App() {
             onShowHigherOrderChange={setShowHigherOrderRules}
             onRulesLoad={handleAnnotationRulesLoad}
             refreshTrigger={annotationRulesRefreshTrigger}
+            filterProjectId={filterByActiveProject ? selectedProjectId : undefined}
           />
         </div>
       </div>

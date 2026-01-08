@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Trash2, ChevronLeft, ChevronRight, MessageSquare, Loader2, Pencil, ThumbsUp, ThumbsDown, Minus, Plus } from 'lucide-react';
+import { Trash2, ChevronLeft, ChevronRight, MessageSquare, Loader2, Pencil, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp, Folder, Plus } from 'lucide-react';
 import { parseWKTGeometry, MultiPolygon, PolygonWithHoles } from '../utils/wktParser';
 import { toast } from 'sonner';
 import { SelectedSpecies } from './SpeciesSelector';
@@ -96,6 +97,7 @@ interface AnnotationRulesProps {
   onShowHigherOrderChange?: (show: boolean) => void;
   onRulesLoad?: (rules: AnnotationRule[]) => void;
   refreshTrigger?: number; // Add this to force refresh when rules are saved
+  filterProjectId?: number | null; // Filter rules by project ID
 }
 
 export function AnnotationRules({ 
@@ -103,7 +105,8 @@ export function AnnotationRules({
   showHigherOrderRules = false,
   onShowHigherOrderChange,
   onRulesLoad,
-  refreshTrigger
+  refreshTrigger,
+  filterProjectId
 }: AnnotationRulesProps) {
   const [rules, setRules] = useState<AnnotationRule[]>([]);
   const [loading, setLoading] = useState(false);
@@ -123,6 +126,12 @@ export function AnnotationRules({
   // Voting state
   const [votingActions, setVotingActions] = useState<Set<string>>(new Set()); // Track ongoing voting actions
   const [userVotes, setUserVotes] = useState<Map<number, 'support' | 'contest' | null>>(new Map()); // Track user's votes per rule
+  
+  // Description toggle state
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
+  
+  // Project names cache
+  const [projectNames, setProjectNames] = useState<Map<number, string>>(new Map());
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(0);
@@ -249,10 +258,20 @@ export function AnnotationRules({
         // Wait for all scientific names to be fetched
         await Promise.all(scientificNamePromises);
 
+        // Build the base query parameters
+        const buildQueryUrl = (taxonKey: number) => {
+          const params = new URLSearchParams();
+          params.append('taxonKey', taxonKey.toString());
+          if (filterProjectId) {
+            params.append('projectId', filterProjectId.toString());
+          }
+          return `/rule?${params.toString()}`;
+        };
+
         // First, fetch ALL rules for all taxon keys to get the complete dataset
         const allRulesPromises = taxonKeys.map(async ({ key, level }) => {
           const response = await fetch(
-            getAnnotationApiUrl(`/rule?taxonKey=${key}`)
+            getAnnotationApiUrl(buildQueryUrl(key))
           );
           
           if (!response.ok) {
@@ -331,6 +350,18 @@ export function AnnotationRules({
         rulesWithCoords.forEach(rule => {
           fetchCommentCount(rule.id);
         });
+        
+        // Fetch project names for rules that have projectIds
+        const projectIdsToFetch = new Set<number>();
+        rulesWithCoords.forEach(rule => {
+          if (rule.projectId && !projectNames.has(rule.projectId)) {
+            projectIdsToFetch.add(rule.projectId);
+          }
+        });
+        
+        if (projectIdsToFetch.size > 0) {
+          fetchProjectNames(Array.from(projectIdsToFetch));
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
         setRules([]);
@@ -341,7 +372,7 @@ export function AnnotationRules({
     };
 
     fetchRules(currentPage);
-  }, [selectedSpecies, showHigherOrderRules, refreshTrigger, currentPage]);
+  }, [selectedSpecies, showHigherOrderRules, refreshTrigger, currentPage, filterProjectId]);
 
   // Pagination handlers
   const handlePrevPage = () => {
@@ -388,14 +419,42 @@ export function AnnotationRules({
         return newMap;
       });
       
-      // Also cache the comments so we don't need to fetch again
-      setComments(prev => {
+    } catch (error) {
+      console.error('Error fetching comment count:', error);
+    }
+  };
+
+  const fetchProjectNames = async (projectIds: number[]) => {
+    try {
+      const projectPromises = projectIds.map(async (projectId) => {
+        try {
+          const response = await fetch(
+            getAnnotationApiUrl(`/project/${projectId}`)
+          );
+          
+          if (!response.ok) {
+            return { id: projectId, name: `Project #${projectId}` };
+          }
+          
+          const project = await response.json();
+          return { id: projectId, name: project.name || `Project #${projectId}` };
+        } catch (error) {
+          console.error(`Error fetching project ${projectId}:`, error);
+          return { id: projectId, name: `Project #${projectId}` };
+        }
+      });
+      
+      const projectData = await Promise.all(projectPromises);
+      
+      setProjectNames(prev => {
         const newMap = new Map(prev);
-        newMap.set(ruleId, data);
+        projectData.forEach(({ id, name }) => {
+          newMap.set(id, name);
+        });
         return newMap;
       });
-    } catch (err) {
-      console.error('Error fetching comment count:', err);
+    } catch (error) {
+      console.error('Error fetching project names:', error);
     }
   };
 
@@ -929,15 +988,6 @@ export function AnnotationRules({
     );
   }
 
-  const hasHigherOrderKeys = !!(
-    selectedSpecies.genusKey ||
-    selectedSpecies.familyKey ||
-    selectedSpecies.orderKey ||
-    selectedSpecies.classKey ||
-    selectedSpecies.phylumKey ||
-    selectedSpecies.kingdomKey
-  );
-
   if (loading) {
     return (
       <div className="text-gray-500 text-center py-4">
@@ -957,26 +1007,6 @@ export function AnnotationRules({
   if (rules.length === 0) {
     return (
       <div className="space-y-2">
-        {hasHigherOrderKeys && onShowHigherOrderChange && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onShowHigherOrderChange(!showHigherOrderRules)}
-            className="w-full text-xs h-8"
-          >
-            {showHigherOrderRules ? (
-              <>
-                <Minus className="h-3 w-3 mr-1" />
-                Hide Higher Rank Rules
-              </>
-            ) : (
-              <>
-                <Plus className="h-3 w-3 mr-1" />
-                Show Higher Rank Rules
-              </>
-            )}
-          </Button>
-        )}
         <div className="text-gray-500 text-center py-4">
           No annotation rules found{showHigherOrderRules ? ' at any taxonomic level' : ' for this taxon'}
         </div>
@@ -986,27 +1016,7 @@ export function AnnotationRules({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        {hasHigherOrderKeys && onShowHigherOrderChange && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onShowHigherOrderChange(!showHigherOrderRules)}
-            className="text-xs h-7 flex-shrink-0"
-          >
-            {showHigherOrderRules ? (
-              <>
-                <Minus className="h-3 w-3 mr-1" />
-                Hide Higherorder
-              </>
-            ) : (
-              <>
-                <Plus className="h-3 w-3 mr-1" />
-                Show Higherorder
-              </>
-            )}
-          </Button>
-        )}
+      <div className="flex items-center justify-end gap-2">
         <div className="flex items-center gap-2 text-xs text-gray-600">
           {totalCount > pageSize && (
             <>
@@ -1059,6 +1069,20 @@ export function AnnotationRules({
                     <Badge className={getAnnotationColor(rule.annotation)} variant="outline">
                       {rule.annotation}
                     </Badge>
+                    {rule.projectId && (
+                      <Link
+                        to={`/project/${rule.projectId}`}
+                        className="inline-block"
+                        title={projectNames.get(rule.projectId) || `Project #${rule.projectId}`}
+                      >
+                        <Badge variant="secondary" className="text-xs bg-green-50 text-green-700 border-green-200 flex items-center gap-1 max-w-[150px] hover:bg-green-100 cursor-pointer transition-colors">
+                          <Folder className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">
+                            {projectNames.get(rule.projectId) || `Project #${rule.projectId}`}
+                          </span>
+                        </Badge>
+                      </Link>
+                    )}
                     {rule.taxonomicLevel && rule.taxonomicLevel !== 'selected' && (
                       <Badge variant="secondary" className="text-xs">
                         {rule.taxonomicLevel}
@@ -1069,30 +1093,61 @@ export function AnnotationRules({
                   {/* Rule description */}
                   {rule.scientificName && (
                     <div className="col-span-2 mb-2">
-                      <p className="text-sm">
-                        <span className="text-gray-500">This rule designates all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <SpeciesLink scientificName={rule.scientificName} taxonKey={rule.taxonKey} className="font-semibold" />
-                        {rule.basisOfRecord && rule.basisOfRecord.length > 0 && (
-                          rule.basisOfRecordNegated ? (
-                            <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold">NOT "{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                      <div className="flex flex-col">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-fit px-2 self-start flex items-center gap-1"
+                          onClick={() => {
+                            const newExpanded = new Set(expandedDescriptions);
+                            if (newExpanded.has(rule.id)) {
+                              newExpanded.delete(rule.id);
+                            } else {
+                              newExpanded.add(rule.id);
+                            }
+                            setExpandedDescriptions(newExpanded);
+                          }}
+                          title={expandedDescriptions.has(rule.id) ? "Hide description" : "Show description"}
+                        >
+                          {expandedDescriptions.has(rule.id) ? (
+                            <>
+                              <ChevronUp className="w-4 h-4" />
+                              <span className="text-xs text-gray-500">Hide description</span>
+                            </>
                           ) : (
-                            <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold">"{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
-                          )
+                            <>
+                              <ChevronDown className="w-4 h-4" />
+                              <span className="text-xs text-gray-500">Show description</span>
+                            </>
+                          )}
+                        </Button>
+                        {expandedDescriptions.has(rule.id) && (
+                          <p className="text-sm mt-2">
+                            <span className="text-gray-500">This rule designates all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <SpeciesLink scientificName={rule.scientificName} taxonKey={rule.taxonKey} className="font-semibold" />
+                            {rule.basisOfRecord && rule.basisOfRecord.length > 0 && (
+                              rule.basisOfRecordNegated ? (
+                                <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold">NOT "{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                              ) : (
+                                <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold">"{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                              )
+                            )}
+                            {rule.datasetKey && (
+                              <><span className="text-gray-500"> from dataset</span> <span className="font-semibold">"{rule.datasetKey}"</span></>
+                            )}
+                            {rule.yearRange && (
+                              <><span className="text-gray-500"> from years</span> <span className="font-semibold">{rule.yearRange}</span></>
+                            )}
+                            <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${
+                              rule.annotation === 'SUSPICIOUS' ? 'text-red-600' :
+                              rule.annotation === 'NATIVE' ? 'text-green-600' :
+                              rule.annotation === 'MANAGED' ? 'text-blue-600' :
+                              rule.annotation === 'FORMER' ? 'text-purple-600' :
+                              rule.annotation === 'VAGRANT' ? 'text-orange-600' :
+                              'text-red-600'
+                            }`}>{rule.annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
+                          </p>
                         )}
-                        {rule.datasetKey && (
-                          <><span className="text-gray-500"> from dataset</span> <span className="font-semibold">"{rule.datasetKey}"</span></>
-                        )}
-                        {rule.yearRange && (
-                          <><span className="text-gray-500"> from years</span> <span className="font-semibold">{rule.yearRange}</span></>
-                        )}
-                        <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${
-                          rule.annotation === 'SUSPICIOUS' ? 'text-red-600' :
-                          rule.annotation === 'NATIVE' ? 'text-green-600' :
-                          rule.annotation === 'MANAGED' ? 'text-blue-600' :
-                          rule.annotation === 'FORMER' ? 'text-purple-600' :
-                          rule.annotation === 'VAGRANT' ? 'text-orange-600' :
-                          'text-red-600'
-                        }`}>{rule.annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
-                      </p>
+                      </div>
                     </div>
                   )}
                   

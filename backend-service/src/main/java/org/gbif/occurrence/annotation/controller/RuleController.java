@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -237,6 +238,33 @@ public class RuleController implements Controller<Rule> {
     return ruleMapper.get(rule.getId());
   }
 
+  @Operation(summary = "Update an existing rule")
+  @PutMapping("/{id}")
+  @Secured({"USER", "REGISTRY_ADMIN"})
+  public Rule update(@PathVariable(value = "id") int id, @Valid @RequestBody Rule rule) {
+    Rule existing = ruleMapper.get(id);
+
+    // Check if rule exists and is not deleted
+    if (existing == null) {
+      throw new IllegalArgumentException("Rule not found with id: " + id);
+    }
+    if (existing.getDeleted() != null) {
+      throw new IllegalArgumentException("Cannot update a deleted rule");
+    }
+
+    // Only creator or admin can update
+    assertCreatorOrAdmin(existing.getCreatedBy());
+
+    // Set the ID from path parameter to ensure we're updating the correct rule
+    rule.setId(id);
+
+    // Update the rule
+    ruleMapper.update(rule);
+
+    // Return the updated rule
+    return ruleMapper.get(id);
+  }
+
   @Operation(summary = "Logical delete a rule")
   @DeleteMapping("/{id}")
   @Secured({"USER", "REGISTRY_ADMIN"})
@@ -315,16 +343,23 @@ public class RuleController implements Controller<Rule> {
 
   @Operation(
       summary =
-          "Provide basic metrics summarised by username, optionally filtered by contextType, contextKey and rulesetId")
-  @Parameter(name = "contextType", description = "Filters by context type")
-  @Parameter(name = "contextKey", description = "Filters by context key")
+          "Provide aggregate metrics for rules, optionally filtered by username, taxonKey, datasetKey, rulesetId and projectId. Returns total counts across all matching rules.")
+  @Parameter(name = "username", description = "Filters by the username who created the rules")
+  @Parameter(name = "taxonKey", description = "Filters by taxon key")
+  @Parameter(name = "datasetKey", description = "Filters by dataset key")
   @Parameter(name = "rulesetId", description = "Filters by the given ruleset")
+  @Parameter(name = "projectId", description = "Filters by the given project")
   @GetMapping("/metrics")
-  public List<Rule> metrics(
-      @RequestParam(required = false) String contextType,
-      @RequestParam(required = false) String contextKey,
+  public org.gbif.occurrence.annotation.model.RuleMetrics metrics(
+      @RequestParam(required = false) String username,
+      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId) {
-    return ruleMapper.metrics(contextType, contextKey, rulesetId, projectId);
+    List<org.gbif.occurrence.annotation.model.RuleMetrics> results =
+        ruleMapper.metrics(username, taxonKey, datasetKey, rulesetId, projectId);
+    return results.isEmpty()
+        ? new org.gbif.occurrence.annotation.model.RuleMetrics()
+        : results.get(0);
   }
 }

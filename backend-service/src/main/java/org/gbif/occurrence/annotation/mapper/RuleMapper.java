@@ -14,6 +14,7 @@
 package org.gbif.occurrence.annotation.mapper;
 
 import org.gbif.occurrence.annotation.model.Rule;
+import org.gbif.occurrence.annotation.model.RuleMetrics;
 
 import java.util.List;
 
@@ -42,6 +43,8 @@ public interface RuleMapper {
 
   void create(Rule rule);
 
+  void update(Rule rule);
+
   void delete(@Param("id") int id, @Param("username") String username);
 
   void deleteByRuleset(@Param("rulesetId") int id, @Param("username") String username);
@@ -56,9 +59,10 @@ public interface RuleMapper {
 
   void removeContest(@Param("id") int id, @Param("username") String username);
 
-  List<Rule> metrics(
-      @Param("contextType") String contextType,
-      @Param("contextKey") String contextKey,
+  List<RuleMetrics> metrics(
+      @Param("username") String username,
+      @Param("taxonKey") Integer taxonKey,
+      @Param("datasetKey") String datasetKey,
       @Param("rulesetId") Integer rulesetId,
       @Param("projectId") Integer projectId);
 }

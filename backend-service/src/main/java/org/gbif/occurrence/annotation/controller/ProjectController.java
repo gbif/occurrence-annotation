@@ -43,15 +43,21 @@ public class ProjectController implements Controller<Project> {
   @Autowired private RuleMapper ruleMapper;
 
   @Operation(summary = "List all projects that are not deleted")
-  @Parameter(name = "limit", description = "The limit for paging")
-  @Parameter(name = "offset", description = "The offset for paging")
+  @Parameter(name = "limit", description = "The limit for paging", example = "100")
+  @Parameter(name = "offset", description = "The offset for paging", example = "0")
+  @Parameter(
+      name = "member",
+      description =
+          "Filter projects by member username (returns only projects where this user is a member)",
+      example = "jwaller")
   @GetMapping
   public List<Project> list(
       @RequestParam(required = false) Integer limit,
-      @RequestParam(required = false) Integer offset) {
+      @RequestParam(required = false) Integer offset,
+      @RequestParam(required = false) String member) {
     int limitInt = limit == null ? 100 : limit;
     int offsetInt = offset == null ? 0 : offset;
-    return projectMapper.list(limitInt, offsetInt);
+    return projectMapper.list(limitInt, offsetInt, member);
   }
 
   @Operation(summary = "Get a single project (may be deleted)")

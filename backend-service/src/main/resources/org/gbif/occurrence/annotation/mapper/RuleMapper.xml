@@ -29,6 +29,9 @@
         <if test="projectId != null" >
             AND project_id = #{projectId}
         </if>
+        <if test="projectId != null" >
+            AND project_id = #{projectId}
+        </if>
         <if test="basisOfRecord != null and basisOfRecord.length > 0" >
             <choose>
                 <when test="basisOfRecord.length == 1 and basisOfRecord[0] == 'null'">
@@ -85,6 +88,20 @@
         VALUES (#{taxonKey}, #{datasetKey}, #{geometry}, #{annotation}, #{basisOfRecord,typeHandler=org.apache.ibatis.type.ArrayTypeHandler}, #{basisOfRecordNegated}, #{yearRange}, #{rulesetId}, #{projectId}, #{createdBy}, now())
     </insert>
 
+    <update id="update" parameterType="Rule">
+        UPDATE rule SET
+            taxon_key = #{taxonKey},
+            dataset_key = #{datasetKey},
+            geometry = #{geometry},
+            annotation = #{annotation},
+            basis_of_record = #{basisOfRecord,typeHandler=org.apache.ibatis.type.ArrayTypeHandler},
+            basis_of_record_negated = #{basisOfRecordNegated},
+            year_range = #{yearRange},
+            ruleset_id = #{rulesetId},
+            project_id = #{projectId}
+        WHERE id = #{id} AND deleted IS NULL
+    </update>
+
     <update id="delete" parameterType="map">
         UPDATE rule SET deleted = now(), deleted_by = #{username} WHERE id = #{id} AND DELETED IS NULL
     </update>
@@ -117,13 +134,32 @@
 
     <select id="metrics" parameterType="map" resultType="RuleMetrics">
         SELECT
-          created_by AS username,
+          <choose>
+            <when test="username != null">
+              #{username} AS username,
+            </when>
+            <otherwise>
+              'ALL' AS username,
+            </otherwise>
+          </choose>
           count(*) AS ruleCount,
-          count(DISTINCT dataset_key) as contextCount,
+          count(DISTINCT dataset_key) as datasetCount,
+          <choose>
+            <when test="username != null">
+              (SELECT count(*) FROM project WHERE deleted IS NULL AND (created_by = #{username} OR #{username} = ANY(members))) as projectCount,
+            </when>
+            <otherwise>
+              count(DISTINCT project_id) as projectCount,
+            </otherwise>
+          </choose>
+          count(DISTINCT taxon_key) as taxonCount,
           SUM(ARRAY_LENGTH(supported_by,1)) AS supportCount,
           SUM(ARRAY_LENGTH(contested_by,1)) AS contestCount
         FROM rule
         WHERE deleted IS NULL
+        <if test="username != null" >
+            AND created_by = #{username}
+        </if>
         <if test="taxonKey != null" >
             AND taxon_key = #{taxonKey}
         </if>
@@ -140,7 +176,8 @@
         <if test="rulesetId != null" >
             AND ruleset_id = #{rulesetId}
         </if>
-        GROUP BY created_by
-        ORDER BY ruleCount DESC
+        <if test="projectId != null" >
+            AND project_id = #{projectId}
+        </if>
     </select>
 </mapper>

@@ -1,6 +1,8 @@
 import { HashRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import App from './App';
 import { UserPage } from './components/UserPage';
+import { ProjectsPage } from './components/ProjectsPage';
+import { ProjectPage } from './components/ProjectPage';
 
 function AppWithNavigation() {
   const navigate = useNavigate();
@@ -28,6 +30,8 @@ function AppWithNavigation() {
         path="/user/:username" 
         element={<UserPage onNavigateToRule={handleNavigateToRule} />} 
       />
+      <Route path="/projects" element={<ProjectsPage />} />
+      <Route path="/project/:projectId" element={<ProjectPage />} />
     </Routes>
   );
 }

@@ -2,25 +2,38 @@ import { useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
-import { Filter } from 'lucide-react';
+import { Filter, X } from 'lucide-react';
 import { SpeciesSelector, SelectedSpecies } from './SpeciesSelector';
+
+interface Project {
+  id: number;
+  name: string;
+}
 
 interface UserPageFiltersProps {
   speciesFilter: SelectedSpecies | null;
   onSpeciesFilterChange: (species: SelectedSpecies | null) => void;
+  projectFilter: number | null;
+  onProjectFilterChange: (projectId: number | null) => void;
+  projects: Project[];
 }
 
 export function UserPageFilters({
   speciesFilter,
   onSpeciesFilterChange,
+  projectFilter,
+  onProjectFilterChange,
+  projects,
 }: UserPageFiltersProps) {
   const [showFilters, setShowFilters] = useState(false);
 
   const clearAllFilters = () => {
     onSpeciesFilterChange(null);
+    onProjectFilterChange(null);
   };
 
-  const hasActiveFilters = speciesFilter;
+  const hasActiveFilters = speciesFilter || projectFilter;
+  const activeFilterCount = (speciesFilter ? 1 : 0) + (projectFilter ? 1 : 0);
 
   return (
     <div className="space-y-2">
@@ -36,7 +49,7 @@ export function UserPageFilters({
           Filters
           {hasActiveFilters && (
             <Badge variant="secondary" className="ml-1 h-5 min-w-5 text-xs">
-              1
+              {activeFilterCount}
             </Badge>
           )}
         </Button>
@@ -56,17 +69,54 @@ export function UserPageFilters({
       {/* Filter Controls */}
       {showFilters && (
         <Card>
-          <CardContent className="p-3">
-            {/* Species Filter */}
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700">
-                Species
-              </label>
-              <SpeciesSelector
-                selectedSpecies={speciesFilter}
-                onSelectSpecies={onSpeciesFilterChange}
-                placeholder="Filter by species..."
-              />
+          <CardContent className="p-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {/* Species Filter */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-700">
+                  Species
+                </label>
+                <SpeciesSelector
+                  selectedSpecies={speciesFilter}
+                  onSelectSpecies={onSpeciesFilterChange}
+                  placeholder="Filter by species..."
+                />
+              </div>
+
+              {/* Project Filter */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-700">
+                  Project
+                </label>
+                {projects.length > 0 ? (
+                  <div className="flex items-center gap-1">
+                    <select
+                      value={projectFilter || ''}
+                      onChange={(e) => onProjectFilterChange(e.target.value ? parseInt(e.target.value) : null)}
+                      className="flex-1 h-9 px-2 py-1 text-sm bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="">All projects</option>
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                    {projectFilter && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onProjectFilterChange(null)}
+                        className="h-9 w-9 p-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500 italic">No projects available</p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>

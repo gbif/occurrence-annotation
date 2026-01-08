@@ -392,4 +392,180 @@ public class RuleControllerTest {
         .andExpect(status().isOk())
         .andExpect(content().contentType(MediaType.APPLICATION_JSON));
   }
+
+  @Test
+  @WithMockUser(
+      username = "project-filter-user",
+      roles = {"USER"})
+  public void testFilterRulesByProjectId() throws Exception {
+    // Create two projects
+    org.gbif.occurrence.annotation.model.Project project1 =
+        new org.gbif.occurrence.annotation.model.Project();
+    project1.setName("Filter Test Project 1");
+    project1.setDescription("First project for filtering");
+
+    String project1Response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project1)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    org.gbif.occurrence.annotation.model.Project createdProject1 =
+        objectMapper.readValue(
+            project1Response, org.gbif.occurrence.annotation.model.Project.class);
+
+    org.gbif.occurrence.annotation.model.Project project2 =
+        new org.gbif.occurrence.annotation.model.Project();
+    project2.setName("Filter Test Project 2");
+    project2.setDescription("Second project for filtering");
+
+    String project2Response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project2)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    org.gbif.occurrence.annotation.model.Project createdProject2 =
+        objectMapper.readValue(
+            project2Response, org.gbif.occurrence.annotation.model.Project.class);
+
+    // Create rules in different projects
+    Rule ruleInProject1 =
+        Rule.builder()
+            .taxonKey(11111)
+            .datasetKey("dataset-project1")
+            .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
+            .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .projectId(createdProject1.getId())
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(ruleInProject1)))
+        .andExpect(status().isOk());
+
+    Rule ruleInProject2 =
+        Rule.builder()
+            .taxonKey(22222)
+            .datasetKey("dataset-project2")
+            .geometry("POLYGON((1 1, 1 2, 2 2, 2 1, 1 1))")
+            .annotation(Rule.ANNOTATION_TYPE.INTRODUCED)
+            .projectId(createdProject2.getId())
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(ruleInProject2)))
+        .andExpect(status().isOk());
+
+    // Filter by project1 - should only return rules from project1
+    mockMvc
+        .perform(
+            get("/occurrence/experimental/annotation/rule")
+                .param("projectId", String.valueOf(createdProject1.getId())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[*].projectId", everyItem(is(createdProject1.getId()))));
+
+    // Filter by project2 - should only return rules from project2
+    mockMvc
+        .perform(
+            get("/occurrence/experimental/annotation/rule")
+                .param("projectId", String.valueOf(createdProject2.getId())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[*].projectId", everyItem(is(createdProject2.getId()))));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "combined-filter-user",
+      roles = {"USER"})
+  public void testFilterRulesByProjectIdAndTaxonKey() throws Exception {
+    // Create a project
+    org.gbif.occurrence.annotation.model.Project project =
+        new org.gbif.occurrence.annotation.model.Project();
+    project.setName("Combined Filter Project");
+    project.setDescription("Project for testing combined filters");
+
+    String projectResponse =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    org.gbif.occurrence.annotation.model.Project createdProject =
+        objectMapper.readValue(projectResponse, org.gbif.occurrence.annotation.model.Project.class);
+
+    // Create rules with different taxon keys in the same project
+    int targetTaxonKey = 55555;
+
+    Rule rule1 =
+        Rule.builder()
+            .taxonKey(targetTaxonKey)
+            .datasetKey("dataset-combined-1")
+            .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
+            .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .projectId(createdProject.getId())
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule1)))
+        .andExpect(status().isOk());
+
+    Rule rule2 =
+        Rule.builder()
+            .taxonKey(66666)
+            .datasetKey("dataset-combined-2")
+            .geometry("POLYGON((1 1, 1 2, 2 2, 2 1, 1 1))")
+            .annotation(Rule.ANNOTATION_TYPE.INTRODUCED)
+            .projectId(createdProject.getId())
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule2)))
+        .andExpect(status().isOk());
+
+    // Filter by both projectId and taxonKey - should only return matching rule
+    mockMvc
+        .perform(
+            get("/occurrence/experimental/annotation/rule")
+                .param("projectId", String.valueOf(createdProject.getId()))
+                .param("taxonKey", String.valueOf(targetTaxonKey)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(1)))
+        .andExpect(jsonPath("$[0].projectId", is(createdProject.getId())))
+        .andExpect(jsonPath("$[0].taxonKey", is(targetTaxonKey)));
+  }
+
+  @Test
+  public void testFilterRulesByNonExistentProjectId() throws Exception {
+    mockMvc
+        .perform(get("/occurrence/experimental/annotation/rule").param("projectId", "999999"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(0)));
+  }
 }
