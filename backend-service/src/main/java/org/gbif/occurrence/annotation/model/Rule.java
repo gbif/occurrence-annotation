@@ -44,6 +44,9 @@ public class Rule {
   private String datasetKey;
   @NotNull private String geometry;
   private ANNOTATION_TYPE annotation;
+  private String[] basisOfRecord;
+  private Boolean basisOfRecordNegated = false;
+  private String yearRange;
   private Integer rulesetId;
   private Integer projectId;
   private String[] supportedBy;

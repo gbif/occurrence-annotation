@@ -18,7 +18,7 @@ import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.testcontainers.containers.PostgreSQLContainer;
 
-class EmbeddedPostgres implements BeforeAllCallback, AfterAllCallback {
+public class EmbeddedPostgres implements BeforeAllCallback, AfterAllCallback {
   private static final PostgreSQLContainer postgres =
       new PostgreSQLContainer("postgres:17.2").withDatabaseName("annotations");
 
