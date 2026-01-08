@@ -20,7 +20,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 
 class EmbeddedPostgres implements BeforeAllCallback, AfterAllCallback {
   private static final PostgreSQLContainer postgres =
-      new PostgreSQLContainer("postgres:15.2").withDatabaseName("annotations");
+      new PostgreSQLContainer("postgres:17.2").withDatabaseName("annotations");
 
   @Override
   public void beforeAll(ExtensionContext context) {

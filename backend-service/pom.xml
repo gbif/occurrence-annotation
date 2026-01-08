@@ -38,7 +38,7 @@
     <lombok.version>1.18.30</lombok.version>
     <postgresql.version>42.6.0</postgresql.version>
     <junit.version>5.10.2</junit.version>
-    <testcontainers.postgresql.version>1.19.0</testcontainers.postgresql.version>
+    <testcontainers.postgresql.version>2.0.2</testcontainers.postgresql.version>
     <logback.version>1.2.3</logback.version>
     <logstash-encoder.version>5.3</logstash-encoder.version>
     <slf4j.version>1.7.30</slf4j.version>
@@ -169,7 +169,7 @@
     </dependency>
     <dependency>
       <groupId>org.testcontainers</groupId>
-      <artifactId>postgresql</artifactId>
+      <artifactId>testcontainers-postgresql</artifactId>
       <version>${testcontainers.postgresql.version}</version>
       <scope>test</scope>
     </dependency>
