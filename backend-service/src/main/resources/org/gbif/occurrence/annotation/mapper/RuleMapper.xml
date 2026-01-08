@@ -4,6 +4,8 @@
     <resultMap id="RULE_MAP" type="Rule" autoMapping="true">
         <result property="supportedBy" column="supported_by" typeHandler="org.apache.ibatis.type.ArrayTypeHandler"/>
         <result property="contestedBy" column="contested_by" typeHandler="org.apache.ibatis.type.ArrayTypeHandler"/>
+        <result property="basisOfRecord" column="basis_of_record" typeHandler="org.apache.ibatis.type.ArrayTypeHandler"/>
+        <result property="basisOfRecordNegated" column="basis_of_record_negated"/>
     </resultMap>
 
     <select id="list" resultMap="org.gbif.occurrence.annotation.mapper.RuleMapper.RULE_MAP">
@@ -12,13 +14,62 @@
             AND taxon_key = #{taxonKey}
         </if>
         <if test="datasetKey != null" >
-            AND dataset_key = #{datasetKey}
+            <choose>
+                <when test="datasetKey == 'null'">
+                    AND dataset_key IS NULL
+                </when>
+                <otherwise>
+                    AND dataset_key = #{datasetKey}
+                </otherwise>
+            </choose>
         </if>
         <if test="rulesetId != null" >
             AND ruleset_id = #{rulesetId}
         </if>
         <if test="projectId != null" >
             AND project_id = #{projectId}
+        </if>
+        <if test="projectId != null" >
+            AND project_id = #{projectId}
+        </if>
+        <if test="basisOfRecord != null and basisOfRecord.length > 0" >
+            <choose>
+                <when test="basisOfRecord.length == 1 and basisOfRecord[0] == 'null'">
+                    AND basis_of_record IS NULL
+                </when>
+                <otherwise>
+                    AND (
+                        <foreach collection="basisOfRecord" item="item" separator=" OR ">
+                            #{item} = ANY(basis_of_record)
+                        </foreach>
+                    )
+                </otherwise>
+            </choose>
+        </if>
+        <if test="basisOfRecordNegated != null" >
+            AND basis_of_record_negated = #{basisOfRecordNegated}
+        </if>
+        <if test="yearRange != null" >
+            <choose>
+                <when test="yearRange == 'null'">
+                    AND year_range IS NULL
+                </when>
+                <otherwise>
+                    AND year_range = #{yearRange}
+                </otherwise>
+            </choose>
+        </if>
+        <if test="geometry != null" >
+            AND geometry = #{geometry}
+        </if>
+        <if test="createdBy != null" >
+            AND created_by = #{createdBy}
+        </if>
+        <if test="supportedBy != null" >
+            AND #{supportedBy} = ANY(supported_by)
+        </if>
+        <if test="contestedBy != null" >
+            AND #{contestedBy} = ANY(contested_by)
         </if>
         <if test="comment != null" >
             AND id IN (
@@ -33,9 +84,23 @@
     </select>
 
     <insert id="create" parameterType="Rule" useGeneratedKeys="true" keyColumn="id" keyProperty="id">
-        INSERT INTO rule (taxon_key, dataset_key, geometry, annotation, ruleset_id, project_id, created_by, created)
-        VALUES (#{taxonKey}, #{datasetKey}, #{geometry}, #{annotation}, #{rulesetId}, #{projectId}, #{createdBy}, now())
+        INSERT INTO rule (taxon_key, dataset_key, geometry, annotation, basis_of_record, basis_of_record_negated, year_range, ruleset_id, project_id, created_by, created)
+        VALUES (#{taxonKey}, #{datasetKey}, #{geometry}, #{annotation}, #{basisOfRecord,typeHandler=org.apache.ibatis.type.ArrayTypeHandler}, #{basisOfRecordNegated}, #{yearRange}, #{rulesetId}, #{projectId}, #{createdBy}, now())
     </insert>
+
+    <update id="update" parameterType="Rule">
+        UPDATE rule SET
+            taxon_key = #{taxonKey},
+            dataset_key = #{datasetKey},
+            geometry = #{geometry},
+            annotation = #{annotation},
+            basis_of_record = #{basisOfRecord,typeHandler=org.apache.ibatis.type.ArrayTypeHandler},
+            basis_of_record_negated = #{basisOfRecordNegated},
+            year_range = #{yearRange},
+            ruleset_id = #{rulesetId},
+            project_id = #{projectId}
+        WHERE id = #{id} AND deleted IS NULL
+    </update>
 
     <update id="delete" parameterType="map">
         UPDATE rule SET deleted = now(), deleted_by = #{username} WHERE id = #{id} AND DELETED IS NULL
@@ -69,23 +134,50 @@
 
     <select id="metrics" parameterType="map" resultType="RuleMetrics">
         SELECT
-          created_by AS username,
+          <choose>
+            <when test="username != null">
+              #{username} AS username,
+            </when>
+            <otherwise>
+              'ALL' AS username,
+            </otherwise>
+          </choose>
           count(*) AS ruleCount,
-          count(DISTINCT dataset_key) as contextCount,
+          count(DISTINCT dataset_key) as datasetCount,
+          <choose>
+            <when test="username != null">
+              (SELECT count(*) FROM project WHERE deleted IS NULL AND (created_by = #{username} OR #{username} = ANY(members))) as projectCount,
+            </when>
+            <otherwise>
+              count(DISTINCT project_id) as projectCount,
+            </otherwise>
+          </choose>
+          count(DISTINCT taxon_key) as taxonCount,
           SUM(ARRAY_LENGTH(supported_by,1)) AS supportCount,
           SUM(ARRAY_LENGTH(contested_by,1)) AS contestCount
         FROM rule
         WHERE deleted IS NULL
+        <if test="username != null" >
+            AND created_by = #{username}
+        </if>
         <if test="taxonKey != null" >
             AND taxon_key = #{taxonKey}
         </if>
         <if test="datasetKey != null" >
-            AND dataset_key = #{datasetKey}
+            <choose>
+                <when test="datasetKey == 'null'">
+                    AND dataset_key IS NULL
+                </when>
+                <otherwise>
+                    AND dataset_key = #{datasetKey}
+                </otherwise>
+            </choose>
         </if>
         <if test="rulesetId != null" >
             AND ruleset_id = #{rulesetId}
         </if>
-        GROUP BY created_by
-        ORDER BY ruleCount DESC
+        <if test="projectId != null" >
+            AND project_id = #{projectId}
+        </if>
     </select>
 </mapper>

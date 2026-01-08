@@ -22,7 +22,8 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface ProjectMapper {
-  List<Project> list(@Param("limit") int limit, @Param("offset") int offset);
+  List<Project> list(
+      @Param("limit") int limit, @Param("offset") int offset, @Param("member") String member);
 
   Project get(@Param("id") int id);
 

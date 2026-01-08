@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -50,11 +51,31 @@ public class RuleController implements Controller<Rule> {
 
   @Operation(
       summary =
-          "List all rules that are not deleted, optionally filtered by taxonKey, datasetKey, rulesetId and containing the comment text")
+          "List all rules that are not deleted, optionally filtered by taxonKey, datasetKey, rulesetId, basisOfRecord, yearRange, createdBy, supportedBy, contestedBy and containing the comment text")
   @Parameter(name = "taxonKey", description = "Filters by taxonKey")
-  @Parameter(name = "contextKey", description = "Filters by context key")
+  @Parameter(
+      name = "contextKey",
+      description = "Filters by context key. Use 'null' to find rules with no datasetKey")
   @Parameter(name = "rulesetId", description = "Filters by the given ruleset")
   @Parameter(name = "projectId", description = "Filters by the given project")
+  @Parameter(
+      name = "basisOfRecord",
+      description =
+          "Filters by basis of record values (accepts multiple values). Use 'null' to find rules with no basisOfRecord")
+  @Parameter(
+      name = "basisOfRecordNegated",
+      description = "When true, returns rules where basisOfRecord is negated (excluded)")
+  @Parameter(
+      name = "yearRange",
+      description =
+          "Filters by year range (e.g., '1000,2025', '*,1990', '1000,*'). Use 'null' to find rules with no yearRange")
+  @Parameter(name = "createdBy", description = "Filters by the username who created the rule")
+  @Parameter(name = "supportedBy", description = "Filters by rules supported by the given username")
+  @Parameter(name = "contestedBy", description = "Filters by rules contested by the given username")
+  @Parameter(
+      name = "geometry",
+      description =
+          "Filters by geometry using WKT string. Finds rules with geometries that intersect with the provided geometry. URL encoding should be applied to WKT strings.")
   @Parameter(
       name = "comment",
       description = "Filters to rules with a non-deleted comment containing the given text")
@@ -66,13 +87,138 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) String datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
+      @RequestParam(required = false) String[] basisOfRecord,
+      @RequestParam(required = false) Boolean basisOfRecordNegated,
+      @RequestParam(required = false) String yearRange,
+      @RequestParam(required = false) String geometry,
+      @RequestParam(required = false) String createdBy,
+      @RequestParam(required = false) String supportedBy,
+      @RequestParam(required = false) String contestedBy,
       @RequestParam(required = false) String comment,
       @RequestParam(required = false) Integer limit,
       @RequestParam(required = false) Integer offset) {
     int limitInt = limit == null ? 100 : limit;
     int offsetInt = offset == null ? 0 : offset;
     return ruleMapper.list(
-        taxonKey, datasetKey, rulesetId, projectId, comment, limitInt, offsetInt);
+        taxonKey,
+        datasetKey,
+        rulesetId,
+        projectId,
+        basisOfRecord,
+        basisOfRecordNegated,
+        yearRange,
+        geometry,
+        createdBy,
+        supportedBy,
+        contestedBy,
+        comment,
+        limitInt,
+        offsetInt);
+  }
+
+  @Operation(summary = "Get rules created by the current logged-in user")
+  @GetMapping("/my")
+  @Secured("USER")
+  public List<Rule> getMyRules(
+      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String datasetKey,
+      @RequestParam(required = false) Integer rulesetId,
+      @RequestParam(required = false) Integer projectId,
+      @RequestParam(required = false) String[] basisOfRecord,
+      @RequestParam(required = false) Boolean basisOfRecordNegated,
+      @RequestParam(required = false) String yearRange,
+      @RequestParam(required = false) String geometry,
+      @RequestParam(required = false) String comment,
+      @RequestParam(required = false) Integer limit,
+      @RequestParam(required = false) Integer offset) {
+    int limitInt = limit == null ? 100 : limit;
+    int offsetInt = offset == null ? 0 : offset;
+    String currentUser = getLoggedInUser();
+    return ruleMapper.list(
+        taxonKey,
+        datasetKey,
+        rulesetId,
+        projectId,
+        basisOfRecord,
+        basisOfRecordNegated,
+        yearRange,
+        geometry,
+        currentUser, // createdBy = current user
+        null, // supportedBy
+        null, // contestedBy
+        comment,
+        limitInt,
+        offsetInt);
+  }
+
+  @Operation(summary = "Get rules supported by the current logged-in user")
+  @GetMapping("/supported")
+  @Secured("USER")
+  public List<Rule> getSupportedRules(
+      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String datasetKey,
+      @RequestParam(required = false) Integer rulesetId,
+      @RequestParam(required = false) Integer projectId,
+      @RequestParam(required = false) String[] basisOfRecord,
+      @RequestParam(required = false) Boolean basisOfRecordNegated,
+      @RequestParam(required = false) String yearRange,
+      @RequestParam(required = false) String geometry,
+      @RequestParam(required = false) String comment,
+      @RequestParam(required = false) Integer limit,
+      @RequestParam(required = false) Integer offset) {
+    int limitInt = limit == null ? 100 : limit;
+    int offsetInt = offset == null ? 0 : offset;
+    String currentUser = getLoggedInUser();
+    return ruleMapper.list(
+        taxonKey,
+        datasetKey,
+        rulesetId,
+        projectId,
+        basisOfRecord,
+        basisOfRecordNegated,
+        yearRange,
+        geometry,
+        null, // createdBy
+        currentUser, // supportedBy = current user
+        null, // contestedBy
+        comment,
+        limitInt,
+        offsetInt);
+  }
+
+  @Operation(summary = "Get rules contested by the current logged-in user")
+  @GetMapping("/contested")
+  @Secured("USER")
+  public List<Rule> getContestedRules(
+      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String datasetKey,
+      @RequestParam(required = false) Integer rulesetId,
+      @RequestParam(required = false) Integer projectId,
+      @RequestParam(required = false) String[] basisOfRecord,
+      @RequestParam(required = false) Boolean basisOfRecordNegated,
+      @RequestParam(required = false) String yearRange,
+      @RequestParam(required = false) String geometry,
+      @RequestParam(required = false) String comment,
+      @RequestParam(required = false) Integer limit,
+      @RequestParam(required = false) Integer offset) {
+    int limitInt = limit == null ? 100 : limit;
+    int offsetInt = offset == null ? 0 : offset;
+    String currentUser = getLoggedInUser();
+    return ruleMapper.list(
+        taxonKey,
+        datasetKey,
+        rulesetId,
+        projectId,
+        basisOfRecord,
+        basisOfRecordNegated,
+        yearRange,
+        geometry,
+        null, // createdBy
+        null, // supportedBy
+        currentUser, // contestedBy = current user
+        comment,
+        limitInt,
+        offsetInt);
   }
 
   @Operation(summary = "Get a single rule (may be deleted)")
@@ -90,6 +236,33 @@ public class RuleController implements Controller<Rule> {
     rule.setCreatedBy(getLoggedInUser());
     ruleMapper.create(rule); // id set by mybatis
     return ruleMapper.get(rule.getId());
+  }
+
+  @Operation(summary = "Update an existing rule")
+  @PutMapping("/{id}")
+  @Secured({"USER", "REGISTRY_ADMIN"})
+  public Rule update(@PathVariable(value = "id") int id, @Valid @RequestBody Rule rule) {
+    Rule existing = ruleMapper.get(id);
+
+    // Check if rule exists and is not deleted
+    if (existing == null) {
+      throw new IllegalArgumentException("Rule not found with id: " + id);
+    }
+    if (existing.getDeleted() != null) {
+      throw new IllegalArgumentException("Cannot update a deleted rule");
+    }
+
+    // Only creator or admin can update
+    assertCreatorOrAdmin(existing.getCreatedBy());
+
+    // Set the ID from path parameter to ensure we're updating the correct rule
+    rule.setId(id);
+
+    // Update the rule
+    ruleMapper.update(rule);
+
+    // Return the updated rule
+    return ruleMapper.get(id);
   }
 
   @Operation(summary = "Logical delete a rule")
@@ -170,16 +343,23 @@ public class RuleController implements Controller<Rule> {
 
   @Operation(
       summary =
-          "Provide basic metrics summarised by username, optionally filtered by contextType, contextKey and rulesetId")
-  @Parameter(name = "contextType", description = "Filters by context type")
-  @Parameter(name = "contextKey", description = "Filters by context key")
+          "Provide aggregate metrics for rules, optionally filtered by username, taxonKey, datasetKey, rulesetId and projectId. Returns total counts across all matching rules.")
+  @Parameter(name = "username", description = "Filters by the username who created the rules")
+  @Parameter(name = "taxonKey", description = "Filters by taxon key")
+  @Parameter(name = "datasetKey", description = "Filters by dataset key")
   @Parameter(name = "rulesetId", description = "Filters by the given ruleset")
+  @Parameter(name = "projectId", description = "Filters by the given project")
   @GetMapping("/metrics")
-  public List<Rule> metrics(
-      @RequestParam(required = false) String contextType,
-      @RequestParam(required = false) String contextKey,
+  public org.gbif.occurrence.annotation.model.RuleMetrics metrics(
+      @RequestParam(required = false) String username,
+      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId) {
-    return ruleMapper.metrics(contextType, contextKey, rulesetId, projectId);
+    List<org.gbif.occurrence.annotation.model.RuleMetrics> results =
+        ruleMapper.metrics(username, taxonKey, datasetKey, rulesetId, projectId);
+    return results.isEmpty()
+        ? new org.gbif.occurrence.annotation.model.RuleMetrics()
+        : results.get(0);
   }
 }
