@@ -14,10 +14,14 @@
 package org.gbif.occurrence.annotation.mapper;
 
 import org.gbif.occurrence.annotation.EmbeddedPostgres;
+import org.gbif.occurrence.annotation.model.Project;
 import org.gbif.occurrence.annotation.model.Rule;
+import org.gbif.occurrence.annotation.model.Ruleset;
 
+import java.util.Date;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +32,11 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(EmbeddedPostgres.class)
 @SpringBootTest
@@ -45,6 +53,29 @@ public class RuleMapperTest {
     registry.add("spring.datasource.username", postgres::getUsername);
     registry.add("spring.datasource.password", postgres::getPassword);
     registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
+  }
+
+  @BeforeAll
+  public static void initializeData(@Autowired RulesetMapper rulesetMapper, @Autowired ProjectMapper projectMapper) {
+    Project project = new Project();
+    project.setId(1);
+    project.setName("project1");
+    project.setDescription("project1");
+    project.setMembers(new String[]{"member1"});
+    project.setCreated(new Date());
+    project.setCreatedBy("test");
+    projectMapper.create(project);
+
+
+    Ruleset ruleset = new Ruleset();
+    ruleset.setId(1);
+    ruleset.setName("ruleSet1");
+    ruleset.setDescription("ruleSet1");
+    ruleset.setMembers(new String[]{"member1"});
+    ruleset.setProjectId(project.getId());
+    ruleset.setCreated(new Date());
+    ruleset.setCreatedBy("test");
+    rulesetMapper.create(ruleset);
   }
 
   private Rule createTestRule() {
