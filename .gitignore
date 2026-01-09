@@ -11,6 +11,13 @@
 # Docker utility scripts
 Start-DockerClean.ps1
 
+# Docker files for local development
+backend-service/Dockerfile
+backend-service/Dockerfile.multistage
+backend-service/docker-compose.yml
+backend-service/docker-compose.test.yml
+backend-service/.dockerignore
+
 # Vite build artifacts and UI dependencies
 ui/node_modules/.vite/deps/
 ui/node_modules/.vite/

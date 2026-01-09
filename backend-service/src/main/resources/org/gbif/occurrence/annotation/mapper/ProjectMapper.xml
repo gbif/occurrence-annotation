@@ -26,7 +26,7 @@
     </insert>
 
     <update id="update" parameterType="Project">
-        UPDATE project SET name=#{name}, description=#{description}, members=#{members,typeHandler=org.apache.ibatis.type.ArrayTypeHandler}, modified=now()
+        UPDATE project SET name=#{name}, description=#{description}, members=#{members,typeHandler=org.apache.ibatis.type.ArrayTypeHandler}, modified=now(), modified_by=#{modifiedBy}
         WHERE id = #{id} AND DELETED IS NULL
     </update>
 

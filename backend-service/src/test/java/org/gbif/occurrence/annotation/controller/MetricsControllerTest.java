@@ -14,6 +14,7 @@
 package org.gbif.occurrence.annotation.controller;
 
 import org.gbif.occurrence.annotation.EmbeddedPostgres;
+import org.gbif.occurrence.annotation.config.TestSecurityConfig;
 import org.gbif.occurrence.annotation.model.Project;
 import org.gbif.occurrence.annotation.model.Rule;
 
@@ -22,10 +23,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 
@@ -38,6 +41,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(EmbeddedPostgres.class)
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(TestSecurityConfig.class)
+@TestPropertySource(locations = "classpath:test-application.properties")
 public class MetricsControllerTest {
 
   @Autowired private MockMvc mockMvc;
@@ -95,6 +100,7 @@ public class MetricsControllerTest {
             .datasetKey("dataset-metrics-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .rulesetId(1)
             .projectId(createdProject1.getId())
             .build();
 
@@ -224,6 +230,7 @@ public class MetricsControllerTest {
             .datasetKey("dataset-project-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .rulesetId(1)
             .projectId(createdProject.getId())
             .build();
 
@@ -240,6 +247,7 @@ public class MetricsControllerTest {
             .datasetKey("dataset-project-2")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation(Rule.ANNOTATION_TYPE.INTRODUCED)
+            .rulesetId(1)
             .projectId(createdProject.getId())
             .build();
 
@@ -292,6 +300,7 @@ public class MetricsControllerTest {
             .datasetKey("dataset-taxon-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .rulesetId(1)
             .projectId(createdProject.getId())
             .build();
 
@@ -308,6 +317,7 @@ public class MetricsControllerTest {
             .datasetKey("dataset-taxon-2")
             .geometry("POLYGON((1 1, 1 2, 2 2, 2 1, 1 1))")
             .annotation(Rule.ANNOTATION_TYPE.INTRODUCED)
+            .rulesetId(1)
             .projectId(createdProject.getId())
             .build();
 
@@ -359,6 +369,7 @@ public class MetricsControllerTest {
             .datasetKey("dataset-multi-filter")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .rulesetId(1)
             .projectId(createdProject.getId())
             .build();
 

@@ -14,6 +14,7 @@
 package org.gbif.occurrence.annotation.mapper;
 
 import org.gbif.occurrence.annotation.EmbeddedPostgres;
+import org.gbif.occurrence.annotation.config.TestSecurityConfig;
 import org.gbif.occurrence.annotation.model.Rule;
 
 import java.util.List;
@@ -22,8 +23,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -34,6 +37,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 @Transactional
 @SpringJUnitConfig
+@Import(TestSecurityConfig.class)
+@TestPropertySource(locations = "classpath:test-application.properties")
 public class RuleMapperTest {
 
   @Autowired private RuleMapper ruleMapper;
@@ -335,7 +340,7 @@ public class RuleMapperTest {
     // Test filtering by specific creator - alice should have 2 rules
     List<Rule> results =
         ruleMapper.list(
-            null, null, null, null, null, null, null, "alice", null, null, null, null, 100, 0);
+            null, null, null, null, null, null, null, null, "alice", null, null, null, 100, 0);
 
     assertEquals(2, results.size(), "Should find 2 rules created by alice");
     assertTrue(
@@ -353,7 +358,7 @@ public class RuleMapperTest {
     // Test filtering by specific creator - charlie should have 1 rule
     results =
         ruleMapper.list(
-            null, null, null, null, null, null, null, "charlie", null, null, null, null, 100, 0);
+            null, null, null, null, null, null, null, null, "charlie", null, null, null, 100, 0);
 
     assertEquals(1, results.size(), "Should find 1 rule created by charlie");
     assertEquals(
@@ -409,7 +414,7 @@ public class RuleMapperTest {
     // Test combining taxonKey and createdBy filters
     List<Rule> results =
         ruleMapper.list(
-            12345, null, null, null, null, null, null, "alice", null, null, null, null, 100, 0);
+            12345, null, null, null, null, null, null, null, "alice", null, null, null, 100, 0);
 
     assertEquals(1, results.size(), "Should find 1 rule with taxonKey=12345 and createdBy=alice");
     assertEquals(
@@ -585,11 +590,11 @@ public class RuleMapperTest {
   public void testGeometryFilter() {
     // Create a test rule with a specific geometry
     Rule rule = createTestRule();
-    rule.setGeometry("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))");
+    String testGeometry = "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))";
+    rule.setGeometry(testGeometry);
     ruleMapper.create(rule);
 
-    // Test geometry intersection - this polygon should intersect with the rule's geometry
-    String intersectingGeometry = "POLYGON((5 5, 15 5, 15 15, 5 15, 5 5))";
+    // Test exact geometry match
     List<Rule> results =
         ruleMapper.list(
             null,
@@ -599,7 +604,7 @@ public class RuleMapperTest {
             null,
             null,
             null,
-            intersectingGeometry, // geometry parameter
+            testGeometry, // exact geometry parameter
             null,
             null,
             null,
@@ -607,11 +612,11 @@ public class RuleMapperTest {
             100,
             0);
 
-    assertTrue(
-        results.size() >= 1, "Should find at least 1 rule that intersects with the test geometry");
+    assertEquals(1, results.size(), "Should find exactly 1 rule with the exact geometry");
+    assertEquals(testGeometry, results.get(0).getGeometry(), "Geometry should match exactly");
 
-    // Test non-intersecting geometry - this should return no results for our specific rule
-    String nonIntersectingGeometry = "POLYGON((20 20, 30 20, 30 30, 20 30, 20 20))";
+    // Test non-matching geometry - this should return no results
+    String differentGeometry = "POLYGON((20 20, 30 20, 30 30, 20 30, 20 20))";
     List<Rule> noResults =
         ruleMapper.list(
             null,
@@ -621,13 +626,15 @@ public class RuleMapperTest {
             null,
             null,
             null,
-            nonIntersectingGeometry, // geometry parameter
+            differentGeometry, // geometry parameter
             null,
             null,
             null,
             null,
             100,
             0);
+
+    assertEquals(0, noResults.size(), "Should find no rules with different geometry");
 
     // Clean up
     ruleMapper.delete(rule.getId(), "testuser");

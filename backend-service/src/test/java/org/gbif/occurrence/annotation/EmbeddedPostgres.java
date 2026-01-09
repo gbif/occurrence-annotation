@@ -19,8 +19,11 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 public class EmbeddedPostgres implements BeforeAllCallback, AfterAllCallback {
-  private static final PostgreSQLContainer postgres =
-      new PostgreSQLContainer("postgres:17.2").withDatabaseName("annotations");
+  @SuppressWarnings("resource")
+  private static final PostgreSQLContainer<?> postgres =
+      new PostgreSQLContainer<>("postgres:17.2")
+          .withDatabaseName("annotations")
+          .withInitScript("test-init.sql");
 
   @Override
   public void beforeAll(ExtensionContext context) {
@@ -32,6 +35,7 @@ public class EmbeddedPostgres implements BeforeAllCallback, AfterAllCallback {
     postgres.stop();
   }
 
+  @SuppressWarnings("rawtypes")
   public static PostgreSQLContainer getPostgres() {
     return postgres;
   }
