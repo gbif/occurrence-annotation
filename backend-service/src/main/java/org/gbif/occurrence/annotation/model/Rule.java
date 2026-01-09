@@ -45,7 +45,7 @@ public class Rule {
   @NotNull private String geometry;
   private ANNOTATION_TYPE annotation;
   private String[] basisOfRecord;
-  private Boolean basisOfRecordNegated = false;
+  @Builder.Default private Boolean basisOfRecordNegated = false;
   private String yearRange;
   private Integer rulesetId;
   private Integer projectId;

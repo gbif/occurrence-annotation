@@ -85,7 +85,7 @@
 
     <insert id="create" parameterType="Rule" useGeneratedKeys="true" keyColumn="id" keyProperty="id">
         INSERT INTO rule (taxon_key, dataset_key, geometry, annotation, basis_of_record, basis_of_record_negated, year_range, ruleset_id, project_id, created_by, created)
-        VALUES (#{taxonKey}, #{datasetKey}, #{geometry}, #{annotation}, #{basisOfRecord,typeHandler=org.apache.ibatis.type.ArrayTypeHandler}, #{basisOfRecordNegated}, #{yearRange}, #{rulesetId}, #{projectId}, #{createdBy}, now())
+        VALUES (#{taxonKey}, #{datasetKey}, #{geometry}, #{annotation}, #{basisOfRecord,typeHandler=org.apache.ibatis.type.ArrayTypeHandler}, COALESCE(#{basisOfRecordNegated}, false), #{yearRange}, #{rulesetId}, #{projectId}, #{createdBy}, now())
     </insert>
 
     <update id="update" parameterType="Rule">

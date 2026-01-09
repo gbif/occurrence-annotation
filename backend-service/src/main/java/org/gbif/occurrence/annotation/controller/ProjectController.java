@@ -72,6 +72,11 @@ public class ProjectController implements Controller<Project> {
   @Secured("USER")
   @Override
   public Project create(@Valid @RequestBody Project project) {
+    // Validate name is not empty or blank
+    if (project.getName() == null || project.getName().trim().isEmpty()) {
+      throw new IllegalArgumentException("Project name cannot be empty");
+    }
+
     String username = getLoggedInUser();
     project.setCreatedBy(username);
     project.setMembers(new String[] {username}); // creator is always a member

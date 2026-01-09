@@ -15,6 +15,7 @@ package org.gbif.occurrence.annotation.model;
 
 import java.util.Date;
 
+import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 
 import lombok.AllArgsConstructor;
@@ -28,7 +29,7 @@ import lombok.NoArgsConstructor;
 @Builder
 public class Project {
   private Integer id;
-  @NotNull private String name;
+  @NotNull @NotBlank private String name;
   @NotNull private String description;
   private String[] members;
   private Date created;
