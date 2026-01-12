@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { MapComponent } from './components/MapComponent';
-import { MapLibreTest } from './components/MapLibreTest';
 import { SpeciesSelector, SelectedSpecies } from './components/SpeciesSelector';
 import { SavedPolygons } from './components/SavedPolygons';
 import { LoginButton } from './components/LoginButton';
@@ -12,8 +11,7 @@ import { parseWKTGeometry } from './utils/wktParser';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
-import { Badge } from './components/ui/badge';
-import { Eye, EyeOff, Share2, Folder, X, Network } from 'lucide-react';
+import { Eye, EyeOff, Folder, X, Network } from 'lucide-react';
 import gbifLogo from './gbif-mark-green-logo.svg';
 import { getSelectedProjectId, getSelectedProjectName } from './utils/projectSelection';
 
@@ -63,17 +61,17 @@ export default function App() {
     return `${base}#/`;
   };
 
-  // Copy shareable URL to clipboard
-  const copyShareableURL = async () => {
-    try {
-      const url = getShareableURL();
-      await navigator.clipboard.writeText(url);
-      toast.success('URL copied to clipboard!');
-    } catch (error) {
-      console.error('Failed to copy URL:', error);
-      toast.error('Failed to copy URL to clipboard');
-    }
-  };
+  // Copy shareable URL to clipboard (currently unused)
+  // const copyShareableURL = async () => {
+  //   try {
+  //     const url = getShareableURL();
+  //     await navigator.clipboard.writeText(url);
+  //     toast.success('URL copied to clipboard!');
+  //   } catch (error) {
+  //     console.error('Failed to copy URL:', error);
+  //     toast.error('Failed to copy URL to clipboard');
+  //   }
+  // };
 
   const loadSpeciesFromURL = async () => {
     // Use searchParams from react-router (reads from hash with HashRouter)

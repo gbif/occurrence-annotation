@@ -296,7 +296,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
 
         // Fetch all rules (API currently returns all rules as array)
         const response = await fetch(
-          `http://localhost:8080/occurrence/experimental/annotation/rule?createdBy=${encodeURIComponent(username)}`
+          getAnnotationApiUrl(`/rule?createdBy=${encodeURIComponent(username)}`)
         );
 
         if (!response.ok) {
@@ -624,7 +624,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   };
 
   const handleViewRuleAPI = (ruleId: number) => {
-    window.open(`http://localhost:8080/occurrence/experimental/annotation/rule/${ruleId}`, '_blank');
+    window.open(getAnnotationApiUrl(`/rule/${ruleId}`), '_blank');
   };
 
   const handleDeleteRule = async (ruleId: number) => {

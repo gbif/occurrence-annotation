@@ -24,9 +24,10 @@ const getSpeciesPageUrl = (taxonKey: number): string => {
 };
 
 // Component for clickable species name
-const SpeciesLink = ({ species, className = "" }: { 
+const SpeciesLink = ({ species, className = "", style }: { 
   species: { scientificName?: string; name?: string; key?: number }; 
   className?: string;
+  style?: React.CSSProperties;
 }) => {
   const displayName = species.scientificName || species.name || 'selected species';
   
@@ -37,6 +38,7 @@ const SpeciesLink = ({ species, className = "" }: {
         target="_blank" 
         rel="noopener noreferrer"
         className={`${className} hover:underline cursor-pointer`}
+        style={style}
         title={`View ${displayName} species page`}
       >
         "{displayName}"
@@ -44,7 +46,7 @@ const SpeciesLink = ({ species, className = "" }: {
     );
   }
   
-  return <span className={className}>"{displayName}"</span>;
+  return <span className={className} style={style}>"{displayName}"</span>;
 };
 
 // Searchable multi-select component for Basis of Record
@@ -1199,7 +1201,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
                 {/* Complex Rule Display */}
                 <div className="mt-4 p-3 rounded-lg border border-gray-200 bg-gray-50">
                   <p className="text-base text-gray-800">
-                    This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of <SpeciesLink species={polygon.species} className="font-bold" />
+                    This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of {polygon.species && <SpeciesLink species={polygon.species} className="font-bold" />}
                     {basisOfRecord && basisOfRecord.length > 0 && (
                       basisOfRecordNegated ? (
                         <> with basis of record <span className="font-bold">NOT "{basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
@@ -1231,7 +1233,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
               /* Simple Rule Display */
               <div className="p-3 rounded-lg border border-gray-200">
                 <p className="text-base text-gray-800">
-                  This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of <SpeciesLink species={polygon.species} className="font-bold" /> within the <span className="font-bold">polygon area</span> as <span className="font-bold text-red-600">suspicious</span>.
+                  This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of {polygon.species && <SpeciesLink species={polygon.species} className="font-bold" />} within the <span className="font-bold">polygon area</span> as <span className="font-bold text-red-600">suspicious</span>.
                 </p>
               </div>
             )}
