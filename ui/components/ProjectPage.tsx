@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -27,9 +27,20 @@ import {
 } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { ArrowLeft, Folder, Users, User, ExternalLink, Loader2, UserPlus, X, BarChart3, MapPin, Bug } from 'lucide-react';
+import { 
+  Pagination, 
+  PaginationContent, 
+  PaginationItem, 
+  PaginationLink, 
+  PaginationNext, 
+  PaginationPrevious,
+  PaginationEllipsis
+} from './ui/pagination';
+import { ArrowLeft, Folder, Users, User, ExternalLink, Loader2, UserPlus, X, BarChart3, MapPin, Bug, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
+import { getSpeciesInfo } from '../utils/speciesCache';
+import { SpeciesSelector, SelectedSpecies } from './SpeciesSelector';
 
 interface Project {
   id: number;
@@ -42,6 +53,32 @@ interface Project {
   modifiedBy: string | null;
   deleted: string | null;
   deletedBy: string | null;
+}
+
+interface ProjectRule {
+  id: number;
+  createdBy: string;
+  created: string;
+  geometry: string;
+  taxonKey?: number;
+  datasetKey?: string;
+  annotation: string;
+  basisOfRecord?: string;
+  yearRange?: string;
+  rulesetId?: number;
+  projectId?: number;
+  supportedBy: any[];
+  contestedBy: any[];
+  deleted?: string;
+  deletedBy?: string;
+}
+
+interface SpeciesInfo {
+  key: number;
+  scientificName: string;
+  canonicalName?: string;
+  vernacularName?: string;
+  rank?: string;
 }
 
 interface ProjectMetrics {
@@ -63,6 +100,21 @@ export function ProjectPage() {
   // Metrics state
   const [metrics, setMetrics] = useState<ProjectMetrics | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
+
+  // Rules state
+  const [rules, setRules] = useState<ProjectRule[]>([]);
+  const [rulesLoading, setRulesLoading] = useState(false);
+  
+  // Filter state
+  const [speciesFilter, setSpeciesFilter] = useState<SelectedSpecies | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20);
+  
+  // Species cache for rule table
+  const [speciesCache, setSpeciesCache] = useState<Map<number, SpeciesInfo>>(new Map());
+  const fetchedTaxonKeys = useRef<Set<number>>(new Set());
 
   // Add member dialog state
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
@@ -105,6 +157,83 @@ export function ProjectPage() {
       return dateString;
     }
   };
+
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getAnnotationColor = (annotation: string) => {
+    switch (annotation?.toLowerCase()) {
+      case 'absent':
+        return 'bg-red-50 text-red-700 border-red-200';
+      case 'wild':
+        return 'bg-green-50 text-green-700 border-green-200';
+      case 'not_wild':
+        return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'uncertain':
+        return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+      default:
+        return 'bg-gray-50 text-gray-700 border-gray-200';
+    }
+  };
+
+  // Fetch species info for a rule
+  const fetchSpeciesInfo = useCallback(async (taxonKey: number) => {
+    fetchedTaxonKeys.current.add(taxonKey);
+    
+    try {
+      const data = await getSpeciesInfo(taxonKey);
+      if (data) {
+        setSpeciesCache(prev => {
+          const newCache = new Map(prev);
+          newCache.set(taxonKey, data);
+          return newCache;
+        });
+        return data;
+      }
+    } catch (error) {
+      console.error('Error fetching species info:', error);
+    }
+    return null;
+  }, []);
+
+  // Filter rules by species
+  const filteredRules = useMemo(() => {
+    let filtered = rules;
+
+    if (speciesFilter) {
+      filtered = filtered.filter(rule => 
+        rule.taxonKey === speciesFilter.key
+      );
+    }
+
+    return filtered;
+  }, [rules, speciesFilter]);
+
+  // Calculate pagination values
+  const totalPages = Math.ceil(filteredRules.length / pageSize);
+
+  // Get current page of rules
+  const paginatedRules = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return filteredRules.slice(startIndex, endIndex);
+  }, [filteredRules, currentPage, pageSize]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [speciesFilter]);
 
   const handleViewProjectAPI = () => {
     if (projectId) {
@@ -284,6 +413,45 @@ export function ProjectPage() {
 
     fetchMetrics();
   }, [projectId]);
+
+  // Fetch project rules
+  useEffect(() => {
+    const fetchRules = async () => {
+      if (!projectId) return;
+
+      try {
+        setRulesLoading(true);
+        const response = await fetch(getAnnotationApiUrl(`/rule?projectId=${projectId}`));
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch rules: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setRules(data);
+        } else {
+          setRules([]);
+        }
+      } catch (err) {
+        console.error('Error fetching project rules:', err);
+        toast.error('Failed to load project rules');
+      } finally {
+        setRulesLoading(false);
+      }
+    };
+
+    fetchRules();
+  }, [projectId]);
+
+  // Prefetch species info for rules
+  useEffect(() => {
+    rules.forEach(rule => {
+      if (rule.taxonKey && !fetchedTaxonKeys.current.has(rule.taxonKey)) {
+        fetchSpeciesInfo(rule.taxonKey);
+      }
+    });
+  }, [rules, fetchSpeciesInfo]);
 
   if (loading) {
     const currentUser = getCurrentUser();
@@ -562,6 +730,270 @@ export function ProjectPage() {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Project Rules Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="w-5 h-5" />
+                Project Rules
+                {!rulesLoading && rules.length > 0 && (
+                  <Badge variant="secondary">{rules.length}</Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                All annotation rules that belong to this project
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Species Filter */}
+              {!rulesLoading && rules.length > 0 && (
+                <div className="mb-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <SpeciesSelector
+                      selectedSpecies={speciesFilter}
+                      onSelectSpecies={setSpeciesFilter}
+                    />
+                    {speciesFilter && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSpeciesFilter(null)}
+                        className="flex items-center gap-1"
+                      >
+                        <X className="w-3 h-3" />
+                        Clear filter
+                      </Button>
+                    )}
+                  </div>
+                  {speciesFilter && (
+                    <div className="text-sm text-gray-600">
+                      Filtering by: <span className="font-medium italic">{speciesFilter.scientificName}</span>
+                      {speciesFilter.vernacularName && (
+                        <span className="text-gray-500"> ({speciesFilter.vernacularName})</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {rulesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                  <span className="ml-2 text-gray-500">Loading rules...</span>
+                </div>
+              ) : filteredRules.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <MapPin className="w-6 h-6 text-gray-400" />
+                  </div>
+                  {rules.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No rules in this project yet</p>
+                  ) : (
+                    <>
+                      <p className="text-gray-500 text-sm mb-2">No rules match the current filter</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSpeciesFilter(null)}
+                      >
+                        Clear filter
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-20">ID</TableHead>
+                        <TableHead className="w-28">TaxonKey</TableHead>
+                        <TableHead>Species</TableHead>
+                        <TableHead className="w-24">Annotation</TableHead>
+                        <TableHead className="w-32">Created By</TableHead>
+                        <TableHead className="w-32">Created</TableHead>
+                        <TableHead className="w-20">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedRules.map((rule) => {
+                        const speciesInfo = rule.taxonKey ? speciesCache.get(rule.taxonKey) : null;
+                        
+                        return (
+                          <TableRow key={rule.id}>
+                            <TableCell>
+                              <div className="font-medium">#{rule.id}</div>
+                            </TableCell>
+                            
+                            <TableCell>
+                              {rule.taxonKey ? (
+                                <Badge variant="secondary" className="text-xs">
+                                  {rule.taxonKey}
+                                </Badge>
+                              ) : (
+                                <span className="text-gray-500 text-sm">-</span>
+                              )}
+                            </TableCell>
+
+                            <TableCell>
+                              {rule.taxonKey ? (
+                                <div className="space-y-1">
+                                  {speciesInfo ? (
+                                    <>
+                                      <div className="italic text-gray-900">{speciesInfo.scientificName}</div>
+                                      {speciesInfo.vernacularName && (
+                                        <div className="text-sm text-gray-600">{speciesInfo.vernacularName}</div>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                      Loading...
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-gray-500 text-sm">No species</span>
+                              )}
+                            </TableCell>
+                            
+                            <TableCell>
+                              <Badge 
+                                variant="outline" 
+                                className={getAnnotationColor(rule.annotation)}
+                              >
+                                {rule.annotation || 'Unknown'}
+                              </Badge>
+                              {rule.deleted && (
+                                <div className="text-xs text-red-600 mt-1">Deleted</div>
+                              )}
+                            </TableCell>
+                            
+                            <TableCell>
+                              <Link
+                                to={`/user/${rule.createdBy}`}
+                                className="text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
+                              >
+                                <User className="w-3 h-3" />
+                                {rule.createdBy}
+                              </Link>
+                            </TableCell>
+                            
+                            <TableCell>
+                              <div className="text-sm text-gray-600">
+                                {formatDate(rule.created)}
+                              </div>
+                              {rule.deleted && (
+                                <div className="text-xs text-red-600 mt-1">
+                                  Deleted: {formatDate(rule.deleted)}
+                                </div>
+                              )}
+                            </TableCell>
+                            
+                            <TableCell>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => window.open(getAnnotationApiUrl(`/rule/${rule.id}`), '_blank')}
+                                title="View API"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {/* Pagination */}
+              {!rulesLoading && filteredRules.length > pageSize && (
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, filteredRules.length)} of {filteredRules.length} rules
+                  </div>
+                  
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious 
+                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                          className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        />
+                      </PaginationItem>
+                      
+                      {/* First page */}
+                      {currentPage > 2 && (
+                        <PaginationItem>
+                          <PaginationLink onClick={() => setCurrentPage(1)} className="cursor-pointer">
+                            1
+                          </PaginationLink>
+                        </PaginationItem>
+                      )}
+                      
+                      {/* Ellipsis before */}
+                      {currentPage > 3 && (
+                        <PaginationItem>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      )}
+                      
+                      {/* Previous page */}
+                      {currentPage > 1 && (
+                        <PaginationItem>
+                          <PaginationLink onClick={() => setCurrentPage(currentPage - 1)} className="cursor-pointer">
+                            {currentPage - 1}
+                          </PaginationLink>
+                        </PaginationItem>
+                      )}
+                      
+                      {/* Current page */}
+                      <PaginationItem>
+                        <PaginationLink isActive className="cursor-default">
+                          {currentPage}
+                        </PaginationLink>
+                      </PaginationItem>
+                      
+                      {/* Next page */}
+                      {currentPage < totalPages && (
+                        <PaginationItem>
+                          <PaginationLink onClick={() => setCurrentPage(currentPage + 1)} className="cursor-pointer">
+                            {currentPage + 1}
+                          </PaginationLink>
+                        </PaginationItem>
+                      )}
+                      
+                      {/* Ellipsis after */}
+                      {currentPage < totalPages - 2 && (
+                        <PaginationItem>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      )}
+                      
+                      {/* Last page */}
+                      {currentPage < totalPages - 1 && (
+                        <PaginationItem>
+                          <PaginationLink onClick={() => setCurrentPage(totalPages)} className="cursor-pointer">
+                            {totalPages}
+                          </PaginationLink>
+                        </PaginationItem>
+                      )}
+                      
+                      <PaginationItem>
+                        <PaginationNext 
+                          onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                          className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
                 </div>
               )}
             </CardContent>

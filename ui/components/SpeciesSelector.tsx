@@ -20,6 +20,7 @@ interface Species {
 export interface SelectedSpecies {
   name: string;
   scientificName: string;
+  vernacularName?: string;
   key: number;
   speciesKey?: number;
   genusKey?: number;

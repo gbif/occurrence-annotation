@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -169,6 +169,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   
   // Species info cache
   const [speciesCache, setSpeciesCache] = useState<Map<number, SpeciesInfo>>(new Map());
+  const fetchedTaxonKeys = useRef<Set<number>>(new Set());
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -259,22 +260,28 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   };
 
   // Fetch species info for a rule
-  const fetchSpeciesInfo = async (taxonKey: number) => {
-    if (speciesCache.has(taxonKey)) {
-      return speciesCache.get(taxonKey);
-    }
-
+  const fetchSpeciesInfo = useCallback(async (taxonKey: number) => {
+    // Mark as fetched to prevent duplicate requests
+    fetchedTaxonKeys.current.add(taxonKey);
+    
     try {
+      console.log(`Fetching species info for taxonKey: ${taxonKey}`);
       const data = await getSpeciesInfo(taxonKey);
+      console.log(`Received species data for ${taxonKey}:`, data);
       if (data) {
-        setSpeciesCache(prev => new Map(prev).set(taxonKey, data));
+        setSpeciesCache(prev => {
+          const newCache = new Map(prev);
+          newCache.set(taxonKey, data);
+          console.log(`Updated cache, new size: ${newCache.size}`);
+          return newCache;
+        });
         return data;
       }
     } catch (error) {
       console.error('Error fetching species info:', error);
     }
     return null;
-  };
+  }, []);
 
   useEffect(() => {
     const fetchUserRules = async () => {
@@ -607,12 +614,14 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
 
   // Prefetch species info for visible rules
   useEffect(() => {
-    rules.forEach(rule => {
-      if (rule.taxonKey && !speciesCache.has(rule.taxonKey)) {
+    console.log('useEffect running - allRules:', allRules.length, 'cache size:', speciesCache.size);
+    allRules.forEach(rule => {
+      if (rule.taxonKey && !fetchedTaxonKeys.current.has(rule.taxonKey)) {
+        console.log(`Requesting species for taxonKey: ${rule.taxonKey}`);
         fetchSpeciesInfo(rule.taxonKey);
       }
     });
-  }, [rules, speciesCache, fetchSpeciesInfo]);
+  }, [allRules, fetchSpeciesInfo]);
 
   const handleViewRule = (rule: UserRule) => {
     if (onNavigateToRule) {
