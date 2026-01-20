@@ -10,6 +10,7 @@
 
 # Docker utility scripts
 Start-DockerClean.ps1
+backend-service/start-docker-wsl.sh
 
 # Docker files for local development
 backend-service/Dockerfile
