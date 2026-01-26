@@ -10,6 +10,7 @@ Description: Provides R functions to facilitate interaction with the GBIF
   annotation store's data for analysis.
 URL: https://github.com/gbif/occurrence-annotation, https://gbif.github.io/occurrence-annotation/gbifrules/
 BugReports: https://github.com/gbif/occurrence-annotation/issues
+Depends: R (>= 4.1.0)
 Encoding: UTF-8
 Imports:
   tibble,
