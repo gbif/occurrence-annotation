@@ -72,9 +72,13 @@ jobs:
           setwd("r-package/gbifrules")
           install.packages("remotes")
           remotes::install_deps(dependencies = TRUE)
+          # Install suggested packages explicitly
+          install.packages(c("pkgdown", "knitr", "rmarkdown"))
         shell: Rscript {0}
 
       - name: Test R package
+        env:
+          _R_CHECK_FORCE_SUGGESTS_: false
         run: R CMD check r-package/gbifrules
 
       - name: Display spring boot nohup output
