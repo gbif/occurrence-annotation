@@ -34,6 +34,7 @@ reference:
     contents:
     - make_rule_comment
     - get_rule_comment
+    - delete_rule_comment
     
   - title: "Rulesets"
     desc: "Functions for managing rulesets"
