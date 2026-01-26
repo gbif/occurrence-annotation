@@ -3,7 +3,7 @@ library(dplyr)
 library(sf)
 
 test_that("clean_download handles inverted geometries", {
-  
+
   # Test inverted polygon with mixed coordinates
   # Points at (0,0) are in holes and should be kept
   # Points in solid areas of global polygon should be removed (suspicious)
@@ -328,9 +328,6 @@ test_that("clean_download handles complex data and multiple rules", {
   expect_s3_class(r, "data.frame")
   expect_equal(nrow(r), 3)
   expect_true(all(r$taxonKey %in% c(-7, -8)))
-
-
-
 }) 
 
 
@@ -370,7 +367,6 @@ test_that("clean_download handles negated basisOfRecord rules", {
   }
 
   r <- clean_download(d)
-  print(d)
   expect_s3_class(r, "data.frame")
   expect_equal(nrow(r), 1)
   expect_true(all(r$basisOfRecord == "PRESERVED_SPECIMEN"))
@@ -378,6 +374,88 @@ test_that("clean_download handles negated basisOfRecord rules", {
 })
 
 
+test_that("clean_download handles project_id filtering", {
+  
+  d <- data.frame(
+    taxonKey = c(-10, -10, -10, -10),
+    decimalLongitude = c(0, 0, 0, 0),
+    decimalLatitude = c(0, 0, 50, 50),
+    scientificName = c("Species -10", "Species -10", "Species -10", "Species -10"),
+    stringsAsFactors = FALSE
+  )
+  # box around 0,0 
+  geometry1 <- "POLYGON ((-13.0078125 11.723041818049527, 13.0078125 11.723041818049527, 13.0078125 -12.69842022271124, -13.0078125 -12.69842022271124, -13.0078125 11.723041818049527))"
+  geometry2 <- "POLYGON ((-13.554682731628418 58.93608947097473, 13.164067268371582 58.93608947097473, 13.164067268371582 43.369472173882706, -13.554682731628418 43.369472173882706, -13.554682731628418 58.93608947097473))"
+
+  # Create a rule in project 1 that marks (0,0) as SUSPICIOUS
+  existing_rules_proj1 <- get_rule(taxonKey = -10,
+                                   geometry = geometry1,
+                                   annotation = "SUSPICIOUS",
+                                   basisOfRecord = "null",
+                                   yearRange = "null",
+                                   datasetKey = "null",
+                                   projectId = 1
+                                   )
+  existing_rules_proj2 <- get_rule(taxonKey = -10,
+                                   geometry = geometry2,
+                                   annotation = "SUSPICIOUS",
+                                   basisOfRecord = "null",  
+                                   yearRange = "null",
+                                   datasetKey = "null",
+                                   projectId = 2
+                                   )
+  # existing projects
+  get_project1 <- get_project(1)
+  get_project2 <- get_project(2)
+  if(nrow(get_project1) == 0) {
+    make_project(1, "Test Project 1")
+  }
+  if(nrow(get_project2) == 0) {
+    make_project(2, "Test Project 2")
+  }
+  if (nrow(existing_rules_proj1) == 0) {
+    rule_proj1 <- make_rule(
+      taxonKey = -10,
+      geometry = geometry1,
+      annotation = "SUSPICIOUS",
+      projectId = 1
+    )
+    expect_type(rule_proj1, "list")
+  }
+  if( nrow(existing_rules_proj2) == 0) {
+    rule_proj2 <- make_rule(
+      taxonKey = -10,
+      geometry = geometry2,
+      annotation = "SUSPICIOUS",
+      projectId = 2
+    )
+    expect_type(rule_proj2, "list")
+  }
+  
+  # Clean download using only rules from project 1
+  r1 <- clean_download(d, project_id = 1)
+  r2 <- clean_download(d, project_id = c(1,2))
+  r3 <- clean_download(d)
+  r4 <- clean_download(d, project_id = 2)
+
+  expect_s3_class(r1, "data.frame")
+  expect_equal(nrow(r1), 2)
+  expect_true(all(r1$decimalLongitude == 0))
+  expect_true(all(r1$decimalLatitude == 50))
+  expect_true(all(r1$scientificName == "Species -10"))
+
+  expect_s3_class(r2, "data.frame")
+  expect_equal(nrow(r2), 0)
+
+  expect_s3_class(r3, "data.frame")
+  expect_equal(nrow(r3), 0)
+
+  expect_s3_class(r4, "data.frame")
+  expect_equal(nrow(r4), 2)
+  expect_true(all(r4$decimalLongitude == 0))
+  expect_true(all(r4$decimalLatitude == 0))
+  expect_true(all(r4$scientificName == "Species -10"))
+})
 
 
 

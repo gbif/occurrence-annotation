@@ -27,6 +27,23 @@ get_project <- function(id=NULL,offset=NULL,limit=NULL) {
     url <- paste0(gbifrules_url("project/"),id)
     r <- gbifrules_get_id(url)
   }
+  
+  # Check if result is empty or NULL
+  if (is.null(r) || length(r) == 0 || nrow(r) == 0) {
+    # Return empty tibble with expected columns
+    return(tibble::tibble(
+      id = integer(),
+      name = character(),
+      description = character(),
+      created = character(),
+      createdBy = character(),
+      modified = character(),
+      modifiedBy = character(),
+      deleted = character(),
+      deletedBy = character()
+    ))
+  }
+  
   r |> 
     tidyr::unnest(cols = c("id", 
                            "name", 

@@ -1,6 +1,6 @@
 Package: gbifrules
 Type: Package
-Title: R interface to GBIF rule-based annotations store
+Title: R Interface to GBIF Rule-Based Annotations Store
 Version: 0.1.0
 Author: John Waller <jwaller@gbif.org>
 Maintainer: John Waller <jwaller@gbif.org>
@@ -8,6 +8,8 @@ Description: Provides R functions to facilitate interaction with the GBIF
   (Global Biodiversity Information Facility) rule-based annotation store. The
   package allows users to access, retrieve, and manage data utilizing the
   annotation store's data for analysis.
+URL: https://github.com/gbif/occurrence-annotation, https://gbif.github.io/occurrence-annotation/gbifrules/
+BugReports: https://github.com/gbif/occurrence-annotation/issues
 Encoding: UTF-8
 Imports:
   tibble,
@@ -15,14 +17,18 @@ Imports:
   dplyr,
   purrr,
   httr2,
-  rgbif,
   sf,
   jsonlite,
   cli
 Suggests: 
     httptest2,
     testthat (>= 3.0.0),
-    withr
+    withr,
+    pkgdown,
+    knitr,
+    rmarkdown,
+    rgbif
 Config/testthat/edition: 3
 RoxygenNote: 7.2.3
 License: Apache License (>= 2)
+VignetteBuilder: knitr

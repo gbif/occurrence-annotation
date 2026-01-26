@@ -2,3 +2,6 @@
 ^\.Rproj\.user$
 ^tests/testthat/fixtures$
 ^LICENSE\.md$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$

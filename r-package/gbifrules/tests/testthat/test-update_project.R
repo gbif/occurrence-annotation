@@ -1,8 +1,5 @@
 test_that("test update project works as expected", {
-  withr::with_envvar(list(GBIFRULES_URL = "https://api.gbif-uat.org/v1/occurrence/experimental/annotation/"), {
-  with_mock_dir("fixtures/update_project", {
   p <- make_project(name="test project",description = "test project")
-  })
 
   up <- update_project(id=p$id,description = "update",members="dog")
   expect_type(up,"list")
@@ -21,6 +18,8 @@ test_that("test update project works as expected", {
   expect_equal(up_back$description, "test project")
   expect_equal(up_back$members[[1]], "jwaller")
   expect_length(up_back$members, 1)
+
+  # clean up
+  delete_project(id=p$id)
   
-})  
-})  
+})
