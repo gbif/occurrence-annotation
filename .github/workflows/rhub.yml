@@ -14,6 +14,9 @@ on:
       pak-version:
         description: 'pak version to use. You can leave this empty now.'
         type: string
+  pull_request:
+    paths:
+      - 'r-package/gbifrules/**'
 
 name: rhub
 
