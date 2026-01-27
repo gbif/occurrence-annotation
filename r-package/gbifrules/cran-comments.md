@@ -6,8 +6,6 @@
 
 * local Windows install, R 4.2.3
 * GitHub Actions (ubuntu-latest): R-release, R-devel
-* GitHub Actions (windows-latest): R-release
-* GitHub Actions (macOS-latest): R-release
 
 ## Submission notes
 
