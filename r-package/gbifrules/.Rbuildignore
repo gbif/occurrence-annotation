@@ -1,6 +1,5 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
-^tests/testthat/fixtures$
 ^LICENSE\.md$
 ^_pkgdown\.yml$
 ^docs$
@@ -8,3 +7,4 @@
 ^\.gitattributes$
 ^\.gitignore$
 ^CRAN-SUBMISSION-CHECKLIST\.md$
+^cran-comments\.md$

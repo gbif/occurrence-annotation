@@ -1,5 +1,3 @@
-library(httptest2)
-
 # Skip all tests on CRAN
 skip_on_cran()
 
