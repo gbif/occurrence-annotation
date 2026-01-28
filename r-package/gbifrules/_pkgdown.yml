@@ -1,0 +1,66 @@
+url: https://gbif.github.io/occurrence-annotation/gbifrules/
+template:
+  bootstrap: 5
+
+home:
+  title: gbifrules - R Interface to GBIF Rule-Based Annotations
+  description: >
+    Provides R functions to facilitate interaction with the GBIF
+    (Global Biodiversity Information Facility) rule-based annotation store.
+
+reference:
+  - title: "Projects"
+    desc: "Functions for managing annotation projects"
+    contents:
+    - make_project
+    - get_project
+    - update_project
+    - delete_project
+    - add_project_member
+    
+  - title: "Rules"
+    desc: "Functions for creating and managing annotation rules"
+    contents:
+    - make_rule
+    - get_rule
+    - delete_rule
+    - support_rule
+    - contest_rule
+    - rm_support_rule
+    - rm_contest_rule
+    
+  - title: "Rule Comments"
+    desc: "Functions for managing rule comments"
+    contents:
+    - make_rule_comment
+    - get_rule_comment
+    - delete_rule_comment
+    
+  - title: "Rulesets"
+    desc: "Functions for managing rulesets"
+    contents:
+    - make_ruleset
+    - get_ruleset
+    - update_ruleset
+    - delete_ruleset
+    - add_ruleset_member
+    
+  - title: "Data Cleaning"
+    desc: "Functions for applying rules to GBIF data"
+    contents:
+    - clean_download
+
+navbar:
+  structure:
+    left:  [home, reference, news]
+    right: [search, github]
+  components:
+    home:
+      icon: fas fa-home fa-lg
+      href: index.html
+    reference:
+      text: Reference
+      href: reference/index.html
+    github:
+      icon: fab fa-github fa-lg
+      href: https://github.com/gbif/occurrence-annotation

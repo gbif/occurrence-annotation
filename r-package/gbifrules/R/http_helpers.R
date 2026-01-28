@@ -8,6 +8,7 @@ gbifrules_post <- function(url,body) {
     httr2::req_auth_basic(Sys.getenv("GBIF_USER", ""),
                           Sys.getenv("GBIF_PWD", "")) |>
     httr2::req_body_json(body) |>
+    httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
     httr2::req_perform() |>
     httr2::resp_body_json() 
 }
@@ -16,12 +17,21 @@ gbifrules_post <- function(url,body) {
 #' @param url helper
 #' @keywords internal
 gbifrules_delete <- function(url) {
- httr2::request(url) |>
+ resp <- httr2::request(url) |>
   httr2::req_method("DELETE") |>
   httr2::req_auth_basic(Sys.getenv("GBIF_USER", ""),
                         Sys.getenv("GBIF_PWD", "")) |>
-  httr2::req_perform() |>
-  httr2::resp_body_json() 
+  httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
+  httr2::req_perform()
+  
+  # Check if response has content before trying to parse JSON
+  content_type <- httr2::resp_content_type(resp)
+  if(is.na(content_type) || httr2::resp_status(resp) == 204) {
+    # No content (204) or no content-type, return NULL
+    return(invisible(NULL))
+  }
+  
+  httr2::resp_body_json(resp)
 }
 
 #' gbifrules_get
@@ -32,6 +42,7 @@ gbifrules_get <- function(url,query) {
 
 httr2::request(url) |>
   httr2::req_url_query(!!!query) |>
+  httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
   httr2::req_perform() |>
   httr2::resp_body_json() |> 
   purrr::map(~
@@ -52,6 +63,7 @@ gbifrules_put <- function(url,body) {
     httr2::req_auth_basic(Sys.getenv("GBIF_USER", ""),
                           Sys.getenv("GBIF_PWD", "")) |>
     httr2::req_body_json(body) |>
+    httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
     httr2::req_perform() |>
     httr2::resp_body_json()
 }
@@ -64,6 +76,7 @@ gbifrules_get_ <- function(url,query) {
   
   httr2::request(url) |>
     httr2::req_url_query(!!!query) |>
+    httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
     httr2::req_perform() |>
     httr2::resp_body_json() 
 }
@@ -73,11 +86,35 @@ gbifrules_get_ <- function(url,query) {
 #' @keywords internal
 gbifrules_get_id <- function(url) {  
   
-  httr2::request(url) |>
-    httr2::req_perform() |>
-    httr2::resp_body_json() |>
-    tibble::enframe() |>
-    tidyr::pivot_wider(names_from="name",values_from = "value") 
+  # Wrap entire request in tryCatch to handle any errors
+  result <- tryCatch({
+    resp <- httr2::request(url) |>
+      httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
+      httr2::req_perform()
+    
+    # Try to get the body
+    body <- tryCatch({
+      httr2::resp_body_json(resp)
+    }, error = function(e) {
+      # Return NULL for any body parsing errors
+      return(NULL)
+    })
+    
+    # If body is NULL or empty, return NULL
+    if (is.null(body) || length(body) == 0) {
+      return(NULL)
+    }
+    
+    body |>
+      tibble::enframe() |>
+      tidyr::pivot_wider(names_from="name", values_from = "value")
+      
+  }, error = function(e) {
+    # Catch any other errors and return NULL
+    return(NULL)
+  })
+  
+  return(result)
 }
 
 #' gbifrules_get_id_
@@ -86,6 +123,7 @@ gbifrules_get_id <- function(url) {
 gbifrules_get_id_ <- function(url) {  
   
   httr2::request(url) |>
+    httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
     httr2::req_perform() |>
     httr2::resp_body_json()
   

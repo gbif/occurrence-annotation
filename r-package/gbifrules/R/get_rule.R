@@ -16,8 +16,23 @@ get_rule <- function(id=NULL,limit=NULL,offset=NULL,...) {
   
   if(is.null(id)) {
     url <- gbifrules_url("rule")
-    query <- list(...,limit=limit,offset=offset) |>
-      purrr::compact()
+    # Combine all query parameters
+    dots <- list(...)
+    query <- c(dots, list(limit=limit, offset=offset))
+    
+    # Handle NULL values for filtering
+    # Check if any parameter is explicitly set to NULL (vs not provided)
+    for(param_name in names(dots)) {
+      if(is.null(dots[[param_name]])) {
+        # User explicitly passed NULL, convert to string "null" for API
+        query[[param_name]] <- "null"
+      }
+    }
+    
+    # Remove unset parameters (limit/offset that are NULL and weren't in dots)
+    if(is.null(limit)) query$limit <- NULL
+    if(is.null(offset)) query$offset <- NULL
+    
     r <- gbifrules_get(url,query)
   } else {
     url <- paste0(gbifrules_url("rule/"),id)

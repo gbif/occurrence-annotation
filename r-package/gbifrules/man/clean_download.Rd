@@ -4,7 +4,12 @@
 \alias{clean_download}
 \title{Clean a GBIF download of suspicious records using complex rules}
 \usage{
-clean_download(d, rm_suspicious = TRUE, handle_conflicts = "favor_suspicious")
+clean_download(
+  d,
+  rm_suspicious = TRUE,
+  handle_conflicts = "favor_suspicious",
+  project_id = NULL
+)
 }
 \arguments{
 \item{d}{a GBIF download in DWCA format}
@@ -12,6 +17,8 @@ clean_download(d, rm_suspicious = TRUE, handle_conflicts = "favor_suspicious")
 \item{rm_suspicious}{removes records with suspicious annotations}
 
 \item{handle_conflicts}{how to handle conflicting annotations}
+
+\item{project_id}{optional project ID(s) to filter rules by specific project(s). Can be a single ID or vector of IDs.}
 }
 \value{
 A cleaned download `data.frame()`
@@ -19,6 +26,7 @@ A cleaned download `data.frame()`
 \description{
 Removes records that have been marked as suspicious by annotation users using complex rules.
 Only filters based on SUSPICIOUS annotations, ignoring other annotation types.
+If project_id is provided, only rules belonging to those project(s) will be used.
 }
 \examples{
 \dontrun{
@@ -33,10 +41,15 @@ format = "SIMPLE_CSV"
 )
 
 # Download and clean
-d <- occ_download_get('0051416-241126133413365') \%>\%
+d <- occ_download_get('0004693-260120142942310') \%>\%
  occ_download_import()
 
-clean_download(d) 
+
+# Clean using only rules from a specific project
+clean_download(d, project_id = 1)
+
+# Clean using rules from multiple projects
+clean_download(d, project_id = c(1, 2, 3))
 }
 
 

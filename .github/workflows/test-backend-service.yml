@@ -2,9 +2,7 @@ name: Test backend service
 
 on:
   push:
-    branches:
-      - main
-      - actions
+  workflow_dispatch:
 
 jobs:
   build:

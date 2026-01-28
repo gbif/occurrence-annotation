@@ -19,6 +19,17 @@ backend-service/docker-compose.yml
 backend-service/docker-compose.test.yml
 backend-service/.dockerignore
 
+# Docker volumes and data
+**/docker-volumes/
+**/.docker/
+
+# Docker build context
+**/.dockerignore
+
+# Docker override files
+docker-compose.override.yml
+**/docker-compose.override.yml
+
 # Vite build artifacts and UI dependencies
 ui/node_modules/.vite/deps/
 ui/node_modules/.vite/

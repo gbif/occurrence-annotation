@@ -3,11 +3,13 @@
 #' @param d a GBIF download in DWCA format 
 #' @param rm_suspicious removes records with suspicious annotations
 #' @param handle_conflicts how to handle conflicting annotations
+#' @param project_id optional project ID(s) to filter rules by specific project(s). Can be a single ID or vector of IDs.
 #'
 #' @return A cleaned download `data.frame()`
 #' @description
 #' Removes records that have been marked as suspicious by annotation users using complex rules.
 #' Only filters based on SUSPICIOUS annotations, ignoring other annotation types.
+#' If project_id is provided, only rules belonging to those project(s) will be used.
 #' 
 #' 
 #' @export
@@ -24,16 +26,23 @@
 #' )
 #' 
 #' # Download and clean
-#' d <- occ_download_get('0051416-241126133413365') %>%
+#' d <- occ_download_get('0004693-260120142942310') %>%
 #'  occ_download_import()
 #' 
-#' clean_download(d) 
+# clean_download(d) 
+#' 
+#' # Clean using only rules from a specific project
+#' clean_download(d, project_id = 1)
+#' 
+#' # Clean using rules from multiple projects
+#' clean_download(d, project_id = c(1, 2, 3))
 #' }
 #' 
 #' 
 clean_download <- function(d,
                            rm_suspicious = TRUE,
-                           handle_conflicts = "favor_suspicious") {
+                           handle_conflicts = "favor_suspicious",
+                           project_id = NULL) {
   
   # Prepare the original data with coordinates and unique identifier
   d_org <- d |>
@@ -67,7 +76,7 @@ clean_download <- function(d,
     unique()
   
   # Get suspicious annotations for all taxon keys in the dataset
-  suspicious_annotations <- get_suspicious_annotations(d_clean)
+  suspicious_annotations <- get_suspicious_annotations(d_clean, project_id = project_id)
   
   # Merge annotations back with original data
   out <- d_org |>
@@ -83,7 +92,7 @@ clean_download <- function(d,
       dplyr::group_by(record_id) |>
       dplyr::summarise(
         is_suspicious = any(is_suspicious, na.rm = TRUE),
-        has_conflict = n() > 1,
+        has_conflict = dplyr::n() > 1,
         .groups = "drop"
       ) |>
       # Join back to the original download by record_id to restore original columns
@@ -117,17 +126,31 @@ clean_download <- function(d,
   rule_download
 }
 
-get_suspicious_annotations <- function(d) {
+get_suspicious_annotations <- function(d, project_id = NULL) {
   # Get unique taxon keys from the dataset
   unique_taxon_keys <- unique(d$taxonKey)
   
   # Fetch all rules for the taxon keys in the dataset
-  all_rules <- get_rule() |>
-    dplyr::filter(
-      taxonKey %in% unique_taxon_keys,
-      annotation == "SUSPICIOUS",
-      is.na(deleted)  # Only include non-deleted rules
-    )
+  # If project_id is specified, filter by projectId parameter
+  if (!is.null(project_id)) {
+    # Fetch rules for each project and combine them
+    all_rules <- purrr::map_dfr(project_id, function(pid) {
+      get_rule(projectId = pid)
+    }) |>
+      dplyr::filter(
+        taxonKey %in% unique_taxon_keys,
+        annotation == "SUSPICIOUS",
+        is.na(deleted)  # Only include non-deleted rules
+      ) |>
+      dplyr::distinct()  # Remove any duplicate rules if a rule belongs to multiple projects
+  } else {
+    all_rules <- get_rule() |>
+      dplyr::filter(
+        taxonKey %in% unique_taxon_keys,
+        annotation == "SUSPICIOUS",
+        is.na(deleted)  # Only include non-deleted rules
+      )
+  }
   
   if (nrow(all_rules) == 0) {
     # No suspicious rules found, return data with no suspicious annotations
@@ -292,7 +315,7 @@ get_suspicious_annotations <- function(d) {
       dplyr::group_by(record_id) |>
       dplyr::summarise(
         is_suspicious = any(is_suspicious, na.rm = TRUE),
-        has_conflict = n() > 1,
+        has_conflict = dplyr::n() > 1,
         .groups = "drop"
       ) |>
       dplyr::right_join(
