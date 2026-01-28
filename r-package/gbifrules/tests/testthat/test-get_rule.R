@@ -1,5 +1,6 @@
 
 test_that("test get rule works as expected", {
+  skip_on_cran()
     
     r1 <- get_rule(taxonKey=-999999, 
                   geometry="get_rule_WKT", 

@@ -1,4 +1,6 @@
 test_that("Test that delete project works as expected", {
+  skip_on_cran()
+  
     # cannot record tests since there is no way to restore projects at this time. 
     
     p <- get_project(1)

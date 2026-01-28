@@ -1,6 +1,6 @@
 # gbifrules
 
-`gbifrules` is an R package for filtering GBIF occurrence data using spatial annotation rules created by the GBIF community. The package wraps the [GBIF annotation API](https://api.gbif.org/v1/occurrence/experimental/annotation/) in order to create and apply user-curated rules that identify suspicious or problematic occurrence records.
+`gbifrules` is an R package for filtering GBIF occurrence data using spatial annotation rules created by the GBIF community. The package wraps the GBIF occurrence annotation API in order to create and apply user-curated rules that identify suspicious or problematic occurrence records.
 
 **Web Interface:** You can also create and manage annotation rules using the [GBIF Annotation Web UI](https://labs.gbif.org/annotations/).
 
@@ -125,7 +125,6 @@ contest_rule(id = 1)
 
 ## Related Resources
 
-- [GBIF Annotation API](https://api.gbif.org/v1/occurrence/experimental/annotation/)
 - [GBIF Annotation UI](https://labs.gbif.org/annotations/)
 - [rgbif package](https://github.com/ropensci/rgbif)
 

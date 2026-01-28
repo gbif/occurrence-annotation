@@ -1,4 +1,5 @@
 test_that("test make project works as expected", {
+  skip_on_cran()
   
   p <- make_project(name="test project",description="A test project.")
   expect_type(p,"list")

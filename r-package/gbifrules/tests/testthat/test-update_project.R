@@ -1,4 +1,6 @@
 test_that("test update project works as expected", {
+  skip_on_cran()
+  
   p <- make_project(name="test project",description = "test project")
 
   up <- update_project(id=p$id,description = "update",members="dog")

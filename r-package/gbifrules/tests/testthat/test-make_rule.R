@@ -19,6 +19,8 @@ test_that("make_rule requires all mandatory parameters", {
 })
 
 test_that("make_rule creates simple rule with required parameters", {
+  skip_on_cran()
+  
   r <- make_rule(
     taxonKey = -70, 
     geometry = test_geometry, 
@@ -35,6 +37,8 @@ test_that("make_rule creates simple rule with required parameters", {
 })
 
 test_that("make_rule creates complex rule with basisOfRecord array", {
+  skip_on_cran()
+  
   r <- make_rule(
     taxonKey = -70,
     geometry = test_geometry,
@@ -52,6 +56,8 @@ test_that("make_rule creates complex rule with basisOfRecord array", {
 })
 
 test_that("make_rule creates rule with metadata fields", {
+  skip_on_cran()
+  
   r <- make_rule(
     taxonKey = -70,
     geometry = test_geometry,
@@ -69,6 +75,8 @@ test_that("make_rule creates rule with metadata fields", {
 })
 
 test_that("make_rule handles yearRange field", {
+  skip_on_cran()
+  
   r <- make_rule(
     taxonKey = -70,
     geometry = test_geometry,
@@ -84,6 +92,8 @@ test_that("make_rule handles yearRange field", {
 })
   
 test_that("make_rule handles single basisOfRecord value", {
+  skip_on_cran()
+  
   r <- make_rule(
     taxonKey = -70,
     geometry = test_geometry,
@@ -99,6 +109,8 @@ test_that("make_rule handles single basisOfRecord value", {
 })
 
 test_that("make_rule creates full complex rule with allowed optional fields", {
+  skip_on_cran()
+  
   r <- make_rule(
     taxonKey = -70,
     geometry = test_geometry,
@@ -121,6 +133,8 @@ test_that("make_rule creates full complex rule with allowed optional fields", {
 })
 
 test_that("make_rule automatically uses GBIF_USER for createdBy", {
+  skip_on_cran()
+  
   # GBIF_USER will be set by renv environment, so we test with whatever is available
   r <- make_rule(
     taxonKey = -70,

@@ -3,6 +3,7 @@ library(dplyr)
 library(sf)
 
 test_that("clean_download handles inverted geometries", {
+  skip_on_cran()
 
   # Test inverted polygon with mixed coordinates
   # Points at (0,0) are in holes and should be kept
@@ -46,6 +47,7 @@ test_that("clean_download handles inverted geometries", {
 })
 
 test_that("clean_download handles normal geometries", {
+  skip_on_cran()
   
   # Test normal polygon - all coordinates at (0,0) should be INSIDE and removed
   d_normal <- data.frame(
@@ -89,6 +91,7 @@ test_that("clean_download handles normal geometries", {
 
 
 test_that("clean_download removes PRESERVED_SPECIMEN records with basisOfRecord rule", {
+  skip_on_cran()
   
   # Test basisOfRecord filtering - only PRESERVED_SPECIMEN records inside polygon should be removed
   d <- data.frame(
@@ -136,6 +139,7 @@ test_that("clean_download removes PRESERVED_SPECIMEN records with basisOfRecord 
 
 
 test_that("clean_download handles multipolygons", {
+  skip_on_cran()
   
   geometry <- "MULTIPOLYGON (((-13.0078125 11.723041818049527, 13.0078125 11.723041818049527, 13.0078125 -12.69842022271124, -13.0078125 -12.69842022271124, -13.0078125 11.723041818049527)), ((-13.0078125 56.08786093009717, 11.25 56.08786093009717, 11.25 41.13383173207349, -13.0078125 41.13383173207349, -13.0078125 56.08786093009717)))"
   # Data with taxonKey that has no rules
@@ -177,6 +181,7 @@ test_that("clean_download handles multipolygons", {
 
 
 test_that("clean_download handles yearRanges", {
+  skip_on_cran()
   
   # Test normal polygon - all coordinates at (0,0) should be INSIDE and removed
   d <- data.frame(
@@ -222,6 +227,7 @@ test_that("clean_download handles yearRanges", {
 })
 
 test_that("clean_download remove records with datasetKey", {
+  skip_on_cran()
   
   # Test basisOfRecord filtering - only PRESERVED_SPECIMEN records inside polygon should be removed
   d <- data.frame(
@@ -268,6 +274,7 @@ test_that("clean_download remove records with datasetKey", {
 })
 
 test_that("clean_download handles complex data and multiple rules", {
+  skip_on_cran()
   
   d <- data.frame(
     taxonKey = c(-7, -7, -8, -8, -8),  # negative taxonKey to avoid conflicts
@@ -332,6 +339,7 @@ test_that("clean_download handles complex data and multiple rules", {
 
 
 test_that("clean_download handles negated basisOfRecord rules", {
+  skip_on_cran()
   
   d <- data.frame(
     taxonKey = c(-9, -9, -9, -9),
@@ -375,6 +383,7 @@ test_that("clean_download handles negated basisOfRecord rules", {
 
 
 test_that("clean_download handles project_id filtering", {
+  skip_on_cran()
   
   d <- data.frame(
     taxonKey = c(-10, -10, -10, -10),

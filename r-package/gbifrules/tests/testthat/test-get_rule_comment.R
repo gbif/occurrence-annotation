@@ -1,4 +1,5 @@
 test_that("test make rule comment works as expected", {
+  skip_on_cran()
   
   r <- get_rule(taxonKey = -500, 
                 geometry = "get_rule_comment_WKT", 

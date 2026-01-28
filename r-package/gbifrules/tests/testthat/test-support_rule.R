@@ -1,4 +1,5 @@
 test_that("test support rule works as expected", {
+  skip_on_cran()
   
   r <- get_rule(taxonKey=-100, geometry = "support_rule_test_WKT", annotation = "SUSPICIOUS") 
   if(nrow(r) == 0) {
