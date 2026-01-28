@@ -1,4 +1,5 @@
 test_that("test get project works as expected", {
+  skip_on_cran()
   skip_if_offline()
   
   pc <- get_project()
