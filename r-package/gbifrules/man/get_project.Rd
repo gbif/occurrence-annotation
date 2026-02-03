@@ -20,7 +20,7 @@ a `tibble`.
 Get a project
 }
 \examples{
-\dontrun{
+\donttest{
 get_project()
 }
 }

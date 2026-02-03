@@ -29,14 +29,14 @@ Only filters based on SUSPICIOUS annotations, ignoring other annotation types.
 If project_id is provided, only rules belonging to those project(s) will be used.
 }
 \examples{
-\dontrun{
+\donttest{
 library(rgbif)
 # End to end example with GBIF download and cleaning
 
 # Ambystoma mexicanum
 occ_download(
 pred(taxonKey,"2431950"),
-pred_default()
+pred_default(),
 format = "SIMPLE_CSV"
 )
 

@@ -22,7 +22,7 @@ a tibble of rules
 Get rules
 }
 \examples{
-\dontrun{
+\donttest{
 get_rule()
 }
 }
