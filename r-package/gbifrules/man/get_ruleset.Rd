@@ -22,7 +22,7 @@ a `tibble`.
 Get a ruleset.
 }
 \examples{
-\donttest{
+\dontrun{
 get_ruleset(1,1)
 }
 }

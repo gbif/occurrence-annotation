@@ -16,7 +16,7 @@ a `tibble` of comments.
 Get comments on rule
 }
 \examples{
-\donttest{
+\dontrun{
 get_rule_comment(1)
 }
 }
