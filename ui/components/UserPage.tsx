@@ -34,11 +34,14 @@ import {
 } from './ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { ArrowLeft, User, MapPin, Eye, ExternalLink, Loader2, Trash2, Folder, Users, Plus, Edit, Check } from 'lucide-react';
+import { TooltipProvider } from './ui/tooltip';
+import { Checkbox } from './ui/checkbox';
+import { ArrowLeft, User, MapPin, Eye, ExternalLink, Loader2, Trash2, Folder, Users, Plus, Edit, Check, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
+import { LoginButton } from './LoginButton';
 import { UserPageFilters } from './UserPageFilters';
 import { SelectedSpecies } from './SpeciesSelector';
-import { getAnnotationApiUrl } from '../utils/apiConfig';
+import { getAnnotationApiUrl, getGbifApiUrl } from '../utils/apiConfig';
 import { getSpeciesInfo } from '../utils/speciesCache';
 import { 
   Pagination, 
@@ -93,12 +96,195 @@ interface UserPageProps {
   onNavigateToRule?: (rule: UserRule) => void;
 }
 
+// Searchable multi-select component for Basis of Record
+function BasisOfRecordMultiSelect({ 
+  options, 
+  selected, 
+  onChange,
+  negated,
+  onNegatedChange
+}: { 
+  options: string[]; 
+  selected: string[]; 
+  onChange: (selected: string[]) => void;
+  negated?: boolean;
+  onNegatedChange?: (negated: boolean) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filteredOptions = options.filter(option =>
+    option.toLowerCase().includes(searchTerm.toLowerCase()) && !selected.includes(option)
+  );
+
+  const handleSelectOption = (option: string) => {
+    if (!selected.includes(option)) {
+      onChange([...selected, option]);
+    }
+    setSearchTerm('');
+    setShowDropdown(false);
+    setFocusedIndex(-1);
+    inputRef.current?.focus();
+  };
+
+  const handleRemoveChip = (option: string) => {
+    onChange(selected.filter(item => item !== option));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showDropdown) {
+      if (e.key === 'ArrowDown' && filteredOptions.length > 0) {
+        e.preventDefault();
+        setShowDropdown(true);
+        setFocusedIndex(0);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setFocusedIndex(prev => prev < filteredOptions.length - 1 ? prev + 1 : prev);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setFocusedIndex(prev => prev > 0 ? prev - 1 : prev);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (focusedIndex >= 0 && focusedIndex < filteredOptions.length) {
+          handleSelectOption(filteredOptions[focusedIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setShowDropdown(false);
+        setFocusedIndex(-1);
+        break;
+      case 'Backspace':
+        if (searchTerm === '' && selected.length > 0) {
+          e.preventDefault();
+          handleRemoveChip(selected[selected.length - 1]);
+        }
+        break;
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+        setFocusedIndex(-1);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs text-gray-700">
+          Basis of Record (optional)
+          {selected.length > 0 && (
+            <span className="ml-1 text-blue-600 font-medium">({selected.length} selected)</span>
+          )}
+        </Label>
+        <div className="flex items-center space-x-3">
+          <div className="flex space-x-2">
+            <button type="button" onClick={() => onChange(options)} className="text-xs text-blue-600 hover:text-blue-800 underline">
+              Select All
+            </button>
+            <button type="button" onClick={() => onChange([])} className="text-xs text-gray-600 hover:text-gray-800 underline">
+              Clear
+            </button>
+          </div>
+          {onNegatedChange && (
+            <div className="flex items-center space-x-1">
+              <Checkbox
+                id="basis-of-record-negated-inline"
+                checked={negated || false}
+                disabled={selected.length === 0}
+                onCheckedChange={(checked) => onNegatedChange(checked === true)}
+                className="h-3 w-3"
+              />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Label htmlFor="basis-of-record-negated-inline" className={`text-xs font-medium cursor-pointer ${selected.length === 0 ? 'text-gray-400' : 'text-gray-900'}`}>
+                      Negate
+                    </Label>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Apply rule to all records that do NOT have the selected basis of record</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="relative" ref={dropdownRef}>
+        <div className="min-h-[2.25rem] border border-gray-300 rounded p-2 bg-white flex flex-wrap gap-1 items-center">
+          {selected.map((option) => (
+            <span key={option} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-md">
+              {option.replace(/_/g, ' ')}
+              <button type="button" onClick={() => handleRemoveChip(option)} className="hover:bg-blue-200 rounded-sm p-0.5 -mr-1" aria-label={`Remove ${option}`}>
+                ×
+              </button>
+            </span>
+          ))}
+          <input
+            ref={inputRef}
+            type="text"
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setShowDropdown(true);
+              setFocusedIndex(-1);
+            }}
+            onKeyDown={handleKeyDown}
+            onFocus={() => {
+              if (filteredOptions.length > 0) setShowDropdown(true);
+            }}
+            placeholder={selected.length === 0 ? "Type to search basis of record..." : ""}
+            className="flex-1 min-w-[120px] text-xs outline-none bg-transparent"
+          />
+        </div>
+        {showDropdown && filteredOptions.length > 0 && (
+          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-32 overflow-y-auto">
+            {filteredOptions.map((option, index) => (
+              <div
+                key={option}
+                className={`p-2 text-xs cursor-pointer ${index === focusedIndex ? 'bg-blue-100 text-blue-900' : 'hover:bg-gray-100'}`}
+                onClick={() => handleSelectOption(option)}
+                onMouseEnter={() => setFocusedIndex(index)}
+              >
+                {option.replace(/_/g, ' ')}
+              </div>
+            ))}
+          </div>
+        )}
+        {selected.length === 0 && (
+          <div className="text-xs text-gray-500 italic mt-1">
+            No selection - will apply to all basis of record types
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function UserPage({ onNavigateToRule }: UserPageProps) {
   const { username } = useParams<{ username: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rules, setRules] = useState<UserRule[]>([]);
   const [allRules, setAllRules] = useState<UserRule[]>([]); // Store all rules for client-side pagination
   const [loading, setLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // Projects state
@@ -121,6 +307,12 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Edit project dialog state
+  const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
+  const [editProjectName, setEditProjectName] = useState('');
+  const [editProjectDescription, setEditProjectDescription] = useState('');
+  const [isEditingProject, setIsEditingProject] = useState(false);
+
   // Edit rule dialog state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<UserRule | null>(null);
@@ -130,6 +322,21 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   const [datasetQuery, setDatasetQuery] = useState<string>('');
   const [datasetSuggestions, setDatasetSuggestions] = useState<any[]>([]);
   const [showDatasetSuggestions, setShowDatasetSuggestions] = useState(false);
+  
+  // Edit dialog form state
+  const [editBasisOfRecord, setEditBasisOfRecord] = useState<string[]>([]);
+  const [editBasisOfRecordNegated, setEditBasisOfRecordNegated] = useState<boolean>(false);
+  const [editSelectedDataset, setEditSelectedDataset] = useState<any>(null);
+  
+  const basisOfRecordOptions = [
+    'HUMAN_OBSERVATION',
+    'PRESERVED_SPECIMEN',
+    'FOSSIL_SPECIMEN',
+    'LIVING_SPECIMEN',
+    'MACHINE_OBSERVATION',
+    'MATERIAL_SAMPLE',
+    'OCCURRENCE'
+  ];
 
   // Selected project for new rules (persistent across sessions)
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(() => {
@@ -152,6 +359,26 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   };
   
   const isOwnProfile = getCurrentUser() === username;
+
+  // Check if a rule belongs to the current user
+  const isOwnRule = (rule: any) => {
+    const currentUser = getCurrentUser();
+    return currentUser && rule.createdBy === currentUser;
+  };
+
+  // Check if current user is an admin
+  const isAdmin = () => {
+    try {
+      const userStr = localStorage.getItem('gbifUser');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        return user.roles && user.roles.includes('REGISTRY_ADMIN');
+      }
+    } catch {
+      return false;
+    }
+    return false;
+  };
 
   // Helper function to get back-to-map URL with last species context
   const getBackToMapUrl = () => {
@@ -179,40 +406,31 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   // Filter states
   const [speciesFilter, setSpeciesFilter] = useState<SelectedSpecies | null>(null);
   const [projectFilter, setProjectFilter] = useState<number | null>(null);
+  const [showAllUsers, setShowAllUsers] = useState(false);
+  const [userFilter, setUserFilter] = useState<string | null>(null);
 
-  // Apply filters to all rules first
-  const filteredAllRules = useMemo(() => {
-    let filtered = allRules;
+  // Multi-select states
+  const [selectedRules, setSelectedRules] = useState<Set<number>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [bulkEditAnnotation, setBulkEditAnnotation] = useState<string>('');
+  const [bulkEditProjectId, setBulkEditProjectId] = useState<string>('');
 
-    if (speciesFilter) {
-      filtered = filtered.filter(rule => 
-        rule.taxonKey === speciesFilter.key
-      );
-    }
-
-    if (projectFilter !== null) {
-      filtered = filtered.filter(rule => 
-        rule.projectId === projectFilter
-      );
-    }
-
-    return filtered;
-  }, [allRules, speciesFilter, projectFilter]);
-
-  // Calculate pagination values based on filtered results
-  const totalPages = Math.ceil(filteredAllRules.length / pageSize);
-
-  // Get current page of filtered rules
+  // Get current page of rules (no filtering needed - API returns filtered results)
   const filteredRules = useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize;
     const endIndex = startIndex + pageSize;
-    return filteredAllRules.slice(startIndex, endIndex);
-  }, [filteredAllRules, currentPage, pageSize]);
+    return allRules.slice(startIndex, endIndex);
+  }, [allRules, currentPage, pageSize]);
+
+  // Calculate pagination values based on all rules
+  const totalPages = Math.ceil(allRules.length / pageSize);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [speciesFilter, projectFilter]);
+  }, [speciesFilter, projectFilter, userFilter]);
 
   // Helper functions
   const formatDate = (dateString: string) => {
@@ -288,7 +506,12 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
       if (!username) return;
 
       try {
-        setLoading(true);
+        // Use tableLoading for subsequent fetches, loading only for initial
+        if (loading) {
+          setLoading(true);
+        } else {
+          setTableLoading(true);
+        }
         setError(null);
 
         // Fetch total count from metrics API
@@ -301,10 +524,30 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
           setTotalRules(metricsData.ruleCount || 0);
         }
 
-        // Fetch all rules (API currently returns all rules as array)
-        const response = await fetch(
-          getAnnotationApiUrl(`/rule?createdBy=${encodeURIComponent(username)}`)
-        );
+        // Build API URL with filters
+        let apiUrl = showAllUsers 
+          ? getAnnotationApiUrl('/rule')
+          : getAnnotationApiUrl(`/rule?createdBy=${encodeURIComponent(username)}`);
+        
+        // Add taxonKey filter if species is selected
+        if (speciesFilter) {
+          const separator = apiUrl.includes('?') ? '&' : '?';
+          apiUrl += `${separator}taxonKey=${speciesFilter.key}`;
+        }
+
+        // Add projectId filter if project is selected
+        if (projectFilter !== null) {
+          const separator = apiUrl.includes('?') ? '&' : '?';
+          apiUrl += `${separator}projectId=${projectFilter}`;
+        }
+
+        // Add createdBy filter if user filter is active
+        if (userFilter && showAllUsers) {
+          const separator = apiUrl.includes('?') ? '&' : '?';
+          apiUrl += `${separator}createdBy=${encodeURIComponent(userFilter)}`;
+        }
+
+        const response = await fetch(apiUrl);
 
         if (!response.ok) {
           throw new Error(`Failed to fetch rules: ${response.status} ${response.statusText}`);
@@ -331,12 +574,13 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         toast.error('Failed to load user rules');
       } finally {
         setLoading(false);
+        setTableLoading(false);
       }
     };
 
-    // Only fetch data when username changes
+    // Fetch data when username, showAllUsers, or filters change
     fetchUserRules();
-  }, [username]);
+  }, [username, showAllUsers, speciesFilter, projectFilter, userFilter]);
 
   // Fetch projects where user is a member
   useEffect(() => {
@@ -494,10 +738,76 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     }
   };
 
+  const handleEditProject = async () => {
+    if (!projectToEdit) return;
+
+    if (!editProjectName.trim()) {
+      toast.error('Project name is required');
+      return;
+    }
+
+    setIsEditingProject(true);
+
+    try {
+      const gbifAuth = localStorage.getItem('gbifAuth');
+
+      const response = await fetch(getAnnotationApiUrl(`/project/${projectToEdit.id}`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${gbifAuth}`,
+        },
+        body: JSON.stringify({
+          name: editProjectName.trim(),
+          description: editProjectDescription.trim(),
+          members: projectToEdit.members, // Keep existing members
+        }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          toast.error('Authentication failed. Please login again.');
+          return;
+        }
+        throw new Error(`Failed to update project: ${response.status}`);
+      }
+
+      const updatedProject = await response.json();
+
+      // Update project in the list
+      setProjects(prev => prev.map(p => p.id === projectToEdit.id ? updatedProject : p));
+
+      // Close dialog and reset form
+      setProjectToEdit(null);
+      setEditProjectName('');
+      setEditProjectDescription('');
+
+      toast.success('Project updated successfully');
+    } catch (err) {
+      console.error('Error updating project:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to update project');
+    } finally {
+      setIsEditingProject(false);
+    }
+  };
+
   // Handle edit rule button click
   const handleEditRule = (rule: UserRule) => {
     setEditingRule(rule);
-    setDatasetQuery(rule.datasetKey || '');
+    
+    // Initialize basis of record state
+    setEditBasisOfRecord(Array.isArray(rule.basisOfRecord) ? rule.basisOfRecord : []);
+    setEditBasisOfRecordNegated((rule as any).basisOfRecordNegated || false);
+    
+    // Initialize dataset state
+    if (rule.datasetKey) {
+      setDatasetQuery(rule.datasetKey);
+      setEditSelectedDataset({ key: rule.datasetKey });
+    } else {
+      setDatasetQuery('');
+      setEditSelectedDataset(null);
+    }
+    
     setDatasetSuggestions([]);
     setShowDatasetSuggestions(false);
     setIsEditDialogOpen(true);
@@ -521,11 +831,11 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         body: JSON.stringify({
           id: editingRule.id,
           taxonKey: editingRule.taxonKey,
-          datasetKey: editingRule.datasetKey,
+          datasetKey: editSelectedDataset ? editSelectedDataset.key : null,
           geometry: editingRule.geometry,
           annotation: editingRule.annotation,
-          basisOfRecord: editingRule.basisOfRecord ? [editingRule.basisOfRecord] : null,
-          basisOfRecordNegated: false,
+          basisOfRecord: editBasisOfRecord.length > 0 ? editBasisOfRecord : null,
+          basisOfRecordNegated: editBasisOfRecordNegated,
           yearRange: editingRule.yearRange,
           rulesetId: editingRule.rulesetId,
           projectId: editingRule.projectId,
@@ -547,6 +857,9 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
       setDatasetQuery('');
       setDatasetSuggestions([]);
       setShowDatasetSuggestions(false);
+      setEditBasisOfRecord([]);
+      setEditBasisOfRecordNegated(false);
+      setEditSelectedDataset(null);
       
       toast.success('Rule updated successfully');
     } catch (err) {
@@ -569,18 +882,18 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   // Dataset search with debouncing
   const searchDatasetsDebounced = useCallback(
     debounce(async (query: string) => {
-      if (!query.trim()) {
+      if (!query.trim() || query.length < 3) {
         setDatasetSuggestions([]);
         setShowDatasetSuggestions(false);
         return;
       }
 
       try {
-        const response = await fetch(`https://api.gbif.org/v1/dataset/suggest?q=${encodeURIComponent(query)}`);
+        const response = await fetch(getGbifApiUrl(`/dataset/suggest?q=${encodeURIComponent(query)}&limit=10`));
         if (response.ok) {
           const suggestions = await response.json();
-          setDatasetSuggestions(suggestions);
-          setShowDatasetSuggestions(suggestions.length > 0);
+          setDatasetSuggestions(suggestions || []);
+          setShowDatasetSuggestions((suggestions || []).length > 0);
         }
       } catch (error) {
         console.warn('Failed to fetch dataset suggestions:', error);
@@ -589,13 +902,20 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     []
   );
 
-  // Handle dataset selection
+  // Handle dataset selection in edit dialog
+  const handleDatasetSelectForEdit = (dataset: any) => {
+    setEditSelectedDataset(dataset);
+    setDatasetQuery(dataset.title || dataset.key);
+    setShowDatasetSuggestions(false);
+  };
+
+  // Original dataset select handler (for compatibility)
   const handleDatasetSelect = (dataset: any) => {
     if (editingRule) {
       setEditingRule({ ...editingRule, datasetKey: dataset.key });
-      setDatasetQuery(dataset.title);
-      setShowDatasetSuggestions(false);
     }
+    setDatasetQuery(dataset.title);
+    setShowDatasetSuggestions(false);
   };
 
   // Close suggestions when clicking outside
@@ -692,6 +1012,195 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     } catch (err) {
       console.error('Error deleting rule:', err);
       toast.error('Failed to delete rule');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const gbifAuth = localStorage.getItem('gbifAuth');
+    if (!gbifAuth) {
+      toast.error('Please login to GBIF to delete annotation rules');
+      return;
+    }
+
+    setIsBulkDeleting(true);
+    const rulesToDelete = Array.from(selectedRules);
+    const results = {
+      success: [] as number[],
+      failed: [] as number[],
+    };
+
+    try {
+      // Delete all selected rules
+      await Promise.all(
+        rulesToDelete.map(async (ruleId) => {
+          try {
+            const response = await fetch(
+              getAnnotationApiUrl(`/rule/${ruleId}`),
+              {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Basic ${gbifAuth}`,
+                },
+              }
+            );
+
+            if (response.ok) {
+              results.success.push(ruleId);
+            } else {
+              results.failed.push(ruleId);
+            }
+          } catch (err) {
+            console.error(`Error deleting rule ${ruleId}:`, err);
+            results.failed.push(ruleId);
+          }
+        })
+      );
+
+      // Update local state to remove successfully deleted rules
+      if (results.success.length > 0) {
+        setAllRules(prevRules => {
+          const newRules = prevRules.filter(rule => !results.success.includes(rule.id));
+          
+          // Update total count
+          setTotalRules(newRules.length);
+          
+          // Check if current page will be empty after deletion
+          const newTotalPages = Math.ceil(newRules.length / pageSize);
+          if (currentPage > newTotalPages && newTotalPages > 0) {
+            setCurrentPage(newTotalPages);
+          }
+          
+          return newRules;
+        });
+      }
+
+      // Clear selection
+      setSelectedRules(new Set());
+
+      // Show appropriate toast message
+      if (results.failed.length === 0) {
+        toast.success(`Successfully deleted ${results.success.length} rule${results.success.length > 1 ? 's' : ''}`);
+      } else if (results.success.length === 0) {
+        toast.error(`Failed to delete ${results.failed.length} rule${results.failed.length > 1 ? 's' : ''}`);
+      } else {
+        toast.warning(`Deleted ${results.success.length} rule${results.success.length > 1 ? 's' : ''}, but ${results.failed.length} failed`);
+      }
+    } catch (err) {
+      console.error('Error during bulk delete:', err);
+      toast.error('An error occurred during bulk delete');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const handleBulkEdit = async () => {
+    const gbifAuth = localStorage.getItem('gbifAuth');
+    if (!gbifAuth) {
+      toast.error('Please login to GBIF to edit annotation rules');
+      return;
+    }
+
+    setIsBulkUpdating(true);
+    const rulesToEdit = Array.from(selectedRules);
+    const results = {
+      success: [] as number[],
+      failed: [] as number[],
+    };
+
+    try {
+      // Update all selected rules
+      await Promise.all(
+        rulesToEdit.map(async (ruleId) => {
+          try {
+            // Get the current rule data
+            const currentRule = allRules.find(r => r.id === ruleId);
+            if (!currentRule) {
+              results.failed.push(ruleId);
+              return;
+            }
+
+            const response = await fetch(
+              getAnnotationApiUrl(`/rule/${ruleId}`),
+              {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Basic ${gbifAuth}`,
+                },
+                body: JSON.stringify({
+                  id: ruleId,
+                  taxonKey: currentRule.taxonKey,
+                  geometry: currentRule.geometry,
+                  annotation: bulkEditAnnotation || currentRule.annotation,
+                  basisOfRecord: Array.isArray(currentRule.basisOfRecord) 
+                    ? currentRule.basisOfRecord 
+                    : (currentRule.basisOfRecord ? [currentRule.basisOfRecord] : null),
+                  basisOfRecordNegated: false,
+                  datasetKey: currentRule.datasetKey,
+                  yearRange: currentRule.yearRange,
+                  rulesetId: currentRule.rulesetId,
+                  projectId: bulkEditProjectId 
+                    ? (bulkEditProjectId === 'CLEAR' ? null : parseInt(bulkEditProjectId))
+                    : currentRule.projectId,
+                }),
+              }
+            );
+
+            if (response.ok) {
+              results.success.push(ruleId);
+            } else {
+              results.failed.push(ruleId);
+            }
+          } catch (err) {
+            console.error(`Error updating rule ${ruleId}:`, err);
+            results.failed.push(ruleId);
+          }
+        })
+      );
+
+      // Update local state for successfully updated rules
+      if (results.success.length > 0) {
+        setAllRules(prevRules =>
+          prevRules.map(rule => {
+            if (results.success.includes(rule.id)) {
+              const updates: any = { ...rule };
+              
+              // Update annotation if specified
+              if (bulkEditAnnotation) {
+                updates.annotation = bulkEditAnnotation;
+              }
+              
+              // Update projectId if specified
+              if (bulkEditProjectId) {
+                updates.projectId = bulkEditProjectId === 'CLEAR' ? null : parseInt(bulkEditProjectId);
+              }
+              
+              return updates;
+            }
+            return rule;
+          })
+        );
+      }
+
+      // Clear selection and close dialog
+      setSelectedRules(new Set());
+      setIsBulkEditDialogOpen(false);
+      setBulkEditAnnotation('');
+      setBulkEditProjectId('');
+
+      // Show appropriate toast message
+      if (results.failed.length === 0) {
+        toast.success(`Successfully updated ${results.success.length} rule${results.success.length > 1 ? 's' : ''}`);
+      } else if (results.success.length === 0) {
+        toast.error(`Failed to update ${results.failed.length} rule${results.failed.length > 1 ? 's' : ''}`);
+      } else {
+        toast.warning(`Updated ${results.success.length} rule${results.success.length > 1 ? 's' : ''}, but ${results.failed.length} failed`);
+      }
+    } catch (err) {
+      console.error('Error during bulk edit:', err);
+      toast.error('An error occurred during bulk edit');
+    } finally {
+      setIsBulkUpdating(false);
     }
   };
 
@@ -810,14 +1319,8 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                 Back to Map
               </Button>
             </Link>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                <User className="w-5 h-5 text-green-700" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{username}</h1>
-              </div>
-            </div>
+            <div className="flex-1"></div>
+            <LoginButton />
           </div>
         </div>
         
@@ -843,17 +1346,40 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         <TabsContent value="rules" className="flex-1 flex flex-col overflow-hidden m-0">
           {/* Filters */}
           <div className="px-6 py-3 bg-white border-b">
-            <UserPageFilters
-              speciesFilter={speciesFilter}
-              onSpeciesFilterChange={setSpeciesFilter}
-              projectFilter={projectFilter}
-              onProjectFilterChange={setProjectFilter}
-              projects={projects}
-            />
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <UserPageFilters
+                  speciesFilter={speciesFilter}
+                  onSpeciesFilterChange={setSpeciesFilter}
+                  projectFilter={projectFilter}
+                  onProjectFilterChange={setProjectFilter}
+                  userFilter={userFilter}
+                  onUserFilterChange={setUserFilter}
+                  projects={projects}
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAllUsers(!showAllUsers)}
+                className={`h-8 w-8 p-0 ${showAllUsers ? 'bg-purple-100 hover:bg-purple-200' : ''}`}
+                title={showAllUsers ? 'Show only this user\'s rules' : 'Show rules from all users'}
+              >
+                <User className={`h-4 w-4 ${showAllUsers ? 'text-purple-700' : ''}`} />
+              </Button>
+            </div>
           </div>
           
           {/* Rules Content */}
-          <div className="flex-1 overflow-auto p-6">
+          <div className="flex-1 overflow-auto p-6 relative">
+        {tableLoading && (
+          <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
+              <p className="text-sm text-gray-600">Loading rules...</p>
+            </div>
+          </div>
+        )}
         {filteredRules.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -871,15 +1397,103 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
           </div>
         ) : (
           <div className="max-w-full mx-auto">
+            {/* Bulk Actions Bar */}
+            {selectedRules.size > 0 && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-blue-900 font-medium">
+                    {selectedRules.size} rule{selectedRules.size !== 1 ? 's' : ''} selected
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedRules(new Set())}
+                    >
+                      Clear Selection
+                    </Button>
+                    {isOwnProfile && (
+                      <>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => setIsBulkEditDialogOpen(true)}
+                          disabled={isBulkUpdating}
+                        >
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Edit Selected
+                        </Button>
+                        <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={isBulkDeleting}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete Selected
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete {selectedRules.size} Rule{selectedRules.size !== 1 ? 's' : ''}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete {selectedRules.size} selected rule{selectedRules.size !== 1 ? 's' : ''}?
+                            This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel disabled={isBulkDeleting}>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              await handleBulkDelete();
+                            }}
+                            disabled={isBulkDeleting}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            {isBulkDeleting ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Deleting...
+                              </>
+                            ) : (
+                              'Delete Rules'
+                            )}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                    </>
+                  )}
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="bg-white rounded-lg border shadow-sm mb-8">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-20">ID</TableHead>
+                    <TableHead className="w-12">
+                      <input
+                        type="checkbox"
+                        checked={filteredRules.length > 0 && selectedRules.size === filteredRules.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedRules(new Set(filteredRules.map(r => r.id)));
+                          } else {
+                            setSelectedRules(new Set());
+                          }
+                        }}
+                        disabled={!isOwnProfile && !isAdmin() || showAllUsers}
+                        className="rounded border-gray-300"
+                      />
+                    </TableHead>
                     <TableHead className="w-28">TaxonKey</TableHead>
                     <TableHead>Species</TableHead>
                     <TableHead className="w-24">Annotation</TableHead>
                     <TableHead className="w-32">Project</TableHead>
+                    <TableHead className="w-32">User</TableHead>
                     <TableHead className="w-32">Created</TableHead>
                     <TableHead className="w-28">Actions</TableHead>
                   </TableRow>
@@ -889,9 +1503,26 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                     const speciesInfo = rule.taxonKey ? speciesCache.get(rule.taxonKey) : null;
                     
                     return (
-                      <TableRow key={rule.id}>
+                      <TableRow 
+                        key={rule.id}
+                        className={selectedRules.has(rule.id) ? 'bg-blue-50' : ''}
+                      >
                         <TableCell>
-                          <div className="font-medium">#{rule.id}</div>
+                          <input
+                            type="checkbox"
+                            checked={selectedRules.has(rule.id)}
+                            onChange={(e) => {
+                              const newSelected = new Set(selectedRules);
+                              if (e.target.checked) {
+                                newSelected.add(rule.id);
+                              } else {
+                                newSelected.delete(rule.id);
+                              }
+                              setSelectedRules(newSelected);
+                            }}
+                            disabled={!isOwnRule(rule) && !isAdmin()}
+                            className="rounded border-gray-300"
+                          />
                         </TableCell>
                         
                         <TableCell>
@@ -969,6 +1600,15 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                         </TableCell>
                         
                         <TableCell>
+                          <Link
+                            to={`/user/${rule.createdBy}?tab=rules`}
+                            className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                          >
+                            {rule.createdBy}
+                          </Link>
+                        </TableCell>
+                        
+                        <TableCell>
                           <div className="text-sm text-gray-600">
                             {formatDate(rule.created)}
                           </div>
@@ -990,7 +1630,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                               <Eye className="w-4 h-4" />
                             </Button>
                             
-                            {!rule.deleted && isOwnProfile && (
+                            {!rule.deleted && (isOwnRule(rule) || isAdmin()) && (
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1001,7 +1641,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                               </Button>
                             )}
                             
-                            {!rule.deleted && (
+                            {!rule.deleted && (isOwnRule(rule) || isAdmin()) && (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button
@@ -1227,6 +1867,30 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                           </TooltipContent>
                         </Tooltip>
                       )}
+
+                      {/* Edit Project Button */}
+                      {isOwnProfile && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setProjectToEdit(project);
+                                setEditProjectName(project.name);
+                                setEditProjectDescription(project.description);
+                              }}
+                              className="h-7 w-7 p-0 rounded-full text-gray-400 bg-gray-50 hover:text-blue-600 hover:bg-blue-50"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Edit project</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                       
                       {/* Set as Active Button */}
                       <Tooltip>
@@ -1337,24 +2001,14 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                 </select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="edit-basis">Basis of Record (optional)</Label>
-                <select
-                  id="edit-basis"
-                  className="w-full p-2 border rounded-md"
-                  value={editingRule.basisOfRecord || ''}
-                  onChange={(e) => setEditingRule({ ...editingRule, basisOfRecord: e.target.value || undefined })}
-                >
-                  <option value="">No filter</option>
-                  <option value="HUMAN_OBSERVATION">Human Observation</option>
-                  <option value="PRESERVED_SPECIMEN">Preserved Specimen</option>
-                  <option value="FOSSIL_SPECIMEN">Fossil Specimen</option>
-                  <option value="LIVING_SPECIMEN">Living Specimen</option>
-                  <option value="MACHINE_OBSERVATION">Machine Observation</option>
-                  <option value="MATERIAL_SAMPLE">Material Sample</option>
-                  <option value="OCCURRENCE">Occurrence</option>
-                </select>
-              </div>
+              {/* Basis of Record - Multi-select */}
+              <BasisOfRecordMultiSelect
+                options={basisOfRecordOptions}
+                selected={editBasisOfRecord}
+                onChange={setEditBasisOfRecord}
+                negated={editBasisOfRecordNegated}
+                onNegatedChange={setEditBasisOfRecordNegated}
+              />
 
               <div className="space-y-2 relative">
                 <Label htmlFor="edit-dataset">Dataset (optional)</Label>
@@ -1385,7 +2039,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                         <div
                           key={dataset.key}
                           className="p-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
-                          onClick={() => handleDatasetSelect(dataset)}
+                          onClick={() => handleDatasetSelectForEdit(dataset)}
                         >
                           <div className="text-sm font-medium text-gray-900 truncate">
                             {dataset.title}
@@ -1398,15 +2052,15 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                     </div>
                   )}
                 </div>
-                {editingRule?.datasetKey && (
+                {editSelectedDataset && (
                   <div className="flex items-center justify-between text-xs text-gray-600 bg-blue-50 p-2 rounded">
-                    <span>Selected: <span className="font-medium">{editingRule.datasetKey}</span></span>
+                    <span>Selected: <span className="font-medium">{editSelectedDataset.title || editSelectedDataset.key}</span></span>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       onClick={() => {
-                        setEditingRule({ ...editingRule, datasetKey: undefined });
+                        setEditSelectedDataset(null);
                         setDatasetQuery('');
                       }}
                       className="h-6 w-6 p-0 text-gray-500 hover:text-red-600"
@@ -1487,6 +2141,163 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
               )}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Edit Dialog */}
+      <Dialog open={isBulkEditDialogOpen} onOpenChange={setIsBulkEditDialogOpen}>
+        <DialogContent className="max-w-xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Edit {selectedRules.size} Selected Rule{selectedRules.size !== 1 ? 's' : ''}</DialogTitle>
+            <DialogDescription>
+              Update fields for all selected rules. Leave fields empty to keep existing values.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3 py-2 overflow-y-auto flex-1">
+            <div className="space-y-1">
+              <Label htmlFor="bulk-annotation" className="text-sm">Annotation Type</Label>
+              <select
+                id="bulk-annotation"
+                className="w-full p-2 border rounded-md text-sm"
+                value={bulkEditAnnotation}
+                onChange={(e) => setBulkEditAnnotation(e.target.value)}
+              >
+                <option value="">Don't change</option>
+                <option value="NATIVE">Native</option>
+                <option value="INTRODUCED">Introduced</option>
+                <option value="MANAGED">Managed</option>
+                <option value="FORMER">Former</option>
+                <option value="VAGRANT">Vagrant</option>
+                <option value="SUSPICIOUS">Suspicious</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="bulk-project" className="text-sm">Project</Label>
+              <select
+                id="bulk-project"
+                className="w-full p-2 border rounded-md text-sm"
+                value={bulkEditProjectId}
+                onChange={(e) => setBulkEditProjectId(e.target.value)}
+              >
+                <option value="">Don't change</option>
+                <option value="CLEAR">Remove from project</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="bg-blue-50 p-2 rounded-md text-xs text-blue-900">
+              <strong>Note:</strong> Only changed fields will be updated.
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsBulkEditDialogOpen(false);
+                setBulkEditAnnotation('');
+                setBulkEditProjectId('');
+              }}
+              disabled={isBulkUpdating}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleBulkEdit}
+              disabled={isBulkUpdating || (!bulkEditAnnotation && !bulkEditProjectId)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isBulkUpdating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Updating {selectedRules.size} rule{selectedRules.size !== 1 ? 's' : ''}...
+                </>
+              ) : (
+                <>
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Update {selectedRules.size} Rule{selectedRules.size !== 1 ? 's' : ''}
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Project Dialog */}
+      <Dialog open={!!projectToEdit} onOpenChange={(open) => {
+        if (!open) {
+          setProjectToEdit(null);
+          setEditProjectName('');
+          setEditProjectDescription('');
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Project</DialogTitle>
+            <DialogDescription>
+              Update the project name and description
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            handleEditProject();
+          }} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-project-name">Project Name *</Label>
+              <Input
+                id="edit-project-name"
+                value={editProjectName}
+                onChange={(e) => setEditProjectName(e.target.value)}
+                placeholder="Enter project name"
+                required
+                disabled={isEditingProject}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-project-description">Description</Label>
+              <Textarea
+                id="edit-project-description"
+                value={editProjectDescription}
+                onChange={(e) => setEditProjectDescription(e.target.value)}
+                placeholder="Enter project description"
+                rows={4}
+                disabled={isEditingProject}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setProjectToEdit(null);
+                  setEditProjectName('');
+                  setEditProjectDescription('');
+                }}
+                disabled={isEditingProject}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isEditingProject}>
+                {isEditingProject ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  'Update Project'
+                )}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 

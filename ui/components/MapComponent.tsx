@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Map, Overlay } from 'pigeon-maps';
 import { PolygonData } from '../App';
+import { OccurrenceFilters, OccurrenceFilterOptions } from './OccurrenceFilters';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors } from 'lucide-react';
+import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles } from 'lucide-react';
 import { AnnotationRule } from './AnnotationRules';
 import { toast } from 'sonner';
 
@@ -24,6 +25,7 @@ interface MapComponentProps {
   onPolygonChange: (coords: [number, number][] | null) => void;
   annotationRules?: AnnotationRule[];
   showAnnotationRules?: boolean;
+  showMyRulesOnly?: boolean;
   editingPolygonId?: string | null;
   onUpdatePolygon?: (id: string, coordinates: [number, number][] | [number, number][][]) => void;
   onStopEditing?: () => void;
@@ -33,6 +35,8 @@ interface MapComponentProps {
   onToggleInvert?: (id: string) => void;
   onEditPolygon?: (id: string) => void;
   onDeletePolygon?: (id: string) => void;
+  occurrenceFilters?: OccurrenceFilterOptions;
+  onFiltersChange?: (filters: OccurrenceFilterOptions) => void;
 }
 
 // Tile conversion helpers for Web Mercator (EPSG:3857)
@@ -65,6 +69,7 @@ export function MapComponent({
   onPolygonChange,
   annotationRules = [],
   showAnnotationRules = true,
+  showMyRulesOnly = false,
   editingPolygonId = null,
   onUpdatePolygon,
   onSaveAndEdit,
@@ -73,6 +78,8 @@ export function MapComponent({
   onToggleInvert,
   onEditPolygon,
   onDeletePolygon,
+  occurrenceFilters = {},
+  onFiltersChange,
 }: MapComponentProps) {
   const [center, setCenter] = useState<[number, number]>([20, 0]);
   const [zoom, setZoom] = useState(2);
@@ -103,6 +110,21 @@ export function MapComponent({
   const [investigateResults, setInvestigateResults] = useState<any[]>([]);
   const [isInvestigateDialogOpen, setIsInvestigateDialogOpen] = useState(false);
   const [investigationPoint, setInvestigationPoint] = useState<{ lat: number; lng: number } | null>(null);
+  const [investigationBounds, setInvestigationBounds] = useState<{ north: number; south: number; east: number; west: number } | null>(null);
+  
+  // Get current user from localStorage
+  const getCurrentUser = () => {
+    try {
+      const userStr = localStorage.getItem('gbifUser');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        return user.userName;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
   
   // Function to calculate appropriate radius based on zoom level
   const calculateRadiusForZoom = (zoomLevel: number): number => {
@@ -315,6 +337,48 @@ export function MapComponent({
     }
   }, []);
 
+  // Helper function to build GBIF occurrence tile URL with filters
+  const buildGbifTileUrl = (tileZoom: number, x: number, y: number, taxonKey: number) => {
+    const baseUrl = `https://api.gbif.org/v2/map/occurrence/adhoc/${tileZoom}/${x}/${y}@2x.png`;
+    const params = new URLSearchParams({
+      srs: 'EPSG:3857',
+      style: 'scaled.circles',
+      mode: 'GEO_CENTROID',
+      taxonKey: taxonKey.toString()
+    });
+
+    // Add occurrence filters
+    if (occurrenceFilters?.hasGeospatialIssue !== undefined) {
+      params.append('hasGeospatialIssue', occurrenceFilters.hasGeospatialIssue.toString());
+    }
+    
+    if (occurrenceFilters?.datasetKey) {
+      params.append('datasetKey', occurrenceFilters.datasetKey);
+    }
+    
+    if (occurrenceFilters?.year) {
+      params.append('year', occurrenceFilters.year);
+    }
+    
+    if (occurrenceFilters?.yearRange) {
+      // GBIF API supports year range with comma-separated values
+      const years = [];
+      for (let y = occurrenceFilters.yearRange.min; y <= occurrenceFilters.yearRange.max; y++) {
+        years.push(y.toString());
+      }
+      // GBIF API uses year parameter multiple times or as comma-separated
+      params.append('year', `${occurrenceFilters.yearRange.min},${occurrenceFilters.yearRange.max}`);
+    }
+    
+    if (occurrenceFilters?.basisOfRecord && occurrenceFilters.basisOfRecord.length > 0) {
+      occurrenceFilters.basisOfRecord.forEach(bor => {
+        params.append('basisOfRecord', bor);
+      });
+    }
+
+    return `${baseUrl}?${params.toString()}`;
+  };
+
   // Update GBIF tiles when map moves or species changes
   useEffect(() => {
     if (!selectedSpecies || mapSize.width === 0 || isZooming) {
@@ -354,7 +418,7 @@ export function MapComponent({
         if (x >= 0 && x < maxTile && y >= 0 && y < maxTile) {
           // Get the northwest corner of the tile as anchor point
           const anchor = tileToLatLngWebMercator(x, y, tileZoom);
-          const url = `https://api.gbif.org/v2/map/occurrence/adhoc/${tileZoom}/${x}/${y}@2x.png?srs=EPSG:3857&style=scaled.circles&mode=GEO_CENTROID&taxonKey=${selectedSpecies.key}&hasGeospatialIssue=false`;
+          const url = buildGbifTileUrl(tileZoom, x, y, selectedSpecies.key);
           
           newTiles.push({ x, y, z: tileZoom, anchor, url });
         }
@@ -368,7 +432,7 @@ export function MapComponent({
       zoom: zoom,
       status: '🔍 Check coordinate alignment NOW'
     });
-  }, [zoom, center, mapSize, selectedSpecies, isZooming]);
+  }, [zoom, center, mapSize, selectedSpecies, isZooming, occurrenceFilters]);
 
   // Handle external navigation requests
   useEffect(() => {
@@ -416,6 +480,9 @@ export function MapComponent({
       const south = lat - latAdjustment;
       const east = lng + lngAdjustment;
       const west = lng - lngAdjustment;
+      
+      // Store bounds for later use
+      setInvestigationBounds({ north, south, east, west });
       
       console.log('🔍 Search bounds:', { north, south, east, west, radiusKm: investigateRadius/1000 });
       
@@ -477,6 +544,7 @@ export function MapComponent({
             datasetKey: occurrence.datasetKey,
             basisOfRecord: occurrence.basisOfRecord,
             coordinateUncertaintyInMeters: occurrence.coordinateUncertaintyInMeters,
+            locality: occurrence.locality,
             media: occurrence.media || [],
             ...datasetInfo
           };
@@ -511,6 +579,33 @@ export function MapComponent({
     } catch {
       return dateString;
     }
+  };
+
+  const createPolygonFromInvestigation = () => {
+    if (!investigationBounds) {
+      toast.error('No investigation area to create polygon from');
+      return;
+    }
+
+    const { north, south, east, west } = investigationBounds;
+    
+    // Create a rectangle polygon from the bounds
+    const rectangleCoords: [number, number][] = [
+      [north, west], // Top-left
+      [north, east], // Top-right
+      [south, east], // Bottom-right
+      [south, west], // Bottom-left
+      [north, west]  // Close the polygon
+    ];
+
+    // Close the dialog and turn off investigate mode first
+    setIsInvestigateDialogOpen(false);
+    setIsInvestigateMode(false);
+
+    // Set as current polygon
+    onPolygonChange(rectangleCoords);
+
+    toast.success('Investigation area created. Click "Save Polygon" to add it to Active Rules.');
   };
 
   const getDistanceString = (lat: number, lng: number) => {
@@ -1495,7 +1590,13 @@ export function MapComponent({
         */}
 
         {/* PRIORITY 4: Annotation rule polygons - render before user polygons for proper layering */}
-        {!isZooming && showAnnotationRules && annotationRules.map((rule) => {
+        {!isZooming && showAnnotationRules && annotationRules.filter(rule => {
+          if (showMyRulesOnly) {
+            const currentUser = getCurrentUser();
+            return currentUser && rule.createdBy === currentUser;
+          }
+          return true;
+        }).map((rule) => {
           if (!rule.multiPolygon) {
             return null;
           }
@@ -2227,9 +2328,10 @@ export function MapComponent({
 
       {/* Map Controls - Always visible */}
       <div 
-        className="absolute top-4 left-4 bg-white rounded-lg shadow-lg p-2 flex flex-col gap-2 z-20"
+        className="absolute top-4 left-4 bg-white rounded-lg shadow-lg p-2 flex flex-col gap-2 z-[100]"
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
+        style={{ pointerEvents: 'auto' }}
       >
         {/* Drawing Tools - Always visible */}
         {!isDrawing ? (
@@ -2271,12 +2373,17 @@ export function MapComponent({
               size="icon"
               onClick={(e) => {
                 e.stopPropagation();
+                if (!selectedSpecies && !isInvestigateMode) {
+                  // Don't activate if no species selected
+                  return;
+                }
                 setIsInvestigateMode(!isInvestigateMode);
               }}
               onMouseDown={(e) => e.stopPropagation()}
-              disabled={!selectedSpecies}
-              title={selectedSpecies ? "Click on map to investigate area for occurrences" : "Select a species first"}
-              className={isInvestigateMode ? "bg-blue-600 hover:bg-blue-700" : ""}
+              disabled={!selectedSpecies && !isInvestigateMode}
+              title={selectedSpecies ? "Click on map to investigate area for occurrences" : (isInvestigateMode ? "Turn off investigate mode" : "Select a species first")}
+              className={`relative z-[110] ${isInvestigateMode ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+              style={{ pointerEvents: 'auto' }}
             >
               <Search className="w-5 h-5" />
             </Button>
@@ -2284,14 +2391,15 @@ export function MapComponent({
             {/* Radius Controls - vertically below investigate button when active */}
             {isInvestigateMode && (
               <div 
-                className="flex flex-col gap-1 bg-white rounded border shadow-sm px-1 py-1 relative z-30"
+                className="flex flex-col gap-1 bg-white rounded border shadow-sm px-1 py-1 relative z-[120]"
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
+                style={{ pointerEvents: 'auto' }}
               >
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-6 w-6 relative z-40"
+                  className="h-6 w-6 relative z-[130]"
                   style={{ pointerEvents: 'auto' }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -2303,14 +2411,14 @@ export function MapComponent({
                 >
                   <Plus className="w-3 h-3" />
                 </Button>
-                <span className="text-xs font-medium text-center py-1 relative z-40" style={{ pointerEvents: 'none' }}>
+                <span className="text-xs font-medium text-center py-1 relative z-[130]" style={{ pointerEvents: 'none' }}>
                   {(investigateRadius / 1000).toFixed(0)}km
                   <div className="text-[10px] text-gray-500">Auto</div>
                 </span>
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-6 w-6 relative z-40"
+                  className="h-6 w-6 relative z-[130]"
                   style={{ pointerEvents: 'auto' }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -2323,6 +2431,14 @@ export function MapComponent({
                   <Minus className="w-3 h-3" />
                 </Button>
               </div>
+            )}
+            
+            {/* Occurrence Filters - below investigate button */}
+            {onFiltersChange && (
+              <OccurrenceFilters
+                filters={occurrenceFilters}
+                onFiltersChange={onFiltersChange}
+              />
             )}
             
             {/* Current polygon controls */}
@@ -2556,9 +2672,24 @@ export function MapComponent({
                   {investigationPoint.lat.toFixed(4)}, {investigationPoint.lng.toFixed(4)} 
                   ({(investigateRadius/1000)}km radius)
                   {!isInvestigateLoading && investigateResults.length > 0 && (
-                    <span className="block mt-1 text-green-600">
-                      Found {investigateResults.length} occurrence{investigateResults.length !== 1 ? 's' : ''}
-                    </span>
+                    <>
+                      <span className="block mt-1 text-green-600">
+                        Found {investigateResults.length} occurrence{investigateResults.length !== 1 ? 's' : ''}
+                      </span>
+                      {investigationBounds && (
+                        <div className="flex justify-center mt-1">
+                          <Button
+                            onClick={createPolygonFromInvestigation}
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-xs text-blue-600 hover:text-blue-800"
+                            title="Create polygon from investigation area"
+                          >
+                            Create rule from search
+                          </Button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -2691,6 +2822,12 @@ export function MapComponent({
                             {occurrence.coordinateUncertaintyInMeters && (
                               <div className="text-gray-500">
                                 ±{occurrence.coordinateUncertaintyInMeters}m uncertainty
+                              </div>
+                            )}
+                            {occurrence.locality && (
+                              <div className="text-gray-600 mt-1">
+                                <span className="text-gray-500">Locality: </span>
+                                {occurrence.locality}
                               </div>
                             )}
                           </div>

@@ -4,11 +4,14 @@ import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Trash2, ChevronLeft, ChevronRight, MessageSquare, Loader2, Pencil, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp, Folder, Plus } from 'lucide-react';
+import { Checkbox } from './ui/checkbox';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { parseWKTGeometry, MultiPolygon, PolygonWithHoles } from '../utils/wktParser';
 import { toast } from 'sonner';
 import { SelectedSpecies } from './SpeciesSelector';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
+import { Input } from './ui/input';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl, getGbifApiUrl } from '../utils/apiConfig';
 import {
@@ -22,13 +25,202 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from './ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
 
 // Helper function to generate species page URL
 const getSpeciesPageUrl = (taxonKey: number): string => {
   const isDevelopment = import.meta.env.DEV;
   const baseUrl = isDevelopment ? 'http://localhost:3000' : window.location.origin;
-  return `${baseUrl}/?taxonKey=${taxonKey}`;
+  return `${baseUrl}#/?taxonKey=${taxonKey}`;
 };
+
+// Searchable multi-select component for Basis of Record
+function BasisOfRecordMultiSelect({ 
+  options, 
+  selected, 
+  onChange,
+  negated,
+  onNegatedChange
+}: { 
+  options: string[]; 
+  selected: string[]; 
+  onChange: (selected: string[]) => void;
+  negated?: boolean;
+  onNegatedChange?: (negated: boolean) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filteredOptions = options.filter(option =>
+    option.toLowerCase().includes(searchTerm.toLowerCase()) && !selected.includes(option)
+  );
+
+  const handleSelectOption = (option: string) => {
+    if (!selected.includes(option)) {
+      onChange([...selected, option]);
+    }
+    setSearchTerm('');
+    setShowDropdown(false);
+    setFocusedIndex(-1);
+    inputRef.current?.focus();
+  };
+
+  const handleRemoveChip = (option: string) => {
+    onChange(selected.filter(item => item !== option));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showDropdown) {
+      if (e.key === 'ArrowDown' && filteredOptions.length > 0) {
+        e.preventDefault();
+        setShowDropdown(true);
+        setFocusedIndex(0);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setFocusedIndex(prev => prev < filteredOptions.length - 1 ? prev + 1 : prev);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setFocusedIndex(prev => prev > 0 ? prev - 1 : prev);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (focusedIndex >= 0 && focusedIndex < filteredOptions.length) {
+          handleSelectOption(filteredOptions[focusedIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setShowDropdown(false);
+        setFocusedIndex(-1);
+        break;
+      case 'Backspace':
+        if (searchTerm === '' && selected.length > 0) {
+          e.preventDefault();
+          handleRemoveChip(selected[selected.length - 1]);
+        }
+        break;
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+        setFocusedIndex(-1);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs text-gray-700">
+          Basis of Record (optional)
+          {selected.length > 0 && (
+            <span className="ml-1 text-blue-600 font-medium">({selected.length} selected)</span>
+          )}
+        </Label>
+        <div className="flex items-center space-x-3">
+          <div className="flex space-x-2">
+            <button type="button" onClick={() => onChange(options)} className="text-xs text-blue-600 hover:text-blue-800 underline">
+              Select All
+            </button>
+            <button type="button" onClick={() => onChange([])} className="text-xs text-gray-600 hover:text-gray-800 underline">
+              Clear
+            </button>
+          </div>
+          {onNegatedChange && (
+            <div className="flex items-center space-x-1">
+              <Checkbox
+                id="basis-of-record-negated-inline"
+                checked={negated || false}
+                disabled={selected.length === 0}
+                onCheckedChange={(checked) => onNegatedChange(checked === true)}
+                className="h-3 w-3"
+              />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Label htmlFor="basis-of-record-negated-inline" className={`text-xs font-medium cursor-pointer ${selected.length === 0 ? 'text-gray-400' : 'text-gray-900'}`}>
+                      Negate
+                    </Label>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Apply rule to all records that do NOT have the selected basis of record</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="relative" ref={dropdownRef}>
+        <div className="min-h-[2.25rem] border border-gray-300 rounded p-2 bg-white flex flex-wrap gap-1 items-center">
+          {selected.map((option) => (
+            <span key={option} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-md">
+              {option.replace(/_/g, ' ')}
+              <button type="button" onClick={() => handleRemoveChip(option)} className="hover:bg-blue-200 rounded-sm p-0.5 -mr-1" aria-label={`Remove ${option}`}>
+                ×
+              </button>
+            </span>
+          ))}
+          <input
+            ref={inputRef}
+            type="text"
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setShowDropdown(true);
+              setFocusedIndex(-1);
+            }}
+            onKeyDown={handleKeyDown}
+            onFocus={() => {
+              if (filteredOptions.length > 0) setShowDropdown(true);
+            }}
+            placeholder={selected.length === 0 ? "Type to search basis of record..." : ""}
+            className="flex-1 min-w-[120px] text-xs outline-none bg-transparent"
+          />
+        </div>
+        {showDropdown && filteredOptions.length > 0 && (
+          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-32 overflow-y-auto">
+            {filteredOptions.map((option, index) => (
+              <div
+                key={option}
+                className={`p-2 text-xs cursor-pointer ${index === focusedIndex ? 'bg-blue-100 text-blue-900' : 'hover:bg-gray-100'}`}
+                onClick={() => handleSelectOption(option)}
+                onMouseEnter={() => setFocusedIndex(index)}
+              >
+                {option.replace(/_/g, ' ')}
+              </div>
+            ))}
+          </div>
+        )}
+        {selected.length === 0 && (
+          <div className="text-xs text-gray-500 italic mt-1">
+            No selection - will apply to all basis of record types
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // Component for clickable species name in annotation rules
 const SpeciesLink = ({ 
@@ -46,8 +238,6 @@ const SpeciesLink = ({
     return (
       <a 
         href={getSpeciesPageUrl(taxonKey)} 
-        target="_blank" 
-        rel="noopener noreferrer"
         className={`${className} hover:underline cursor-pointer`}
         style={style}
         title={`View ${scientificName} species page`}
@@ -138,6 +328,33 @@ export function AnnotationRules({
   const [totalCount, setTotalCount] = useState(0);
   const [hasNextPage, setHasNextPage] = useState(false);
   const pageSize = 20;
+  
+  // Edit rule dialog state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<AnnotationRule | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  
+  // Projects state for edit dialog
+  const [projects, setProjects] = useState<Array<{ id: number; name: string }>>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  
+  // Edit dialog form state
+  const [editBasisOfRecord, setEditBasisOfRecord] = useState<string[]>([]);
+  const [editBasisOfRecordNegated, setEditBasisOfRecordNegated] = useState<boolean>(false);
+  const [editDatasetQuery, setEditDatasetQuery] = useState<string>('');
+  const [editSelectedDataset, setEditSelectedDataset] = useState<any>(null);
+  const [datasetSuggestions, setDatasetSuggestions] = useState<any[]>([]);
+  const [showDatasetSuggestions, setShowDatasetSuggestions] = useState(false);
+  
+  const basisOfRecordOptions = [
+    'HUMAN_OBSERVATION',
+    'PRESERVED_SPECIMEN',
+    'FOSSIL_SPECIMEN',
+    'LIVING_SPECIMEN',
+    'MACHINE_OBSERVATION',
+    'MATERIAL_SAMPLE',
+    'OCCURRENCE'
+  ];
   
   const onRulesLoadRef = useRef(onRulesLoad);
 
@@ -729,6 +946,145 @@ export function AnnotationRules({
     return 'Basic ' + gbifAuth;
   }
 
+  // Search datasets for edit dialog
+  const searchDatasetsForEdit = async (query: string) => {
+    if (query.length < 3) {
+      setDatasetSuggestions([]);
+      setShowDatasetSuggestions(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        getGbifApiUrl(`/dataset/suggest?q=${encodeURIComponent(query)}&limit=10`)
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setDatasetSuggestions(data || []);
+        setShowDatasetSuggestions(true);
+      }
+    } catch (error) {
+      console.error('Error searching datasets:', error);
+    }
+  };
+
+  const handleDatasetSelectForEdit = (dataset: any) => {
+    setEditSelectedDataset(dataset);
+    setEditDatasetQuery(dataset.title);
+    setShowDatasetSuggestions(false);
+  };
+
+  // Fetch projects for the edit dialog
+  const fetchProjects = async () => {
+    if (!isLoggedIn || !currentUser) return;
+    
+    setLoadingProjects(true);
+    try {
+      const response = await fetch(
+        getAnnotationApiUrl(`/project?createdBy=${currentUser.userName}`),
+        {
+          headers: {
+            'Authorization': getBasicAuthHeader() || '',
+          },
+        }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setProjects(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
+
+  // Edit rule handlers
+  const handleEditRule = (rule: AnnotationRule) => {
+    setEditingRule(rule);
+    
+    // Initialize basis of record state
+    setEditBasisOfRecord(rule.basisOfRecord || []);
+    setEditBasisOfRecordNegated(rule.basisOfRecordNegated || false);
+    
+    // Initialize dataset state
+    if (rule.datasetKey) {
+      setEditDatasetQuery(rule.datasetKey);
+      setEditSelectedDataset({ key: rule.datasetKey });
+    } else {
+      setEditDatasetQuery('');
+      setEditSelectedDataset(null);
+    }
+    
+    setIsEditDialogOpen(true);
+    
+    // Fetch projects when opening edit dialog
+    fetchProjects();
+  };
+
+  const handleUpdateRule = async () => {
+    if (!editingRule) return;
+
+    setIsUpdating(true);
+    
+    try {
+      const gbifAuth = localStorage.getItem('gbifAuth');
+      
+      const response = await fetch(getAnnotationApiUrl(`/rule/${editingRule.id}`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${gbifAuth}`,
+        },
+        body: JSON.stringify({
+          id: editingRule.id,
+          taxonKey: editingRule.taxonKey,
+          datasetKey: editSelectedDataset ? editSelectedDataset.key : null,
+          geometry: editingRule.geometry,
+          annotation: editingRule.annotation,
+          basisOfRecord: editBasisOfRecord.length > 0 ? editBasisOfRecord : null,
+          basisOfRecordNegated: editBasisOfRecordNegated,
+          yearRange: editingRule.yearRange,
+          rulesetId: editingRule.rulesetId,
+          projectId: editingRule.projectId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update rule: ${response.status} ${response.statusText}`);
+      }
+
+      const updatedRule = await response.json();
+      
+      // Parse geometry for the updated rule
+      const parsedGeometry = parseWKTGeometry(updatedRule.geometry);
+      const ruleWithGeometry = {
+        ...updatedRule,
+        multiPolygon: parsedGeometry,
+      };
+      
+      // Update the rule in the list
+      setRules(prev => {
+        const updated = prev.map(r => r.id === ruleWithGeometry.id ? ruleWithGeometry : r);
+        onRulesLoadRef.current?.(updated);
+        return updated;
+      });
+      
+      // Close dialog and reset state
+      setIsEditDialogOpen(false);
+      setEditingRule(null);
+      
+      toast.success('Rule updated successfully');
+    } catch (err) {
+      console.error('Error updating rule:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to update rule');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   // Voting handlers
   const handleVote = async (ruleId: number, action: 'support' | 'contest') => {
     if (!isLoggedIn) {
@@ -1253,6 +1609,19 @@ export function AnnotationRules({
                 {/* Separator */}
                 <div className="w-px h-6 bg-gray-300" />
 
+                {/* Edit button - only show for own rules or if user is logged in */}
+                {isLoggedIn && currentUser && rule.createdBy === currentUser.userName && !rule.deleted && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleEditRule(rule)}
+                    className="h-7 w-7 p-0"
+                    title="Edit this rule"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+
                 {/* Delete button */}
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -1425,6 +1794,180 @@ export function AnnotationRules({
           );
         })}
       </div>
+
+      {/* Edit Rule Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Edit Rule #{editingRule?.id}</DialogTitle>
+            <DialogDescription>
+              Update the annotation rule details. Changes will be saved immediately.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editingRule && (
+            <div className="space-y-4 py-4 overflow-y-auto">
+              <div className="space-y-2">
+                <Label htmlFor="edit-annotation">Annotation Type</Label>
+                <select
+                  id="edit-annotation"
+                  className="w-full p-2 border rounded-md"
+                  value={editingRule.annotation}
+                  onChange={(e) => setEditingRule({ ...editingRule, annotation: e.target.value })}
+                >
+                  <option value="NATIVE">Native</option>
+                  <option value="INTRODUCED">Introduced</option>
+                  <option value="MANAGED">Managed</option>
+                  <option value="FORMER">Former</option>
+                  <option value="VAGRANT">Vagrant</option>
+                  <option value="SUSPICIOUS">Suspicious</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+
+              {/* Basis of Record - Multi-select */}
+              <BasisOfRecordMultiSelect
+                options={basisOfRecordOptions}
+                selected={editBasisOfRecord}
+                onChange={setEditBasisOfRecord}
+                negated={editBasisOfRecordNegated}
+                onNegatedChange={setEditBasisOfRecordNegated}
+              />
+
+              {/* Dataset Key */}
+              <div className="space-y-1 relative">
+                <Label htmlFor="edit-dataset-key" className="text-xs text-gray-700">Dataset (optional)</Label>
+                <div className="relative">
+                  <Input
+                    id="edit-dataset-key"
+                    type="text"
+                    value={editDatasetQuery}
+                    onChange={(e) => {
+                      setEditDatasetQuery(e.target.value);
+                      searchDatasetsForEdit(e.target.value);
+                    }}
+                    onFocus={() => {
+                      if (datasetSuggestions.length > 0) {
+                        setShowDatasetSuggestions(true);
+                      }
+                    }}
+                    placeholder="Leave empty to apply to all datasets"
+                    className="text-xs py-1"
+                  />
+                  {showDatasetSuggestions && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto">
+                      {datasetSuggestions.map((dataset) => (
+                        <div
+                          key={dataset.key}
+                          className="p-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          onClick={() => handleDatasetSelectForEdit(dataset)}
+                        >
+                          <div className="text-xs font-medium text-gray-900 truncate">
+                            {dataset.title}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {dataset.key} • {dataset.type}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {editSelectedDataset && (
+                  <div className="text-xs text-gray-600 flex items-center justify-between">
+                    <span>Selected: <span className="font-medium">{editSelectedDataset.title || editSelectedDataset.key}</span></span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditSelectedDataset(null);
+                        setEditDatasetQuery('');
+                      }}
+                      className="text-xs text-red-600 hover:text-red-800 underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-year-range">Year Range (optional)</Label>
+                <Input
+                  id="edit-year-range"
+                  placeholder="e.g., 1900,2023 or *,1990 or 2000,*"
+                  value={editingRule.yearRange || ''}
+                  onChange={(e) => setEditingRule({ ...editingRule, yearRange: e.target.value || undefined })}
+                />
+                <p className="text-xs text-gray-500">
+                  Format: startYear,endYear. Use * for no limit (e.g., *,2020 for before 2020)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-project">Project (optional)</Label>
+                <select
+                  id="edit-project"
+                  className="w-full p-2 border rounded-md"
+                  value={editingRule.projectId || ''}
+                  onChange={(e) => setEditingRule({ 
+                    ...editingRule, 
+                    projectId: e.target.value ? parseInt(e.target.value) : null 
+                  })}
+                  disabled={loadingProjects}
+                >
+                  <option value="">No project</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+                {loadingProjects && (
+                  <p className="text-xs text-gray-500">Loading projects...</p>
+                )}
+              </div>
+
+              <div className="bg-gray-50 p-3 rounded-md space-y-1 text-sm">
+                <p className="font-medium text-gray-700">Current Rule Info</p>
+                <p className="text-gray-600">Taxon Key: {editingRule.taxonKey}</p>
+                {editingRule.datasetKey && (
+                  <p className="text-gray-600">Dataset: {editingRule.datasetKey}</p>
+                )}
+                {editingRule.scientificName && (
+                  <p className="text-gray-600 italic">Species: {editingRule.scientificName}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2 border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditDialogOpen(false);
+                setEditingRule(null);
+              }}
+              disabled={isUpdating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateRule}
+              disabled={isUpdating}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isUpdating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                'Update Rule'
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

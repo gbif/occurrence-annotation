@@ -5,13 +5,14 @@ import { SpeciesSelector, SelectedSpecies } from './components/SpeciesSelector';
 import { SavedPolygons } from './components/SavedPolygons';
 import { LoginButton } from './components/LoginButton';
 import { AnnotationRules, AnnotationRule } from './components/AnnotationRules';
+import { OccurrenceFilterOptions } from './components/OccurrenceFilters';
 import { toast } from 'sonner';
 import { getGbifApiUrl, getAnnotationApiUrl } from './utils/apiConfig';
 import { parseWKTGeometry } from './utils/wktParser';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
-import { Eye, EyeOff, Folder, X, Network } from 'lucide-react';
+import { Eye, EyeOff, Folder, X, Network, User } from 'lucide-react';
 import gbifLogo from './gbif-mark-green-logo.svg';
 import { getSelectedProjectId, getSelectedProjectName } from './utils/projectSelection';
 
@@ -36,12 +37,27 @@ export default function App() {
   const [editingPolygonId, setEditingPolygonId] = useState<string | null>(null);
   const [showAnnotationRules, setShowAnnotationRules] = useState(true);
   const [showHigherOrderRules, setShowHigherOrderRules] = useState(false);
+  const [showMyRulesOnly, setShowMyRulesOnly] = useState(false);
   const [annotationRulesRefreshTrigger, setAnnotationRulesRefreshTrigger] = useState(0);
   const [filterByActiveProject, setFilterByActiveProject] = useState(false);
   
   // Selected project for new rules
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(() => getSelectedProjectId());
   const [selectedProjectName, setSelectedProjectName] = useState<string | null>(() => getSelectedProjectName());
+  
+  // Occurrence filters for map
+  const [occurrenceFilters, setOccurrenceFilters] = useState<OccurrenceFilterOptions>({
+    hasGeospatialIssue: false, // Default to excluding geospatial issues
+    basisOfRecord: [
+      'HUMAN_OBSERVATION',
+      'PRESERVED_SPECIMEN',
+      'LIVING_SPECIMEN',
+      'MACHINE_OBSERVATION',
+      'MATERIAL_SAMPLE',
+      'OCCURRENCE',
+      'MATERIAL_CITATION'
+    ] // All except FOSSIL_SPECIMEN
+  });
 
   // URL state management functions - uses react-router's searchParams for HashRouter compatibility
   const updateURLWithSpecies = (species: SelectedSpecies | null) => {
@@ -494,6 +510,17 @@ export default function App() {
                   <Network className={`h-4 w-4 ${showHigherOrderRules ? 'text-blue-700' : ''}`} />
                 </Button>
               )}
+              {annotationRules.length > 0 && localStorage.getItem('gbifUser') && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowMyRulesOnly(!showMyRulesOnly)}
+                  className={`h-7 w-7 p-0 ${showMyRulesOnly ? 'bg-purple-100 hover:bg-purple-200' : ''}`}
+                  title={showMyRulesOnly ? 'Show all rules' : 'Show only my rules'}
+                >
+                  <User className={`h-4 w-4 ${showMyRulesOnly ? 'text-purple-700' : ''}`} />
+                </Button>
+              )}
               {selectedProjectId && annotationRules.length > 0 && (
                 <Button
                   variant="ghost"
@@ -539,7 +566,7 @@ export default function App() {
           borderRadius: '6px',
           border: '1px solid rgba(0, 0, 0, 0.1)',
           backdropFilter: 'blur(8px)',
-          padding: '8px'
+          padding: '6px'
         }}>
           <SpeciesSelector
             selectedSpecies={selectedSpecies}
@@ -568,6 +595,7 @@ export default function App() {
         }}
         annotationRules={annotationRules}
         showAnnotationRules={showAnnotationRules}
+        showMyRulesOnly={showMyRulesOnly}
         editingPolygonId={editingPolygonId}
         onUpdatePolygon={handleUpdatePolygon}
         onStopEditing={handleStopEditing}
@@ -577,6 +605,8 @@ export default function App() {
         onToggleInvert={handleToggleInvert}
         onEditPolygon={handleEditPolygon}
         onDeletePolygon={handleDeletePolygon}
+        occurrenceFilters={occurrenceFilters}
+        onFiltersChange={setOccurrenceFilters}
       />
     </main>
       </div>
