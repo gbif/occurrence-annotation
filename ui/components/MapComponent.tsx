@@ -486,13 +486,38 @@ export function MapComponent({
       
       console.log('🔍 Search bounds:', { north, south, east, west, radiusKm: investigateRadius/1000 });
       
-      // Search for occurrences within the bounding box
-      const apiUrl = `https://api.gbif.org/v1/occurrence/search?` +
-        `taxonKey=${selectedSpecies.key}&` +
-        `hasCoordinate=true&` +
-        `decimalLatitude=${south},${north}&` +
-        `decimalLongitude=${west},${east}&` +
-        `limit=20`;
+      // Build API URL with occurrence filters
+      const params = new URLSearchParams({
+        taxonKey: selectedSpecies.key.toString(),
+        hasCoordinate: 'true',
+        decimalLatitude: `${south},${north}`,
+        decimalLongitude: `${west},${east}`,
+        limit: '20'
+      });
+
+      // Apply occurrence filters
+      if (occurrenceFilters.hasGeospatialIssue !== undefined) {
+        params.append('hasGeospatialIssue', occurrenceFilters.hasGeospatialIssue.toString());
+      }
+
+      if (occurrenceFilters.datasetKey) {
+        params.append('datasetKey', occurrenceFilters.datasetKey);
+      }
+
+      if (occurrenceFilters.year) {
+        params.append('year', occurrenceFilters.year);
+      } else if (occurrenceFilters.yearRange) {
+        params.append('year', `${occurrenceFilters.yearRange.min},${occurrenceFilters.yearRange.max}`);
+      }
+
+      if (occurrenceFilters.basisOfRecord && occurrenceFilters.basisOfRecord.length > 0) {
+        occurrenceFilters.basisOfRecord.forEach(bor => {
+          params.append('basisOfRecord', bor);
+        });
+      }
+
+      const apiUrl = `https://api.gbif.org/v1/occurrence/search?${params.toString()}`;
+      console.log('🔍 Investigate URL with filters:', apiUrl);
       
       const response = await fetch(apiUrl);
       
