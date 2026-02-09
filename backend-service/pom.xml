@@ -415,6 +415,7 @@
           <excludes>
             <!-- This is where the exclusion occurs -->
             <exclude>**/application.yml</exclude>
+            <exclude>**/bootstrap.yml</exclude>
           </excludes>
           <archive>
             <manifest>
