@@ -8,7 +8,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles } from 'lucide-react';
+import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers } from 'lucide-react';
 import { AnnotationRule } from './AnnotationRules';
 import { toast } from 'sonner';
 
@@ -55,11 +55,7 @@ function tileToLatLngWebMercator(x: number, y: number, zoom: number): [number, n
   return [lat, lng];
 }
 
-// GBIF base map tile provider - Web Mercator (EPSG:3857)
-const gbifTileProvider = (x: number, y: number, z: number) => {
-  const url = `https://tile.gbif.org/3857/omt/${z}/${x}/${y}@2x.png?style=gbif-geyser-en`;
-  return url;
-};
+// Note: gbifTileProvider is defined inside the component to access baseMapStyle state
 
 export function MapComponent({
   selectedSpecies,
@@ -99,6 +95,18 @@ export function MapComponent({
   const [dragCurrent, setDragCurrent] = useState<[number, number] | null>(null);
   const [isEditingCurrent, setIsEditingCurrent] = useState(false);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
+  
+  // Base map style state - load from localStorage or use default
+  const [baseMapStyle, setBaseMapStyle] = useState<string>(() => {
+    return localStorage.getItem('gbifBaseMapStyle') || 'gbif-geyser-en';
+  });
+  const [isBaseMapDialogOpen, setIsBaseMapDialogOpen] = useState(false);
+  
+  // GBIF base map tile provider - Web Mercator (EPSG:3857)
+  const gbifTileProvider = (x: number, y: number, z: number) => {
+    const url = `https://tile.gbif.org/3857/omt/${z}/${x}/${y}@2x.png?style=${baseMapStyle}`;
+    return url;
+  };
   
   // Drag detection state for preventing investigation during map drag
   const [isDragging, setIsDragging] = useState(false);
@@ -438,7 +446,7 @@ export function MapComponent({
       zoom: zoom,
       status: '🔍 Check coordinate alignment NOW'
     });
-  }, [zoom, center, mapSize, selectedSpecies, isZooming, occurrenceFilters]);
+  }, [zoom, center, mapSize, selectedSpecies, isZooming, occurrenceFilters, baseMapStyle]);
 
   // Handle external navigation requests
   useEffect(() => {
@@ -2511,6 +2519,18 @@ export function MapComponent({
               />
             )}
             
+            {/* Base Map Style Selector */}
+            <Dialog open={isBaseMapDialogOpen} onOpenChange={setIsBaseMapDialogOpen}>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setIsBaseMapDialogOpen(true)}
+                title="Change base map style"
+              >
+                <Layers className="w-5 h-5" />
+              </Button>
+            </Dialog>
+            
             {/* Current polygon controls */}
             {currentPolygon && (
               <>
@@ -2969,6 +2989,155 @@ export function MapComponent({
             )}
             </div>
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Base Map Style Selector Dialog */}
+      <Dialog open={isBaseMapDialogOpen} onOpenChange={setIsBaseMapDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Base Map Style</DialogTitle>
+            <DialogDescription>
+              Choose the background map appearance
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-2 gap-3 mt-4 max-h-[60vh] overflow-y-auto">
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-geyser-en');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-geyser-en');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Geyser');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-geyser-en' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Geyser</div>
+              <div className="text-xs text-gray-500 mt-1">Default style</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-light');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-light');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Light');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-light' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Light</div>
+              <div className="text-xs text-gray-500 mt-1">Light theme</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-middle');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-middle');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Middle');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-middle' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Middle</div>
+              <div className="text-xs text-gray-500 mt-1">Medium contrast</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-dark');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-dark');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Dark');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-dark' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Dark</div>
+              <div className="text-xs text-gray-500 mt-1">Dark theme</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-tuatara-en');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-tuatara-en');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Tuatara');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-tuatara-en' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Tuatara</div>
+              <div className="text-xs text-gray-500 mt-1">Tuatara theme</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-violet-en');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-violet-en');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Violet');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-violet-en' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Violet</div>
+              <div className="text-xs text-gray-500 mt-1">Purple/violet theme</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-classic');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-classic');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Classic');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-classic' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Classic</div>
+              <div className="text-xs text-gray-500 mt-1">Traditional style</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-natural-en');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-natural-en');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Natural');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-natural-en' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Natural</div>
+              <div className="text-xs text-gray-500 mt-1">Natural style</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('osm-bright-en');
+                localStorage.setItem('gbifBaseMapStyle', 'osm-bright-en');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: OSM Bright');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'osm-bright-en' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">OSM Bright</div>
+              <div className="text-xs text-gray-500 mt-1">OpenStreetMap style</div>
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
 
