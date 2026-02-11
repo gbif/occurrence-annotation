@@ -14,6 +14,7 @@ export interface OccurrenceFilterOptions {
   yearRange?: { min: number; max: number };
   hasGeospatialIssue?: boolean;
   basisOfRecord?: string[];
+  distanceFromCentroid?: boolean;
 }
 
 interface OccurrenceFiltersProps {
@@ -175,6 +176,7 @@ export function OccurrenceFilters({ filters, onFiltersChange }: OccurrenceFilter
     if (filters.yearRange) count++;
     if (filters.hasGeospatialIssue !== undefined) count++;
     if (filters.basisOfRecord && filters.basisOfRecord.length > 0) count++;
+    if (filters.distanceFromCentroid !== undefined) count++;
     return count;
   };
 
@@ -405,6 +407,28 @@ export function OccurrenceFilters({ filters, onFiltersChange }: OccurrenceFilter
                 {localFilters.basisOfRecord.length} selected
               </p>
             )}
+          </div>
+
+          {/* Distance from Centroid */}
+          <div className="space-y-2">
+            <div className="flex items-start space-x-2">
+              <Checkbox
+                id="distanceFromCentroid"
+                checked={localFilters.distanceFromCentroid === true}
+                onCheckedChange={(checked) => setLocalFilters({
+                  ...localFilters,
+                  distanceFromCentroid: checked ? true : undefined
+                })}
+              />
+              <div className="grid gap-1.5 leading-none">
+                <Label htmlFor="distanceFromCentroid" className="text-sm font-medium cursor-pointer">
+                  Near Centroid
+                </Label>
+                <p className="text-xs text-gray-500">
+                  Only show occurrences within 5km of country/region centroid
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 

@@ -37,6 +37,7 @@ interface MapComponentProps {
   onDeletePolygon?: (id: string) => void;
   occurrenceFilters?: OccurrenceFilterOptions;
   onFiltersChange?: (filters: OccurrenceFilterOptions) => void;
+  onCreateRuleFromSearch?: (coords: [number, number][], metadata?: { basisOfRecord?: string[]; datasetKey?: string }) => void;
 }
 
 // Tile conversion helpers for Web Mercator (EPSG:3857)
@@ -80,6 +81,7 @@ export function MapComponent({
   onDeletePolygon,
   occurrenceFilters = {},
   onFiltersChange,
+  onCreateRuleFromSearch,
 }: MapComponentProps) {
   const [center, setCenter] = useState<[number, number]>([20, 0]);
   const [zoom, setZoom] = useState(2);
@@ -376,6 +378,10 @@ export function MapComponent({
       });
     }
 
+    if (occurrenceFilters?.distanceFromCentroid) {
+      params.append('distanceFromCentroidInMeters', '0,5000');
+    }
+
     return `${baseUrl}?${params.toString()}`;
   };
 
@@ -516,6 +522,10 @@ export function MapComponent({
         });
       }
 
+      if (occurrenceFilters.distanceFromCentroid) {
+        params.append('distanceFromCentroidInMeters', '0,5000');
+      }
+
       const apiUrl = `https://api.gbif.org/v1/occurrence/search?${params.toString()}`;
       console.log('🔍 Investigate URL with filters:', apiUrl);
       
@@ -623,14 +633,49 @@ export function MapComponent({
       [north, west]  // Close the polygon
     ];
 
+    // Extract unique basis of record values from investigation results
+    const uniqueBasisOfRecord = new Set<string>();
+    const uniqueDatasetKeys = new Set<string>();
+    
+    investigateResults.forEach(result => {
+      if (result.basisOfRecord) {
+        uniqueBasisOfRecord.add(result.basisOfRecord);
+      }
+      if (result.datasetKey) {
+        uniqueDatasetKeys.add(result.datasetKey);
+      }
+    });
+
+    const metadata: { basisOfRecord?: string[]; datasetKey?: string } = {};
+    
+    // Only include basis of record if we found any
+    if (uniqueBasisOfRecord.size > 0) {
+      metadata.basisOfRecord = Array.from(uniqueBasisOfRecord);
+    }
+    
+    // Only include dataset key if there's exactly one unique dataset
+    if (uniqueDatasetKeys.size === 1) {
+      metadata.datasetKey = Array.from(uniqueDatasetKeys)[0];
+    }
+
+    console.log('Creating rule from search with metadata:', metadata);
+
     // Close the dialog and turn off investigate mode first
     setIsInvestigateDialogOpen(false);
     setIsInvestigateMode(false);
 
-    // Set as current polygon
-    onPolygonChange(rectangleCoords);
-
-    toast.success('Investigation area created. Click "Save Polygon" to add it to Active Rules.');
+    // If we have the new callback, use it to directly save with coordinates and metadata
+    if (onCreateRuleFromSearch) {
+      onCreateRuleFromSearch(rectangleCoords, metadata);
+      toast.success('Rule created from search! Review and save to GBIF.');
+    } else {
+      // Fallback to old method
+      onPolygonChange(rectangleCoords);
+      setTimeout(() => {
+        onSaveAndEdit();
+        toast.success('Rule created from search! Review and save to GBIF.');
+      }, 100);
+    }
   };
 
   const getDistanceString = (lat: number, lng: number) => {
