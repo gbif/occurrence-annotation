@@ -102,11 +102,43 @@ export function MapComponent({
   });
   const [isBaseMapDialogOpen, setIsBaseMapDialogOpen] = useState(false);
   
-  // GBIF base map tile provider - Web Mercator (EPSG:3857)
-  const gbifTileProvider = (x: number, y: number, z: number) => {
-    const url = `https://tile.gbif.org/3857/omt/${z}/${x}/${y}@2x.png?style=${baseMapStyle}`;
-    return url;
+  // ArcGIS API Key from environment
+  const arcgisApiKey = import.meta.env.VITE_ARCGIS_API_KEY || '';
+  
+  // Base map tile provider - supports both GBIF and ArcGIS - Web Mercator (EPSG:3857)
+  const baseTileProvider = (x: number, y: number, z: number) => {
+    // ArcGIS base maps - using tile service endpoints
+    if (baseMapStyle.startsWith('arcgis-')) {
+      const styleMap: { [key: string]: string } = {
+        'arcgis-imagery': 'arcgis/rest/services/World_Imagery/MapServer',
+        'arcgis-imagery-labels': 'arcgis/rest/services/World_Imagery/MapServer', // Will layer with labels
+        'arcgis-streets': 'arcgis/rest/services/World_Street_Map/MapServer',
+        'arcgis-streets-relief': 'arcgis/rest/services/World_Street_Map/MapServer',
+        'arcgis-topographic': 'arcgis/rest/services/World_Topo_Map/MapServer',
+        'arcgis-navigation': 'arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer',
+        'arcgis-navigation-night': 'arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer',
+        'arcgis-light-gray': 'arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer',
+        'arcgis-dark-gray': 'arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer',
+        'arcgis-ocean': 'arcgis/rest/services/Ocean/World_Ocean_Base/MapServer',
+        'arcgis-ocean-labels': 'arcgis/rest/services/Ocean/World_Ocean_Base/MapServer',
+        'arcgis-terrain': 'arcgis/rest/services/World_Terrain_Base/MapServer',
+        'arcgis-terrain-detail': 'arcgis/rest/services/World_Terrain_Base/MapServer',
+        'arcgis-community': 'arcgis/rest/services/World_Topo_Map/MapServer',
+        'arcgis-nova': 'arcgis/rest/services/World_Street_Map/MapServer',
+        'arcgis-charted-territory': 'arcgis/rest/services/World_Topo_Map/MapServer',
+        'arcgis-hillshade-light': 'arcgis/rest/services/World_Shaded_Relief/MapServer',
+        'arcgis-hillshade-dark': 'arcgis/rest/services/World_Shaded_Relief/MapServer',
+      };
+      const service = styleMap[baseMapStyle] || 'arcgis/rest/services/World_Imagery/MapServer';
+      return `https://services.arcgisonline.com/${service}/tile/${z}/${y}/${x}`;
+    }
+    
+    // GBIF base maps
+    return `https://tile.gbif.org/3857/omt/${z}/${x}/${y}@2x.png?style=${baseMapStyle}`;
   };
+  
+  // Keep old name for compatibility
+  const gbifTileProvider = baseTileProvider;
   
   // Drag detection state for preventing investigation during map drag
   const [isDragging, setIsDragging] = useState(false);
@@ -3003,6 +3035,9 @@ export function MapComponent({
           </DialogHeader>
           
           <div className="grid grid-cols-2 gap-3 mt-4 max-h-[60vh] overflow-y-auto">
+            {/* GBIF Base Maps Section */}
+            <div className="col-span-2 text-xs font-semibold text-gray-600 mt-2">GBIF Base Maps</div>
+            
             <button
               onClick={() => {
                 setBaseMapStyle('gbif-geyser-en');
@@ -3136,6 +3171,279 @@ export function MapComponent({
             >
               <div className="font-semibold text-sm">OSM Bright</div>
               <div className="text-xs text-gray-500 mt-1">OpenStreetMap style</div>
+            </button>
+
+            {/* ArcGIS Base Maps Section */}
+            <div className="col-span-2 text-xs font-semibold text-gray-600 mt-4">ArcGIS Base Maps</div>
+            
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-imagery');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-imagery');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Satellite Imagery');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-imagery' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Satellite Imagery</div>
+              <div className="text-xs text-gray-500 mt-1">High-res satellite</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-imagery-labels');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-imagery-labels');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Satellite + Labels');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-imagery-labels' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Satellite + Labels</div>
+              <div className="text-xs text-gray-500 mt-1">Imagery with place names</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-streets');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-streets');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Streets');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-streets' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Streets</div>
+              <div className="text-xs text-gray-500 mt-1">Detailed street map</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-streets-relief');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-streets-relief');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Streets Relief');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-streets-relief' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Streets Relief</div>
+              <div className="text-xs text-gray-500 mt-1">Streets with terrain</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-topographic');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-topographic');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Topographic');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-topographic' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Topographic</div>
+              <div className="text-xs text-gray-500 mt-1">Terrain features</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-navigation');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-navigation');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Navigation');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-navigation' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Navigation</div>
+              <div className="text-xs text-gray-500 mt-1">Navigation style</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-navigation-night');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-navigation-night');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Navigation Night');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-navigation-night' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Navigation Night</div>
+              <div className="text-xs text-gray-500 mt-1">Dark navigation</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-terrain');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-terrain');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Terrain');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-terrain' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Terrain</div>
+              <div className="text-xs text-gray-500 mt-1">Physical terrain</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-terrain-detail');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-terrain-detail');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Terrain Detail');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-terrain-detail' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Terrain Detail</div>
+              <div className="text-xs text-gray-500 mt-1">Detailed terrain</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-ocean');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-ocean');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Ocean');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-ocean' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Ocean</div>
+              <div className="text-xs text-gray-500 mt-1">Ocean basemap</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-ocean-labels');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-ocean-labels');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Ocean + Labels');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-ocean-labels' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Ocean + Labels</div>
+              <div className="text-xs text-gray-500 mt-1">Ocean with labels</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-light-gray');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-light-gray');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Light Gray');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-light-gray' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Light Gray</div>
+              <div className="text-xs text-gray-500 mt-1">Neutral light</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-dark-gray');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-dark-gray');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Dark Gray');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-dark-gray' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Dark Gray</div>
+              <div className="text-xs text-gray-500 mt-1">Neutral dark</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-community');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-community');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Community');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-community' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Community</div>
+              <div className="text-xs text-gray-500 mt-1">Community style</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-charted-territory');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-charted-territory');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Charted Territory');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-charted-territory' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Charted Territory</div>
+              <div className="text-xs text-gray-500 mt-1">Classic map style</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-nova');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-nova');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Nova');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-nova' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Nova</div>
+              <div className="text-xs text-gray-500 mt-1">Modern colorful</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-hillshade-light');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-hillshade-light');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Hillshade Light');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-hillshade-light' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Hillshade Light</div>
+              <div className="text-xs text-gray-500 mt-1">Light relief</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-hillshade-dark');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-hillshade-dark');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Hillshade Dark');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-hillshade-dark' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Hillshade Dark</div>
+              <div className="text-xs text-gray-500 mt-1">Dark relief</div>
             </button>
           </div>
         </DialogContent>
