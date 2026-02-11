@@ -222,6 +222,29 @@ function BasisOfRecordMultiSelect({
   );
 }
 
+// Component for fetching and displaying dataset title
+const DatasetTitleDisplay = ({ datasetKey }: { datasetKey: string }) => {
+  const [title, setTitle] = useState<string>(datasetKey);
+
+  useEffect(() => {
+    const fetchDatasetTitle = async () => {
+      try {
+        const response = await fetch(`https://api.gbif.org/v1/dataset/${datasetKey}`);
+        if (response.ok) {
+          const dataset = await response.json();
+          setTitle(dataset.title || datasetKey);
+        }
+      } catch (error) {
+        console.warn('Failed to fetch dataset title:', error);
+      }
+    };
+
+    fetchDatasetTitle();
+  }, [datasetKey]);
+
+  return <span className="font-semibold text-purple-600">{title}</span>;
+};
+
 // Component for clickable species name in annotation rules
 const SpeciesLink = ({ 
   scientificName, 
@@ -242,12 +265,12 @@ const SpeciesLink = ({
         style={style}
         title={`View ${scientificName} species page`}
       >
-        "{scientificName}"
+        {scientificName}
       </a>
     );
   }
   
-  return <span className={className} style={style}>"{scientificName}"</span>;
+  return <span className={className} style={style}>{scientificName}</span>;
 };
 
 export interface RuleComment {
@@ -1479,16 +1502,16 @@ export function AnnotationRules({
                         </Button>
                         {expandedDescriptions.has(rule.id) && (
                           <p className="text-sm mt-2">
-                            <span className="text-gray-500">This rule designates all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <SpeciesLink scientificName={rule.scientificName} taxonKey={rule.taxonKey} className="font-semibold" />
+                            <span className="text-gray-500">This rule designates all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <SpeciesLink scientificName={rule.scientificName} taxonKey={rule.taxonKey} className="font-semibold" style={{color: '#4C9C2E'}} />
                             {rule.basisOfRecord && rule.basisOfRecord.length > 0 && (
                               rule.basisOfRecordNegated ? (
-                                <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold">NOT "{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                                <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold text-blue-600">NOT {rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}</span></>
                               ) : (
-                                <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold">"{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                                <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold text-blue-600">{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}</span></>
                               )
                             )}
                             {rule.datasetKey && (
-                              <><span className="text-gray-500"> from dataset</span> <span className="font-semibold">"{rule.datasetKey}"</span></>
+                              <><span className="text-gray-500"> from dataset</span> <DatasetTitleDisplay datasetKey={rule.datasetKey} /></>
                             )}
                             {rule.yearRange && (
                               <><span className="text-gray-500"> from years</span> <span className="font-semibold">{rule.yearRange}</span></>
