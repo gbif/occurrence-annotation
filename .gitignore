@@ -12,6 +12,13 @@
 Start-DockerClean.ps1
 backend-service/start-docker-wsl.sh
 
+# Deployment scripts
+ui/deploy.ps1
+ui/deploy.sh
+ui/deploy-dist-only.sh
+ui/*.tar.gz
+ui/*.zip
+
 # Docker files for local development
 backend-service/Dockerfile
 backend-service/Dockerfile.multistage

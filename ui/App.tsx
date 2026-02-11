@@ -5,13 +5,15 @@ import { SpeciesSelector, SelectedSpecies } from './components/SpeciesSelector';
 import { SavedPolygons } from './components/SavedPolygons';
 import { LoginButton } from './components/LoginButton';
 import { AnnotationRules, AnnotationRule } from './components/AnnotationRules';
+import { OccurrenceFilterOptions } from './components/OccurrenceFilters';
 import { toast } from 'sonner';
 import { getGbifApiUrl, getAnnotationApiUrl } from './utils/apiConfig';
 import { parseWKTGeometry } from './utils/wktParser';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
-import { Eye, EyeOff, Folder, X, Network } from 'lucide-react';
+import { Eye, EyeOff, Folder, X, Network, User, Loader2, HelpCircle } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
 import gbifLogo from './gbif-mark-green-logo.svg';
 import { getSelectedProjectId, getSelectedProjectName } from './utils/projectSelection';
 
@@ -23,6 +25,11 @@ export interface PolygonData {
   inverted?: boolean;
   annotation?: string;
   isMultiPolygon?: boolean;
+  initialFilters?: {
+    datasetKey?: string;
+    basisOfRecord?: string[];
+  };
+  fromSearch?: boolean; // Flag to indicate polygon was created from search button
 }
 
 export default function App() {
@@ -36,12 +43,30 @@ export default function App() {
   const [editingPolygonId, setEditingPolygonId] = useState<string | null>(null);
   const [showAnnotationRules, setShowAnnotationRules] = useState(true);
   const [showHigherOrderRules, setShowHigherOrderRules] = useState(false);
+  const [showMyRulesOnly, setShowMyRulesOnly] = useState(false);
   const [annotationRulesRefreshTrigger, setAnnotationRulesRefreshTrigger] = useState(0);
   const [filterByActiveProject, setFilterByActiveProject] = useState(false);
   
   // Selected project for new rules
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(() => getSelectedProjectId());
+  const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
+  const [projects, setProjects] = useState<Array<{id: number, name: string, description: string, members: string[]}>>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
   const [selectedProjectName, setSelectedProjectName] = useState<string | null>(() => getSelectedProjectName());
+  
+  // Occurrence filters for map
+  const [occurrenceFilters, setOccurrenceFilters] = useState<OccurrenceFilterOptions>({
+    hasGeospatialIssue: false, // Default to excluding geospatial issues
+    basisOfRecord: [
+      'HUMAN_OBSERVATION',
+      'PRESERVED_SPECIMEN',
+      'LIVING_SPECIMEN',
+      'MACHINE_OBSERVATION',
+      'MATERIAL_SAMPLE',
+      'OCCURRENCE',
+      'MATERIAL_CITATION'
+    ] // All except FOSSIL_SPECIMEN
+  });
 
   // URL state management functions - uses react-router's searchParams for HashRouter compatibility
   const updateURLWithSpecies = (species: SelectedSpecies | null) => {
@@ -177,6 +202,34 @@ export default function App() {
     toast.info('Project selection cleared');
   };
 
+  // Fetch projects when dialog opens
+  const fetchProjects = async () => {
+    setLoadingProjects(true);
+    try {
+      const response = await fetch(getAnnotationApiUrl('/project'));
+      if (response.ok) {
+        const data = await response.json();
+        const activeProjects = data.filter((p: any) => !p.deleted).sort((a: any, b: any) => b.id - a.id);
+        setProjects(activeProjects);
+      }
+    } catch (err) {
+      console.error('Error fetching projects:', err);
+      toast.error('Failed to load projects');
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
+
+  // Handle selecting a project
+  const handleSelectProject = (projectId: number, projectName: string) => {
+    setSelectedProjectId(projectId);
+    setSelectedProjectName(projectName);
+    localStorage.setItem('selectedProjectId', projectId.toString());
+    localStorage.setItem('selectedProjectName', projectName);
+    setIsProjectDialogOpen(false);
+    toast.success(`Selected project: ${projectName}`);
+  };
+
   // Update URL when species selection changes (but not on initial load from URL)
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   useEffect(() => {
@@ -254,6 +307,8 @@ export default function App() {
         isMultiPolygon: false,
       };
 
+      console.log('Auto-saving new polygon with initialFilters:', newPolygon.initialFilters);
+
       setSavedPolygons([...savedPolygons, newPolygon]);
     }
     
@@ -312,6 +367,8 @@ export default function App() {
         isMultiPolygon: false,
       };
 
+      console.log('Creating new polygon with initialFilters:', newPolygon.initialFilters);
+
       setSavedPolygons([...savedPolygons, newPolygon]);
       setCurrentPolygon(null);
       setIsInverted(false);
@@ -342,6 +399,51 @@ export default function App() {
   const handleStopEditing = useCallback(() => {
     setEditingPolygonId(null);
   }, []);
+
+  const handleCreateRuleFromSearch = useCallback((coords: [number, number][], metadata?: { basisOfRecord?: string[]; datasetKey?: string }) => {
+    console.log('handleCreateRuleFromSearch called with coords:', coords.length);
+    console.log('Metadata from search results:', metadata);
+    
+    // Use metadata from search results if provided, otherwise fall back to current filters
+    const initialFilters: PolygonData['initialFilters'] = {};
+    
+    if (metadata?.datasetKey) {
+      initialFilters.datasetKey = metadata.datasetKey;
+      console.log('Using datasetKey from search results:', metadata.datasetKey);
+    } else if (occurrenceFilters.datasetKey && occurrenceFilters.datasetKey.split(',').length === 1) {
+      initialFilters.datasetKey = occurrenceFilters.datasetKey;
+      console.log('Using datasetKey from filters:', occurrenceFilters.datasetKey);
+    }
+    
+    if (metadata?.basisOfRecord && metadata.basisOfRecord.length > 0) {
+      initialFilters.basisOfRecord = metadata.basisOfRecord;
+      console.log('Using basisOfRecord from search results:', metadata.basisOfRecord);
+    } else if (occurrenceFilters.basisOfRecord && occurrenceFilters.basisOfRecord.length > 0) {
+      initialFilters.basisOfRecord = [...occurrenceFilters.basisOfRecord];
+      console.log('Using basisOfRecord from filters:', occurrenceFilters.basisOfRecord);
+    }
+
+    const newPolygonId = Date.now().toString();
+    const newPolygon: PolygonData = {
+      id: newPolygonId,
+      coordinates: coords,
+      species: selectedSpecies,
+      timestamp: new Date().toISOString(),
+      inverted: false,
+      annotation: currentAnnotation,
+      isMultiPolygon: false,
+      initialFilters: Object.keys(initialFilters).length > 0 ? initialFilters : undefined,
+      fromSearch: true // Mark this polygon as created from search
+    };
+
+    console.log('Creating polygon from search with initialFilters:', newPolygon.initialFilters);
+
+    // Add to saved polygons
+    setSavedPolygons(prev => [...prev, newPolygon]);
+    
+    // Clear current polygon
+    setCurrentPolygon(null);
+  }, [selectedSpecies, currentAnnotation, occurrenceFilters]);
 
   const handleToggleInvert = useCallback((id: string) => {
     setSavedPolygons(prev => prev.map(p => 
@@ -424,10 +526,119 @@ export default function App() {
                 className="h-8 w-8"
               />
               <h1 className="text-black font-bold text-2xl">Rules</h1>
+              <a
+                href="https://data-blog.gbif.org/post/2026-01-21-rule-based-annotations/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                title="Learn how to use this tool"
+              >
+                <HelpCircle className="h-5 w-5" />
+              </a>
             </div>
             <p className="text-gray-600 text-sm">
               Create rules that will apply to past and future occurrence records
             </p>
+            
+            {/* Project Selection Button - Only show when no project is selected */}
+            {!selectedProjectId && (
+              <div className="mt-2">
+                <Dialog open={isProjectDialogOpen} onOpenChange={(open) => {
+                  setIsProjectDialogOpen(open);
+                  if (open) fetchProjects();
+                }}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 flex-shrink-0 hover:bg-gray-100"
+                      title="Set active project"
+                    >
+                      <Folder className="h-4 w-4" />
+                    </Button>
+                  </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Select Active Project</DialogTitle>
+                    <DialogDescription>
+                      Choose a project for new rules. All rules you create will be saved to this project.
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  {loadingProjects ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+                    </div>
+                  ) : projects.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>No projects available</p>
+                      <p className="text-sm mt-2">Visit the Projects page to create one</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {projects.map((project) => (
+                        <button
+                          key={project.id}
+                          onClick={() => handleSelectProject(project.id, project.name)}
+                          className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                            selectedProjectId === project.id
+                              ? 'border-green-300 bg-green-50'
+                              : 'border-gray-200 hover:border-green-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                              selectedProjectId === project.id ? 'bg-green-100' : 'bg-gray-100'
+                            }`}>
+                              <Folder className={`w-5 h-5 ${
+                                selectedProjectId === project.id ? 'text-green-700' : 'text-gray-600'
+                              }`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className={`font-semibold ${
+                                selectedProjectId === project.id ? 'text-green-900' : 'text-gray-900'
+                              }`}>
+                                {project.name}
+                              </h3>
+                              {project.description && (
+                                <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                                  {project.description}
+                                </p>
+                              )}
+                              {selectedProjectId === project.id && (
+                                <div className="flex items-center gap-1 mt-2 text-xs text-green-700">
+                                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M5 12l4 4L19 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                  <span className="font-medium">Active</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {selectedProjectId && (
+                    <div className="pt-4 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          handleClearProjectSelection();
+                          setIsProjectDialogOpen(false);
+                        }}
+                        className="w-full"
+                      >
+                        Clear Selection
+                      </Button>
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
+            </div>
+            )}
             
             {/* Active Project Indicator */}
             {selectedProjectId && selectedProjectName && (
@@ -494,6 +705,17 @@ export default function App() {
                   <Network className={`h-4 w-4 ${showHigherOrderRules ? 'text-blue-700' : ''}`} />
                 </Button>
               )}
+              {annotationRules.length > 0 && localStorage.getItem('gbifUser') && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowMyRulesOnly(!showMyRulesOnly)}
+                  className={`h-7 w-7 p-0 ${showMyRulesOnly ? 'bg-purple-100 hover:bg-purple-200' : ''}`}
+                  title={showMyRulesOnly ? 'Show all rules' : 'Show only my rules'}
+                >
+                  <User className={`h-4 w-4 ${showMyRulesOnly ? 'text-purple-700' : ''}`} />
+                </Button>
+              )}
               {selectedProjectId && annotationRules.length > 0 && (
                 <Button
                   variant="ghost"
@@ -539,7 +761,7 @@ export default function App() {
           borderRadius: '6px',
           border: '1px solid rgba(0, 0, 0, 0.1)',
           backdropFilter: 'blur(8px)',
-          padding: '8px'
+          padding: '6px'
         }}>
           <SpeciesSelector
             selectedSpecies={selectedSpecies}
@@ -568,6 +790,7 @@ export default function App() {
         }}
         annotationRules={annotationRules}
         showAnnotationRules={showAnnotationRules}
+        showMyRulesOnly={showMyRulesOnly}
         editingPolygonId={editingPolygonId}
         onUpdatePolygon={handleUpdatePolygon}
         onStopEditing={handleStopEditing}
@@ -577,6 +800,9 @@ export default function App() {
         onToggleInvert={handleToggleInvert}
         onEditPolygon={handleEditPolygon}
         onDeletePolygon={handleDeletePolygon}
+        occurrenceFilters={occurrenceFilters}
+        onFiltersChange={setOccurrenceFilters}
+        onCreateRuleFromSearch={handleCreateRuleFromSearch}
       />
     </main>
       </div>

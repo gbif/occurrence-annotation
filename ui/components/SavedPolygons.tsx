@@ -23,6 +23,29 @@ const getSpeciesPageUrl = (taxonKey: number): string => {
   return `${baseUrl}/?taxonKey=${taxonKey}`;
 };
 
+// Component for fetching and displaying dataset title
+const DatasetTitleDisplay = ({ datasetKey }: { datasetKey: string }) => {
+  const [title, setTitle] = useState<string>(datasetKey);
+
+  useEffect(() => {
+    const fetchDatasetTitle = async () => {
+      try {
+        const response = await fetch(`https://api.gbif.org/v1/dataset/${datasetKey}`);
+        if (response.ok) {
+          const dataset = await response.json();
+          setTitle(dataset.title || datasetKey);
+        }
+      } catch (error) {
+        console.warn('Failed to fetch dataset title:', error);
+      }
+    };
+
+    fetchDatasetTitle();
+  }, [datasetKey]);
+
+  return <span className="font-semibold text-purple-600">{title}</span>;
+};
+
 // Component for clickable species name
 const SpeciesLink = ({ species, className = "", style }: { 
   species: { scientificName?: string; name?: string; key?: number }; 
@@ -41,12 +64,12 @@ const SpeciesLink = ({ species, className = "", style }: {
         style={style}
         title={`View ${displayName} species page`}
       >
-        "{displayName}"
+        {displayName}
       </a>
     );
   }
   
-  return <span className={className} style={style}>"{displayName}"</span>;
+  return <span className={className} style={style}>{displayName}</span>;
 };
 
 // Searchable multi-select component for Basis of Record
@@ -305,6 +328,7 @@ interface SaveToGBIFDialogProps {
   onSuccess: () => void;
   annotation: string;
   onRuleSavedToGBIF?: (polygonId?: string) => void;
+  autoOpen?: boolean;
 }
 
 interface ImportWKTDialogProps {
@@ -454,19 +478,23 @@ function GBIFLogoSmall() {
   );
 }
 
-function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }: SaveToGBIFDialogProps) {
-  const [isOpen, setIsOpen] = useState(false);
+function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, autoOpen = false }: SaveToGBIFDialogProps) {
+  console.log('SaveToGBIFDialog rendering with polygon.initialFilters:', polygon.initialFilters);
+  
+  const [isOpen, setIsOpen] = useState(autoOpen);
   const [isLoading, setIsLoading] = useState(false);
   const [wktText, setWktText] = useState('');
   
-  // Complex rule state
+  // Complex rule state - initialize with initialFilters if available
   const [showComplexOptions, setShowComplexOptions] = useState(false);
   const [selectedAnnotation, setSelectedAnnotation] = useState(annotation);
-  const [basisOfRecord, setBasisOfRecord] = useState<string[]>([]);
+  const [basisOfRecord, setBasisOfRecord] = useState<string[]>(polygon.initialFilters?.basisOfRecord || []);
   const [basisOfRecordNegated, setBasisOfRecordNegated] = useState<boolean>(false);
-  const [datasetKey, setDatasetKey] = useState<string>('');
+  const [datasetKey, setDatasetKey] = useState<string>(polygon.initialFilters?.datasetKey || '');
   const [yearRange, setYearRange] = useState<string>('');
   const [basisOfRecordOptions, setBasisOfRecordOptions] = useState<string[]>([]);
+  
+  console.log('SaveToGBIFDialog initial basisOfRecord state:', polygon.initialFilters?.basisOfRecord);
   
   // Year range slider state
   const [yearRangeStart, setYearRangeStart] = useState<number>(1600);
@@ -478,9 +506,13 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
   const [datasetSuggestions, setDatasetSuggestions] = useState<any[]>([]);
   const [showDatasetSuggestions, setShowDatasetSuggestions] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<any>(null);
+  const [datasetTitle, setDatasetTitle] = useState<string>('');
   
   // WKT editing state
   const [showWktEditor, setShowWktEditor] = useState(false);
+
+  // Comment state
+  const [ruleComment, setRuleComment] = useState('');
 
   // Selected project name (if any) for reminding where new rules will be saved
   const selectedProjectName = getSelectedProjectName();
@@ -568,6 +600,48 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
       setWktText(initialWkt);
     }
   }, [isOpen, polygon.coordinates, polygon.inverted]);
+
+  // Auto-open dialog and fetch dataset details if initialFilters exist
+  useEffect(() => {
+    console.log('SaveToGBIF autoOpen effect:', { autoOpen, hasInitialFilters: !!polygon.initialFilters, initialFilters: polygon.initialFilters });
+    if (autoOpen && polygon.initialFilters) {
+      console.log('Auto-opening SaveToGBIF dialog with filters:', polygon.initialFilters);
+      setIsOpen(true);
+      
+      // Enable complex options if we have initial filters
+      setShowComplexOptions(true);
+      
+      // Set basis of record values if provided
+      if (polygon.initialFilters.basisOfRecord && polygon.initialFilters.basisOfRecord.length > 0) {
+        console.log('Setting basisOfRecord from initialFilters:', polygon.initialFilters.basisOfRecord);
+        setBasisOfRecord(polygon.initialFilters.basisOfRecord);
+      }
+      
+      // If there's an initial datasetKey, fetch its details to pre-fill the dataset selector
+      if (polygon.initialFilters.datasetKey) {
+        const datasetKeyValue = polygon.initialFilters.datasetKey;
+        console.log('Setting datasetKey from initialFilters:', datasetKeyValue);
+        setDatasetKey(datasetKeyValue);
+        
+        const fetchDatasetDetails = async () => {
+          try {
+            const response = await fetch(`https://api.gbif.org/v1/dataset/${datasetKeyValue}`);
+            if (response.ok) {
+              const dataset = await response.json();
+              setSelectedDataset(dataset);
+              setDatasetQuery(dataset.title || '');
+              setDatasetTitle(dataset.title || datasetKeyValue);
+              console.log('Fetched dataset details:', dataset.title);
+            }
+          } catch (error) {
+            console.warn('Failed to fetch dataset details:', error);
+            setDatasetTitle(datasetKeyValue);
+          }
+        };
+        fetchDatasetDetails();
+      }
+    }
+  }, [autoOpen, polygon.initialFilters]);
 
   // Fetch basis of record options from GBIF API
   useEffect(() => {
@@ -821,18 +895,16 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
         annotation: showComplexOptions ? selectedAnnotation : annotation,
       };
 
-      // Add complex rule fields if enabled
-      if (showComplexOptions) {
-        if (basisOfRecord.length > 0) {
-          payload.basisOfRecord = basisOfRecord;
-          payload.basisOfRecordNegated = basisOfRecordNegated;
-        }
-        if (datasetKey.trim()) {
-          payload.datasetKey = datasetKey.trim();
-        }
-        if (yearRange.trim()) {
-          payload.yearRange = yearRange.trim();
-        }
+      // Add complex rule fields if they have values (regardless of showComplexOptions state)
+      if (basisOfRecord.length > 0) {
+        payload.basisOfRecord = basisOfRecord;
+        payload.basisOfRecordNegated = basisOfRecordNegated;
+      }
+      if (datasetKey.trim()) {
+        payload.datasetKey = datasetKey.trim();
+      }
+      if (yearRange.trim()) {
+        payload.yearRange = yearRange.trim();
       }
 
       // console.log('Saving to GBIF:', payload);
@@ -868,6 +940,31 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
 
       const result = await response.json();
       console.log('Rule saved successfully:', result);
+      
+      // Post the comment if one was provided
+      if (result && result.id && ruleComment.trim()) {
+        try {
+          const commentResponse = await fetch(
+            getAnnotationApiUrl(`/rule/${result.id}/comment`),
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Basic ${gbifAuth}`,
+              },
+              body: JSON.stringify({ comment: ruleComment.trim() }),
+            }
+          );
+          
+          if (commentResponse.ok) {
+            console.log('Comment posted successfully');
+          } else {
+            console.warn('Failed to post comment:', commentResponse.statusText);
+          }
+        } catch (err) {
+          console.warn('Error posting comment:', err);
+        }
+      }
       
       // Post any pending comments for this polygon
       if (result && result.id) {
@@ -1233,27 +1330,40 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
               /* Simple Rule Display */
               <div className="p-3 rounded-lg border border-gray-200">
                 <p className="text-base text-gray-800">
-                  This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of {polygon.species && <SpeciesLink species={polygon.species} className="font-bold" />} within the <span className="font-bold">polygon area</span> as <span className="font-bold text-red-600">suspicious</span>.
+                  This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of {polygon.species && <SpeciesLink species={polygon.species} className="font-bold" />}
+                  {polygon.initialFilters?.basisOfRecord && polygon.initialFilters.basisOfRecord.length > 0 && (
+                    <> with basis of record <span className="font-bold text-blue-600">{polygon.initialFilters.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}</span></>
+                  )}
+                  {polygon.initialFilters?.datasetKey && datasetTitle && (
+                    <> from dataset <span className="font-bold text-purple-600">{datasetTitle}</span></>
+                  )} within the <span className="font-bold">polygon area</span> as <span className="font-bold text-red-600">suspicious</span>.
                 </p>
               </div>
             )}
           </div>
 
 
+          {/* Comment field */}
+          <div className="space-y-2">
+            <Label htmlFor="rule-comment" className="text-sm font-medium">
+              Comment (optional)
+            </Label>
+            <Textarea
+              id="rule-comment"
+              value={ruleComment}
+              onChange={(e) => setRuleComment(e.target.value)}
+              placeholder="Add a comment to explain this rule..."
+              className="resize-none"
+              rows={3}
+            />
+            <p className="text-xs text-gray-500">
+              This comment will be saved with the rule
+            </p>
+          </div>
+
           {/* Polygon info */}
           <div className="text-sm text-gray-600 space-y-1">
-            <div className="flex items-center justify-between">
-              <p>Geometry: {polygon.coordinates.length} vertices</p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowWktEditor(!showWktEditor)}
-                className="h-6 px-2 text-xs text-blue-600 hover:text-blue-800"
-              >
-                {showWktEditor ? 'Hide WKT' : 'Edit WKT'}
-              </Button>
-            </div>
+            <p>Geometry: {polygon.coordinates.length} vertices</p>
             {polygon.inverted && (
               <p className="text-amber-600">⚠️ This polygon is inverted (excludes the area inside)</p>
             )}
@@ -1279,24 +1389,6 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
               </p>
             )}
           </div>
-
-          {/* WKT Geometry Editor (Collapsible) */}
-          {showWktEditor && (
-            <div className="space-y-2 p-3 bg-gray-50 rounded border">
-              <Label htmlFor={`wkt-${polygon.id}`} className="text-xs text-gray-600">WKT Geometry (Advanced)</Label>
-              <Textarea
-                id={`wkt-${polygon.id}`}
-                value={wktText}
-                onChange={(e) => setWktText(e.target.value)}
-                placeholder="POLYGON((...)) or MULTIPOLYGON(...)"
-                className="resize-none font-mono text-xs"
-                rows={3}
-              />
-              <p className="text-xs text-gray-500">
-                Edit the WKT geometry if needed before saving
-              </p>
-            </div>
-          )}
         </div>
         
         {/* Sticky Footer with Buttons */}
@@ -1602,7 +1694,22 @@ function PolygonCard({
         {polygon.species && (
           <div className="space-y-1">
             <p className="text-sm">
-              <span className="text-gray-500">This</span> <span className="font-semibold text-gray-700">proposed</span> <span className="text-gray-500">rule will designate all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <SpeciesLink species={polygon.species} className="font-semibold" style={{color: '#4C9C2E'}} /> <span className="text-gray-500">within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${
+              <span className="text-gray-500">This</span> <span className="font-semibold text-gray-700">proposed</span> <span className="text-gray-500">rule will designate all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <SpeciesLink species={polygon.species} className="font-semibold" style={{color: '#4C9C2E'}} />
+              {polygon.initialFilters?.basisOfRecord && polygon.initialFilters.basisOfRecord.length > 0 && (
+                <>
+                  <span className="text-gray-500"> with basis of record </span>
+                  <span className="font-semibold text-blue-600">
+                    {polygon.initialFilters.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}
+                  </span>
+                </>
+              )}
+              {polygon.initialFilters?.datasetKey && (
+                <>
+                  <span className="text-gray-500"> from dataset </span>
+                  <DatasetTitleDisplay datasetKey={polygon.initialFilters.datasetKey} />
+                </>
+              )}
+              <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${
                 annotation === 'SUSPICIOUS' ? 'text-red-600' :
                 annotation === 'NATIVE' ? 'text-green-600' :
                 annotation === 'MANAGED' ? 'text-blue-600' :
@@ -1624,31 +1731,6 @@ function PolygonCard({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  onClick={() => setShowCommentSection(!showCommentSection)}
-                  className={`h-9 w-9 ${
-                    getPendingCommentCount() > 0 
-                      ? 'border-amber-300 text-amber-600 hover:bg-amber-50' 
-                      : getCommentCount() > 0 
-                        ? 'border-blue-300 text-blue-600 hover:bg-blue-50' 
-                        : ''
-                  } ${showCommentSection ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
-                >
-                  <MessageSquare className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Add comment{getCommentCount() > 0 ? ` (${getPendingCommentCount()} pending)` : ''}</p>
-                {getPendingCommentCount() > 0 && (
-                  <p className="text-xs text-amber-500">Comments will post to GBIF when rule is saved</p>
-                )}
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
                 <div>
                   <SaveToGBIFDialog 
                     polygon={polygon}
@@ -1657,6 +1739,7 @@ function PolygonCard({
                       // Could refresh annotation rules here if needed
                     }}
                     onRuleSavedToGBIF={onRuleSavedToGBIF}
+                    autoOpen={polygon.fromSearch === true && !!polygon.initialFilters && (!!polygon.initialFilters.datasetKey || (polygon.initialFilters.basisOfRecord && polygon.initialFilters.basisOfRecord.length > 0))}
                   />
                 </div>
               </TooltipTrigger>
@@ -1684,63 +1767,6 @@ function PolygonCard({
           </TooltipProvider>
         </div>
       </div>
-
-      {/* Inline Comment Section */}
-      {showCommentSection && (
-        <div className="mt-3 p-3 border-t border-gray-200 space-y-3">
-          {getPendingCommentCount() > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded p-2">
-              <p className="text-xs font-medium text-amber-800 mb-1">
-                {getPendingCommentCount()} pending comment(s):
-              </p>
-              <div className="space-y-1 max-h-20 overflow-y-auto">
-                {JSON.parse(localStorage.getItem('polygonComments') || '[]')
-                  .filter((comment: any) => comment.polygonId === polygon.id && comment.status === 'pending')
-                  .map((comment: any, index: number) => (
-                    <p key={index} className="text-xs text-amber-700 bg-white px-2 py-1 rounded">
-                      "{comment.comment}"{comment.user ? ` - ${comment.user}` : ''}
-                    </p>
-                  ))}
-              </div>
-            </div>
-          )}
-          
-          <div className="space-y-2">
-            <Textarea
-              id={`comment-${polygon.id}`}
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Add a comment..."
-              className="resize-none text-sm"
-              rows={2}
-            />
-          </div>
-          
-          <div className="flex gap-2 justify-end">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => {
-                setShowCommentSection(false);
-                setNewComment('');
-              }}
-              disabled={submittingComment}
-              className="text-xs"
-            >
-              Cancel
-            </Button>
-            <Button 
-              size="sm"
-              onClick={handleAddComment}
-              disabled={!newComment.trim() || submittingComment}
-              className="text-xs"
-            >
-              {submittingComment && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-              Add
-            </Button>
-          </div>
-        </div>
-      )}
     </Card>
   );
 }

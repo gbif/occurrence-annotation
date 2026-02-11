@@ -899,8 +899,13 @@ export function ProjectPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => window.open(getAnnotationApiUrl(`/rule/${rule.id}`), '_blank')}
-                                title="View API"
+                                onClick={() => {
+                                  if (rule.taxonKey) {
+                                    window.location.href = `/#/?taxonKey=${rule.taxonKey}`;
+                                  }
+                                }}
+                                title="View on map"
+                                disabled={!rule.taxonKey}
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>

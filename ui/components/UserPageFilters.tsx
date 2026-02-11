@@ -1,8 +1,7 @@
-import { useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
-import { Badge } from './ui/badge';
-import { Filter, X } from 'lucide-react';
+import { Input } from './ui/input';
+import { X } from 'lucide-react';
 import { SpeciesSelector, SelectedSpecies } from './SpeciesSelector';
 
 interface Project {
@@ -15,6 +14,8 @@ interface UserPageFiltersProps {
   onSpeciesFilterChange: (species: SelectedSpecies | null) => void;
   projectFilter: number | null;
   onProjectFilterChange: (projectId: number | null) => void;
+  userFilter: string | null;
+  onUserFilterChange: (username: string | null) => void;
   projects: Project[];
 }
 
@@ -23,54 +24,24 @@ export function UserPageFilters({
   onSpeciesFilterChange,
   projectFilter,
   onProjectFilterChange,
+  userFilter,
+  onUserFilterChange,
   projects,
 }: UserPageFiltersProps) {
-  const [showFilters, setShowFilters] = useState(false);
-
   const clearAllFilters = () => {
     onSpeciesFilterChange(null);
     onProjectFilterChange(null);
+    onUserFilterChange(null);
   };
 
-  const hasActiveFilters = speciesFilter || projectFilter;
-  const activeFilterCount = (speciesFilter ? 1 : 0) + (projectFilter ? 1 : 0);
+  const hasActiveFilters = speciesFilter || projectFilter || userFilter;
 
   return (
     <div className="space-y-2">
-      {/* Filter Toggle Button */}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center gap-2"
-        >
-          <Filter className="w-4 h-4" />
-          Filters
-          {hasActiveFilters && (
-            <Badge variant="secondary" className="ml-1 h-5 min-w-5 text-xs">
-              {activeFilterCount}
-            </Badge>
-          )}
-        </Button>
-
-        {hasActiveFilters && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearAllFilters}
-            className="text-gray-600 hover:text-gray-900"
-          >
-            Clear all
-          </Button>
-        )}
-      </div>
-
       {/* Filter Controls */}
-      {showFilters && (
-        <Card>
-          <CardContent className="p-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+      <Card>
+        <CardContent className="p-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               {/* Species Filter */}
               <div className="space-y-1">
                 <label className="text-xs font-medium text-gray-700">
@@ -117,10 +88,35 @@ export function UserPageFilters({
                   <p className="text-xs text-gray-500 italic">No projects available</p>
                 )}
               </div>
+
+              {/* Username Filter */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-700">
+                  Username
+                </label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="text"
+                    placeholder="Filter by username..."
+                    value={userFilter || ''}
+                    onChange={(e) => onUserFilterChange(e.target.value || null)}
+                    className="flex-1 h-9 text-sm"
+                  />
+                  {userFilter && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onUserFilterChange(null)}
+                      className="h-9 w-9 p-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
-      )}
     </div>
   );
 }

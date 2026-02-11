@@ -5,10 +5,11 @@ Version: 0.1.0
 Authors@R: person("John", "Waller", 
     email = "jwaller@gbif.org", 
     role = c("aut", "cre"))
-Description: Provides R functions to facilitate interaction with the GBIF
+Description: Facilitates interaction with the GBIF
   (Global Biodiversity Information Facility) rule-based annotation store. The
   package allows users to access, retrieve, and manage data utilizing the
-  annotation store's data for analysis.
+  annotation store's data for analysis. Accesses the GBIF Occurrence 
+  Annotation API <https://api.gbif.org/v1/occurrence/annotation>.
 URL: https://github.com/gbif/occurrence-annotation
 BugReports: https://github.com/gbif/occurrence-annotation/issues
 Depends: R (>= 4.1.0)
