@@ -49,6 +49,7 @@ ui/node_modules/
 
 # Environment files
 ui/.env.local
+ui/.env.production
 ui/.env.*.local
 
 # Build outputs
