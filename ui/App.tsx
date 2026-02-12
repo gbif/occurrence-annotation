@@ -65,7 +65,8 @@ export default function App() {
       'MATERIAL_SAMPLE',
       'OCCURRENCE',
       'MATERIAL_CITATION'
-    ] // All except FOSSIL_SPECIMEN
+    ], // All except FOSSIL_SPECIMEN
+    showOnlyPresent: true // Default to showing only PRESENT occurrences (recommended)
   });
 
   // URL state management functions - uses react-router's searchParams for HashRouter compatibility

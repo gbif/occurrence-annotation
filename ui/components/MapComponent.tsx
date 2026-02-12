@@ -389,6 +389,11 @@ export function MapComponent({
       taxonKey: taxonKey.toString()
     });
 
+    // Add occurrence status filter (defaults to PRESENT only if not explicitly set to false)
+    if (occurrenceFilters?.showOnlyPresent !== false) {
+      params.append('occurrenceStatus', 'PRESENT');
+    }
+
     // Add occurrence filters
     if (occurrenceFilters?.hasGeospatialIssue !== undefined) {
       params.append('hasGeospatialIssue', occurrenceFilters.hasGeospatialIssue.toString());
@@ -540,6 +545,11 @@ export function MapComponent({
         decimalLongitude: `${west},${east}`,
         limit: '20'
       });
+
+      // Add occurrence status filter (defaults to PRESENT only if not explicitly set to false)
+      if (occurrenceFilters.showOnlyPresent !== false) {
+        params.append('occurrenceStatus', 'PRESENT');
+      }
 
       // Apply occurrence filters
       if (occurrenceFilters.hasGeospatialIssue !== undefined) {

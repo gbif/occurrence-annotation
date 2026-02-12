@@ -15,6 +15,7 @@ export interface OccurrenceFilterOptions {
   hasGeospatialIssue?: boolean;
   basisOfRecord?: string[];
   distanceFromCentroid?: boolean;
+  showOnlyPresent?: boolean;
 }
 
 interface OccurrenceFiltersProps {
@@ -177,6 +178,7 @@ export function OccurrenceFilters({ filters, onFiltersChange }: OccurrenceFilter
     if (filters.hasGeospatialIssue !== undefined) count++;
     if (filters.basisOfRecord && filters.basisOfRecord.length > 0) count++;
     if (filters.distanceFromCentroid !== undefined) count++;
+    if (filters.showOnlyPresent !== undefined) count++;
     return count;
   };
 
@@ -426,6 +428,28 @@ export function OccurrenceFilters({ filters, onFiltersChange }: OccurrenceFilter
                 </Label>
                 <p className="text-xs text-gray-500">
                   Only show occurrences within 5km of country/region centroid
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Show Only Present */}
+          <div className="space-y-2">
+            <div className="flex items-start space-x-2">
+              <Checkbox
+                id="showOnlyPresent"
+                checked={localFilters.showOnlyPresent !== false}
+                onCheckedChange={(checked) => setLocalFilters({
+                  ...localFilters,
+                  showOnlyPresent: checked ? true : false
+                })}
+              />
+              <div className="grid gap-1.5 leading-none">
+                <Label htmlFor="showOnlyPresent" className="text-sm font-medium cursor-pointer">
+                  Only PRESENT Occurrences
+                </Label>
+                <p className="text-xs text-gray-500">
+                  Exclude ABSENT occurrences (recommended)
                 </p>
               </div>
             </div>
