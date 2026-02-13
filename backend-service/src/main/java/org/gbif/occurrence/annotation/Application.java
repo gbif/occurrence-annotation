@@ -16,6 +16,7 @@ package org.gbif.occurrence.annotation;
 import org.gbif.ws.remoteauth.RemoteAuthClient;
 import org.gbif.ws.remoteauth.RemoteAuthWebSecurityConfigurer;
 import org.gbif.ws.remoteauth.RestTemplateRemoteAuthClient;
+import org.gbif.ws.security.RoleMethodSecurityConfiguration;
 import org.gbif.ws.server.filter.HttpServletRequestWrapperFilter;
 import org.gbif.ws.server.filter.RequestHeaderParamUpdateFilter;
 
@@ -25,21 +26,20 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
-import org.springframework.security.access.AccessDecisionManager;
-import org.springframework.security.access.vote.AffirmativeBased;
-import org.springframework.security.access.vote.RoleVoter;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
-import org.springframework.security.config.annotation.method.configuration.GlobalMethodSecurityConfiguration;
+import org.springframework.context.annotation.Profile;
 
 @SpringBootApplication
 @EnableConfigurationProperties
-@Import({HttpServletRequestWrapperFilter.class, RequestHeaderParamUpdateFilter.class})
+@Import({
+  HttpServletRequestWrapperFilter.class,
+  RequestHeaderParamUpdateFilter.class,
+  RoleMethodSecurityConfiguration.class
+})
 @ComponentScan(
     basePackages = {
       "org.gbif.occurrence.annotation",
@@ -55,35 +55,12 @@ public class Application {
   }
 
   @Configuration
-  static class SpringSecurityConfig extends RemoteAuthWebSecurityConfigurer {
-    public SpringSecurityConfig(
-        ApplicationContext applicationContext, RemoteAuthClient remoteAuthClient) {
-      super(applicationContext, remoteAuthClient);
-    }
-  }
+  @Profile("!test")
+  static class SpringSecurityConfig extends RemoteAuthWebSecurityConfigurer {}
 
   @Bean
   public RemoteAuthClient remoteAuthClient(
       RestTemplateBuilder builder, @Value("${registry.ws.url}") String gbifApiUrl) {
     return RestTemplateRemoteAuthClient.createInstance(builder, gbifApiUrl);
-  }
-
-  @Configuration
-  @EnableGlobalMethodSecurity(securedEnabled = true, jsr250Enabled = true, prePostEnabled = true)
-  public static class RegistryMethodSecurityConfiguration
-      extends GlobalMethodSecurityConfiguration {
-
-    @Override
-    protected AccessDecisionManager accessDecisionManager() {
-      AffirmativeBased accessDecisionManager = (AffirmativeBased) super.accessDecisionManager();
-
-      // Remove the ROLE_ prefix from RoleVoter for @Secured and hasRole checks on methods
-      accessDecisionManager.getDecisionVoters().stream()
-          .filter(RoleVoter.class::isInstance)
-          .map(RoleVoter.class::cast)
-          .forEach(it -> it.setRolePrefix(""));
-
-      return accessDecisionManager;
-    }
   }
 }
