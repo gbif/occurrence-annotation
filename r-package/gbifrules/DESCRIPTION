@@ -2,9 +2,7 @@ Package: gbifrules
 Type: Package
 Title: R Interface to GBIF Rule-Based Annotations Store
 Version: 0.1.0
-Authors@R: person("John", "Waller", 
-    email = "jwaller@gbif.org", 
-    role = c("aut", "cre"))
+Author: John Waller <jwaller@gbif.org>
 Maintainer: John Waller <jwaller@gbif.org>
 Description: Facilitates interaction with the GBIF
   (Global Biodiversity Information Facility) rule-based annotation store. The
