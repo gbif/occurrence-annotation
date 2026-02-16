@@ -5,6 +5,7 @@ Version: 0.1.0
 Authors@R: person("John", "Waller", 
     email = "jwaller@gbif.org", 
     role = c("aut", "cre"))
+Maintainer: John Waller <jwaller@gbif.org>
 Description: Facilitates interaction with the GBIF
   (Global Biodiversity Information Facility) rule-based annotation store. The
   package allows users to access, retrieve, and manage data utilizing the
