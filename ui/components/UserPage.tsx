@@ -36,13 +36,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { TooltipProvider } from './ui/tooltip';
 import { Checkbox } from './ui/checkbox';
-import { ArrowLeft, User, MapPin, Eye, ExternalLink, Loader2, Trash2, Folder, Users, Plus, Edit, Check, Pencil } from 'lucide-react';
+import { ArrowLeft, User, MapPin, Eye, ExternalLink, Loader2, Trash2, Folder, Users, Plus, Edit, Check, Pencil, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { LoginButton } from './LoginButton';
 import { UserPageFilters } from './UserPageFilters';
 import { SelectedSpecies } from './SpeciesSelector';
 import { getAnnotationApiUrl, getGbifApiUrl } from '../utils/apiConfig';
 import { getSpeciesInfo } from '../utils/speciesCache';
+import DownloadAnnotator from './DownloadAnnotator';
 import { 
   Pagination, 
   PaginationContent, 
@@ -296,6 +297,9 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   // Active tab state - check URL query parameter for initial tab
   const initialTab = searchParams.get('tab') || 'rules';
   const [activeTab, setActiveTab] = useState(initialTab === 'projects' ? 'projects' : 'rules');
+  
+  // Track if Download Annotator has results
+  const downloadAnnotatorHasResults = useRef(false);
   
   // Create project dialog state
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -948,7 +952,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
       onNavigateToRule(rule);
     } else {
       // Fallback: navigate to main app with rule context
-      window.location.href = `/`;
+      window.location.href = `/annotations/`;
     }
   };
 
@@ -1338,6 +1342,10 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
               <TabsTrigger value="projects" className="gap-2">
                 <Folder className="w-4 h-4" />
                 Projects ({totalProjects})
+              </TabsTrigger>
+              <TabsTrigger value="downloads" className="gap-2">
+                <Download className="w-4 h-4" />
+                Download Annotator
               </TabsTrigger>
             </TabsList>
           </div>
@@ -1968,6 +1976,18 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
             </div>
           )}
         </TabsContent>
+
+        {/* Downloads Tab */}
+        <TabsContent value="downloads" className="flex-1 overflow-auto m-0" forceMount>
+          <div className={activeTab === 'downloads' ? '' : 'hidden'}>
+            <DownloadAnnotator 
+              onResultsChange={(hasResults) => {
+                downloadAnnotatorHasResults.current = hasResults;
+              }}
+            />
+          </div>
+        </TabsContent>
+
         </Tabs>
       </div>
 

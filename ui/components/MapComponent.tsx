@@ -8,7 +8,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers } from 'lucide-react';
+import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown } from 'lucide-react';
 import { AnnotationRule } from './AnnotationRules';
 import { toast } from 'sonner';
 
@@ -26,6 +26,7 @@ interface MapComponentProps {
   annotationRules?: AnnotationRule[];
   showAnnotationRules?: boolean;
   showMyRulesOnly?: boolean;
+  showContestedRules?: boolean;
   editingPolygonId?: string | null;
   onUpdatePolygon?: (id: string, coordinates: [number, number][] | [number, number][][]) => void;
   onStopEditing?: () => void;
@@ -67,6 +68,7 @@ export function MapComponent({
   annotationRules = [],
   showAnnotationRules = true,
   showMyRulesOnly = false,
+  showContestedRules = false,
   editingPolygonId = null,
   onUpdatePolygon,
   onSaveAndEdit,
@@ -98,7 +100,7 @@ export function MapComponent({
   
   // Base map style state - load from localStorage or use default
   const [baseMapStyle, setBaseMapStyle] = useState<string>(() => {
-    return localStorage.getItem('gbifBaseMapStyle') || 'gbif-geyser-en';
+    return localStorage.getItem('gbifBaseMapStyle') || 'gbif-middle';
   });
   const [isBaseMapDialogOpen, setIsBaseMapDialogOpen] = useState(false);
   
@@ -1711,10 +1713,24 @@ export function MapComponent({
 
         {/* PRIORITY 4: Annotation rule polygons - render before user polygons for proper layering */}
         {!isZooming && showAnnotationRules && annotationRules.filter(rule => {
+          // Filter by user if needed
           if (showMyRulesOnly) {
             const currentUser = getCurrentUser();
-            return currentUser && rule.createdBy === currentUser;
+            if (!currentUser || rule.createdBy !== currentUser) {
+              return false;
+            }
           }
+          
+          // Filter out contested/downvoted rules unless toggle is active
+          if (!showContestedRules) {
+            // Hide if there are more contested votes than supported votes
+            const contestedCount = rule.contestedBy?.length || 0;
+            const supportedCount = rule.supportedBy?.length || 0;
+            if (contestedCount > supportedCount) {
+              return false;
+            }
+          }
+          
           return true;
         }).map((rule) => {
           if (!rule.multiPolygon) {
@@ -3060,7 +3076,7 @@ export function MapComponent({
               }`}
             >
               <div className="font-semibold text-sm">GBIF Geyser</div>
-              <div className="text-xs text-gray-500 mt-1">Default style</div>
+              <div className="text-xs text-gray-500 mt-1">High contrast</div>
             </button>
 
             <button
@@ -3090,7 +3106,7 @@ export function MapComponent({
               }`}
             >
               <div className="font-semibold text-sm">GBIF Middle</div>
-              <div className="text-xs text-gray-500 mt-1">Medium contrast</div>
+              <div className="text-xs text-gray-500 mt-1">Default style</div>
             </button>
 
             <button

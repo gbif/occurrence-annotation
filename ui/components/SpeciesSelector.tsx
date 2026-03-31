@@ -43,7 +43,7 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder 
   const [recentSpecies, setRecentSpecies] = useState<SelectedSpecies[]>([]);
   const [showRecent, setShowRecent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const debounceTimerRef = useRef<number | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 

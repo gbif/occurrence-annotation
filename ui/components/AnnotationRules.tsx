@@ -35,9 +35,7 @@ import {
 
 // Helper function to generate species page URL
 const getSpeciesPageUrl = (taxonKey: number): string => {
-  const isDevelopment = import.meta.env.DEV;
-  const baseUrl = isDevelopment ? 'http://localhost:3000' : window.location.origin;
-  return `${baseUrl}#/?taxonKey=${taxonKey}`;
+  return `https://www.gbif.org/species/${taxonKey}`;
 };
 
 // Searchable multi-select component for Basis of Record

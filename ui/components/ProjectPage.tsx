@@ -901,7 +901,7 @@ export function ProjectPage() {
                                 size="sm"
                                 onClick={() => {
                                   if (rule.taxonKey) {
-                                    window.location.href = `/#/?taxonKey=${rule.taxonKey}`;
+                                    window.location.href = `${window.location.origin}/annotations/#/?taxonKey=${rule.taxonKey}`;
                                   }
                                 }}
                                 title="View on map"

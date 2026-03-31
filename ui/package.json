@@ -38,6 +38,8 @@
     "@radix-ui/react-toggle": "^1.0.3",
     "@radix-ui/react-toggle-group": "^1.0.4",
     "@radix-ui/react-tooltip": "^1.0.6",
+    "@turf/boolean-point-in-polygon": "^7.0.0",
+    "@turf/helpers": "^7.0.0",
     "@types/d3-geo": "^3.1.0",
     "@types/react-router-dom": "^5.3.3",
     "@types/topojson-client": "^3.1.5",
@@ -47,8 +49,10 @@
     "d3-geo": "^3.1.1",
     "embla-carousel-react": "^8.0.0",
     "input-otp": "^1.2.4",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.263.1",
     "maplibre-gl": "^5.9.0",
+    "papaparse": "^5.4.1",
     "pigeon-maps": "^0.22.1",
     "react": "^18.2.0",
     "react-day-picker": "^9.13.0",
@@ -66,6 +70,8 @@
     "world-atlas": "^2.0.2"
   },
   "devDependencies": {
+    "@types/jszip": "^3.4.1",
+    "@types/papaparse": "^5.3.14",
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",
     "@types/react-simple-maps": "^3.0.6",
