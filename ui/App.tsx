@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { MapComponent } from './components/MapComponent';
 import { SpeciesSelector, SelectedSpecies } from './components/SpeciesSelector';
 import { SavedPolygons } from './components/SavedPolygons';
@@ -12,7 +12,7 @@ import { parseWKTGeometry } from './utils/wktParser';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
-import { Eye, EyeOff, Folder, X, Network, User, Loader2, HelpCircle } from 'lucide-react';
+import { Eye, EyeOff, Folder, X, Network, User, Loader2, HelpCircle, ThumbsDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
 import gbifLogo from './gbif-mark-green-logo.svg';
 import { getSelectedProjectId, getSelectedProjectName } from './utils/projectSelection';
@@ -34,6 +34,7 @@ export interface PolygonData {
 
 export default function App() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [selectedSpecies, setSelectedSpecies] = useState<SelectedSpecies | null>(null);
   const [savedPolygons, setSavedPolygons] = useState<PolygonData[]>([]);
   const [currentPolygon, setCurrentPolygon] = useState<[number, number][] | null>(null);
@@ -44,6 +45,7 @@ export default function App() {
   const [showAnnotationRules, setShowAnnotationRules] = useState(true);
   const [showHigherOrderRules, setShowHigherOrderRules] = useState(false);
   const [showMyRulesOnly, setShowMyRulesOnly] = useState(false);
+  const [showContestedRules, setShowContestedRules] = useState(false);
   const [annotationRulesRefreshTrigger, setAnnotationRulesRefreshTrigger] = useState(0);
   const [filterByActiveProject, setFilterByActiveProject] = useState(false);
   
@@ -53,6 +55,11 @@ export default function App() {
   const [projects, setProjects] = useState<Array<{id: number, name: string, description: string, members: string[]}>>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [selectedProjectName, setSelectedProjectName] = useState<string | null>(() => getSelectedProjectName());
+  
+  // Project taxa navigation
+  const [projectTaxa, setProjectTaxa] = useState<Array<{key: number, scientificName: string}>>([]);
+  const [currentProjectTaxonIndex, setCurrentProjectTaxonIndex] = useState<number>(-1);
+  const [loadingProjectTaxa, setLoadingProjectTaxa] = useState(false);
   
   // Occurrence filters for map
   const [occurrenceFilters, setOccurrenceFilters] = useState<OccurrenceFilterOptions>({
@@ -200,14 +207,35 @@ export default function App() {
     localStorage.removeItem('selectedProjectName');
     setSelectedProjectId(null);
     setSelectedProjectName(null);
+    setProjectTaxa([]);
+    setCurrentProjectTaxonIndex(-1);
     toast.info('Project selection cleared');
   };
+  
+  // Fetch project taxa when component mounts (if project already selected)
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchProjectTaxa(selectedProjectId);
+    }
+  }, []); // Only run on mount
 
   // Fetch projects when dialog opens
   const fetchProjects = async () => {
     setLoadingProjects(true);
     try {
-      const response = await fetch(getAnnotationApiUrl('/project'));
+      // Get current user from localStorage
+      const savedUser = localStorage.getItem('gbifUser');
+      if (!savedUser) {
+        setProjects([]);
+        toast.info('Please log in to see your projects');
+        return;
+      }
+      
+      const user = JSON.parse(savedUser);
+      const username = user.userName;
+      
+      // Fetch only projects where user is a member or creator
+      const response = await fetch(getAnnotationApiUrl(`/project?member=${username}`));
       if (response.ok) {
         const data = await response.json();
         const activeProjects = data.filter((p: any) => !p.deleted).sort((a: any, b: any) => b.id - a.id);
@@ -221,6 +249,46 @@ export default function App() {
     }
   };
 
+  // Fetch taxa from project rules
+  const fetchProjectTaxa = async (projectId: number) => {
+    setLoadingProjectTaxa(true);
+    try {
+      const response = await fetch(getAnnotationApiUrl(`/rule?projectId=${projectId}&limit=100`));
+      if (response.ok) {
+        const rules = await response.json();
+        
+        // Extract unique taxa with their info
+        const taxaMap = new Map<number, {key: number, scientificName: string}>();
+        
+        for (const rule of rules) {
+          if (rule.taxonKey && !taxaMap.has(rule.taxonKey)) {
+            // Fetch species info for this taxon
+            try {
+              const speciesResponse = await fetch(`https://api.gbif.org/v1/species/${rule.taxonKey}`);
+              if (speciesResponse.ok) {
+                const speciesData = await speciesResponse.json();
+                taxaMap.set(rule.taxonKey, {
+                  key: rule.taxonKey,
+                  scientificName: speciesData.scientificName || speciesData.canonicalName || `Taxon ${rule.taxonKey}`
+                });
+              }
+            } catch (err) {
+              console.error(`Error fetching species info for ${rule.taxonKey}:`, err);
+            }
+          }
+        }
+        
+        const uniqueTaxa = Array.from(taxaMap.values());
+        setProjectTaxa(uniqueTaxa);
+        setCurrentProjectTaxonIndex(uniqueTaxa.length > 0 ? 0 : -1);
+      }
+    } catch (err) {
+      console.error('Error fetching project rules:', err);
+    } finally {
+      setLoadingProjectTaxa(false);
+    }
+  };
+  
   // Handle selecting a project
   const handleSelectProject = (projectId: number, projectName: string) => {
     setSelectedProjectId(projectId);
@@ -229,6 +297,30 @@ export default function App() {
     localStorage.setItem('selectedProjectName', projectName);
     setIsProjectDialogOpen(false);
     toast.success(`Selected project: ${projectName}`);
+    // Fetch taxa for the project
+    fetchProjectTaxa(projectId);
+  };
+  
+  // Navigate to previous/next taxon in project
+  const navigateProjectTaxa = (direction: 'prev' | 'next') => {
+    if (projectTaxa.length === 0) return;
+    
+    let newIndex = currentProjectTaxonIndex;
+    if (direction === 'prev') {
+      newIndex = currentProjectTaxonIndex > 0 ? currentProjectTaxonIndex - 1 : projectTaxa.length - 1;
+    } else {
+      newIndex = currentProjectTaxonIndex < projectTaxa.length - 1 ? currentProjectTaxonIndex + 1 : 0;
+    }
+    
+    setCurrentProjectTaxonIndex(newIndex);
+    const taxon = projectTaxa[newIndex];
+    
+    // Update the selected species
+    setSelectedSpecies({
+      key: taxon.key,
+      scientificName: taxon.scientificName,
+      name: taxon.scientificName
+    });
   };
 
   // Update URL when species selection changes (but not on initial load from URL)
@@ -646,7 +738,24 @@ export default function App() {
               <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded-md">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <Folder className="w-4 h-4 text-green-700 flex-shrink-0" />
+                    <div className="flex flex-col items-center">
+                      <Folder className="w-4 h-4 text-green-700 flex-shrink-0" />
+                      {/* Taxon navigation arrow */}
+                      {projectTaxa.length > 0 && !loadingProjectTaxa && (
+                        <div className="flex items-center mt-0.5">
+                          <button
+                            onClick={() => navigateProjectTaxa('prev')}
+                            className="h-3 w-3 flex items-center justify-center text-green-600 hover:text-green-800 transition-colors"
+                            title="Navigate to previous taxon in project"
+                            disabled={loadingProjectTaxa}
+                          >
+                            <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-medium text-green-900 truncate" title={selectedProjectName}>
                         {selectedProjectName}
@@ -729,15 +838,26 @@ export default function App() {
                 </Button>
               )}
               {annotationRules.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowAnnotationRules(!showAnnotationRules)}
-                  className="h-7 w-7 p-0"
-                  title={showAnnotationRules ? 'Hide rules on map' : 'Show rules on map'}
-                >
-                  {showAnnotationRules ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                </Button>
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowContestedRules(!showContestedRules)}
+                    className={`h-7 w-7 p-0 ${showContestedRules ? 'bg-orange-100 hover:bg-orange-200' : ''}`}
+                    title={showContestedRules ? 'Hide contested/downvoted rules' : 'Show contested/downvoted rules'}
+                  >
+                    <ThumbsDown className={`h-4 w-4 ${showContestedRules ? 'text-orange-700' : ''}`} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAnnotationRules(!showAnnotationRules)}
+                    className="h-7 w-7 p-0"
+                    title={showAnnotationRules ? 'Hide rules on map' : 'Show rules on map'}
+                  >
+                    {showAnnotationRules ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -792,6 +912,7 @@ export default function App() {
         annotationRules={annotationRules}
         showAnnotationRules={showAnnotationRules}
         showMyRulesOnly={showMyRulesOnly}
+        showContestedRules={showContestedRules}
         editingPolygonId={editingPolygonId}
         onUpdatePolygon={handleUpdatePolygon}
         onStopEditing={handleStopEditing}
