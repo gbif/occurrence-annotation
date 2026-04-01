@@ -8,8 +8,12 @@
 
 .history
 
+# Copilot customization files
+.github/copilot-instructions.md
+
 # Docker utility scripts
 Start-DockerClean.ps1
+backend-service/start-docker-wsl.sh
 
 # Docker files for local development
 backend-service/Dockerfile
@@ -35,6 +39,10 @@ ui/.env.*.local
 # Build outputs
 ui/build/
 ui/out/
+
+# Deployment scripts and archives
+ui/deploy.ps1
+ui/*.tar.gz
 
 # Temporary files
 ui/.temp/
