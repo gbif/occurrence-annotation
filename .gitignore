@@ -28,11 +28,6 @@ ui/*.zip
 backend-service/Dockerfile.multistage
 backend-service/.dockerignore
 
-# Kubernetes local development files
-backend-service/k8s/*.local.yaml
-backend-service/k8s/secrets/*.yaml
-backend-service/k8s/.kube/
-
 # Docker volumes and data
 **/docker-volumes/
 **/.docker/

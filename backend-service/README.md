@@ -56,18 +56,7 @@ This will:
 
 See [PODMAN-SETUP.md](PODMAN-SETUP.md) for installation and detailed instructions.
 
-### Option 2: Kubernetes (Requires Docker Desktop)
-
-If you have Docker Desktop with Kubernetes enabled:
-
-```powershell
-cd backend-service
-.\deploy-k8s.ps1
-```
-
-See [k8s/README.md](k8s/README.md) for detailed instructions and [k8s/QUICKREF.md](k8s/QUICKREF.md) for quick commands.
-
-### Option 3: Manual PostgreSQL + Maven
+### Option 2: Manual PostgreSQL + Maven
 
 You might also need to have a running `postgres` instance with a database named "annotation". 
 
