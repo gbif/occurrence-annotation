@@ -9,15 +9,16 @@ RUN mvn dependency:go-offline -B
 
 # Copy source code and build
 COPY src ./src
-RUN mvn clean package -DskipTests -B
+RUN mvn clean package -DskipTests -B && \
+    ls -la target/*.jar
 
 # Runtime stage
 FROM eclipse-temurin:17-jre
 
 WORKDIR /app
 
-# Copy the built jar from builder stage
-COPY --from=builder /app/target/*.jar app.jar
+# Copy the executable jar with all dependencies
+COPY --from=builder /app/target/occurrence-annotation-ws-*-exec.jar app.jar
 
 # Expose port
 EXPOSE 8080
