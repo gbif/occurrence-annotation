@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: occurrence-annotation
+data:
+  application.properties: |
+    spring.profiles.active=dev
+    
+    registry.ws.url=https://api.gbif.org/v1
+    spring.cloud.bootstrap.enabled=false
+    
+    spring.datasource.url=jdbc:postgresql://postgres:5432/annotation
+    spring.datasource.username=postgres
+    spring.datasource.password=postgres
+    spring.datasource.driver-class-name=org.postgresql.Driver
+    
+    mybatis.type-aliases-package=org.gbif.occurrence.annotation.model
+    mybatis.mapper-locations=classpath:org/gbif/occurrence/annotation/mapper/*.xml
+    mybatis.configuration.map-underscore-to-camel-case=true
+    mybatis.configuration.default-fetch-size=100
+    mybatis.configuration.default-statement-timeout=30
+    mybatis.configuration.type-aliases-package=org.gbif.occurrence.annotation.model
+    spring.jackson.mapper.ACCEPT_CASE_INSENSITIVE_ENUMS=true
+    springdoc.api-docs.path=/v1/occurrence/annotation/docs
