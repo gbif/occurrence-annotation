@@ -22,11 +22,10 @@ ui/deploy-dist-only.sh
 ui/*.tar.gz
 ui/*.zip
 
-# Docker files for local development
-backend-service/Dockerfile
+# Docker files for local development (keep these now for Podman)
+# backend-service/Dockerfile
+# backend-service/docker-compose.yml
 backend-service/Dockerfile.multistage
-backend-service/docker-compose.yml
-backend-service/docker-compose.test.yml
 backend-service/.dockerignore
 
 # Kubernetes local development files

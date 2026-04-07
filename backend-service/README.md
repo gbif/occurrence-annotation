@@ -32,25 +32,42 @@ https://github.com/jhnwllr/doc-rule-based-annotations/blob/main/index.adoc
 
 ## Build and run locally 
 
-### Option 1: Kubernetes (Recommended for Windows)
+### Option 1: Podman Desktop (Recommended - No Docker Desktop Required)
 
-Run both PostgreSQL and the Spring Boot backend in Kubernetes using Docker Desktop:
+Run both PostgreSQL and the Spring Boot backend using **Podman Desktop** (Docker Desktop alternative):
+
+```powershell
+cd backend-service
+.\deploy-podman.ps1
+```
+
+This will:
+- Build the container images
+- Start PostgreSQL with persistent storage
+- Start the Spring Boot backend
+- Initialize the database schema automatically
+- Expose services on localhost:8080
+
+**Why Podman?**
+- Free and open source (no Docker Desktop subscription needed)
+- Docker-compatible (works with docker-compose files)
+- Better performance and resource usage
+- Rootless by default (more secure)
+
+See [PODMAN-SETUP.md](PODMAN-SETUP.md) for installation and detailed instructions.
+
+### Option 2: Kubernetes (Requires Docker Desktop)
+
+If you have Docker Desktop with Kubernetes enabled:
 
 ```powershell
 cd backend-service
 .\deploy-k8s.ps1
 ```
 
-This will:
-- Build the Docker image
-- Deploy PostgreSQL with persistent storage
-- Deploy the Spring Boot backend
-- Initialize the database schema automatically
-- Expose services on localhost:8080
-
 See [k8s/README.md](k8s/README.md) for detailed instructions and [k8s/QUICKREF.md](k8s/QUICKREF.md) for quick commands.
 
-### Option 2: Manual PostgreSQL + Maven
+### Option 3: Manual PostgreSQL + Maven
 
 You might also need to have a running `postgres` instance with a database named "annotation". 
 
