@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="org.gbif.occurrence.annotation.mapper.StatsMapper">
+
+    <select id="getTopCreators" resultType="CreatorStats">
+        SELECT
+            created_by AS username,
+            COUNT(*) AS ruleCount,
+            COALESCE(SUM(ARRAY_LENGTH(supported_by, 1)), 0) AS totalSupports,
+            COALESCE(SUM(ARRAY_LENGTH(contested_by, 1)), 0) AS totalContests,
+            COUNT(DISTINCT project_id) AS projectCount
+        FROM rule
+        WHERE deleted IS NULL
+        GROUP BY created_by
+        ORDER BY ruleCount DESC, totalSupports DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="getMostSupportedCreators" resultType="CreatorStats">
+        SELECT
+            created_by AS username,
+            COUNT(*) AS ruleCount,
+            COALESCE(SUM(ARRAY_LENGTH(supported_by, 1)), 0) AS totalSupports,
+            COALESCE(SUM(ARRAY_LENGTH(contested_by, 1)), 0) AS totalContests,
+            COUNT(DISTINCT project_id) AS projectCount
+        FROM rule
+        WHERE deleted IS NULL
+        GROUP BY created_by
+        ORDER BY totalSupports DESC, ruleCount DESC
+        LIMIT #{limit}
+    </select>
+    
+    <select id="getTopProjects" resultType="ProjectStats">
+        SELECT
+            p.id AS projectId,
+            p.name AS projectName,
+            p.description AS projectDescription,
+            p.created_by AS createdBy,
+            COUNT(r.id) AS ruleCount,
+            COALESCE(SUM(ARRAY_LENGTH(r.supported_by, 1)), 0) AS totalSupports,
+            COALESCE(SUM(ARRAY_LENGTH(r.contested_by, 1)), 0) AS totalContests,
+            ARRAY_LENGTH(p.members, 1) AS memberCount
+        FROM project p
+        LEFT JOIN rule r ON r.project_id = p.id AND r.deleted IS NULL
+        WHERE p.deleted IS NULL
+        GROUP BY p.id, p.name, p.description, p.created_by, p.members
+        ORDER BY ruleCount DESC, totalSupports DESC
+        LIMIT #{limit}
+    </select>
+    
+    <select id="getMostSupportedProjects" resultType="ProjectStats">
+        SELECT
+            p.id AS projectId,
+            p.name AS projectName,
+            p.description AS projectDescription,
+            p.created_by AS createdBy,
+            COUNT(r.id) AS ruleCount,
+            COALESCE(SUM(ARRAY_LENGTH(r.supported_by, 1)), 0) AS totalSupports,
+            COALESCE(SUM(ARRAY_LENGTH(r.contested_by, 1)), 0) AS totalContests,
+            ARRAY_LENGTH(p.members, 1) AS memberCount
+        FROM project p
+        LEFT JOIN rule r ON r.project_id = p.id AND r.deleted IS NULL
+        WHERE p.deleted IS NULL
+        GROUP BY p.id, p.name, p.description, p.created_by, p.members
+        ORDER BY totalSupports DESC, ruleCount DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>
