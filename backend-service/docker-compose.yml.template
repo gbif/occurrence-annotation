@@ -48,7 +48,6 @@ services:
       start_period: 60s
     networks:
       - occurrence-network
-    restart: unless-stopped
 
 volumes:
   postgres-data:

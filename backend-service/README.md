@@ -34,10 +34,23 @@ https://github.com/jhnwllr/doc-rule-based-annotations/blob/main/index.adoc
 
 ### Option 1: Podman Desktop (Recommended - No Docker Desktop Required)
 
-Run both PostgreSQL and the Spring Boot backend using **Podman Desktop** (Docker Desktop alternative):
+Run both PostgreSQL and the Spring Boot backend using **Podman Desktop** (Docker Desktop alternative).
+
+**First-time setup:**
+
+1. Copy template files to create your local configuration:
 
 ```powershell
 cd backend-service
+Copy-Item Dockerfile.template Dockerfile
+Copy-Item docker-compose.yml.template docker-compose.yml
+```
+
+2. Install Podman Desktop from https://podman-desktop.io/downloads
+
+3. Deploy the application:
+
+```powershell
 .\deploy-podman.ps1
 ```
 
@@ -54,7 +67,7 @@ This will:
 - Better performance and resource usage
 - Rootless by default (more secure)
 
-See [PODMAN-SETUP.md](PODMAN-SETUP.md) for installation and detailed instructions.
+**Note:** The Dockerfile and docker-compose.yml files are gitignored to allow each developer to customize their local setup without affecting the repository.
 
 ### Option 2: Manual PostgreSQL + Maven
 

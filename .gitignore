@@ -22,9 +22,12 @@ ui/deploy-dist-only.sh
 ui/*.tar.gz
 ui/*.zip
 
-# Docker files for local development (keep these now for Podman)
-# backend-service/Dockerfile
-# backend-service/docker-compose.yml
+# Podman/Docker files for local development (keep untracked)
+backend-service/Dockerfile
+backend-service/docker-compose.yml
+backend-service/docker-compose.test.yml
+backend-service/PODMAN-SETUP.md
+backend-service/deploy-podman.ps1
 backend-service/Dockerfile.multistage
 backend-service/.dockerignore
 
