@@ -55,6 +55,7 @@ ui/node_modules/
 **/node_modules/
 
 # Environment files
+ui/.env
 ui/.env.local
 ui/.env.production
 ui/.env.*.local

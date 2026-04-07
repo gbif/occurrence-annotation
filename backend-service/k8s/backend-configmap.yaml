@@ -11,6 +11,7 @@ data:
     spring.cloud.bootstrap.enabled=false
     
     spring.datasource.url=jdbc:postgresql://postgres:5432/annotation
+    # Note: For Podman/Docker Compose, use jdbc:postgresql://localhost:5433/annotation
     spring.datasource.username=postgres
     spring.datasource.password=postgres
     spring.datasource.driver-class-name=org.postgresql.Driver
