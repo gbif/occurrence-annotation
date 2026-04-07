@@ -22,11 +22,11 @@ ui/deploy-dist-only.sh
 ui/*.tar.gz
 ui/*.zip
 
-# Docker files for local development
-backend-service/Dockerfile
-backend-service/Dockerfile.multistage
-backend-service/docker-compose.yml
-backend-service/docker-compose.test.yml
+# Podman/Docker files for local development (not tracked)
+backend-service/Dockerfile*
+backend-service/docker-compose*
+backend-service/PODMAN-SETUP.md*
+backend-service/deploy-podman.ps1*
 backend-service/.dockerignore
 
 # Docker volumes and data
@@ -51,6 +51,7 @@ ui/node_modules/
 **/node_modules/
 
 # Environment files
+ui/.env
 ui/.env.local
 ui/.env.production
 ui/.env.*.local
