@@ -32,42 +32,16 @@ https://github.com/jhnwllr/doc-rule-based-annotations/blob/main/index.adoc
 
 ## Build and run locally 
 
-### Option 1: Podman Desktop (Recommended - No Docker Desktop Required)
+### Option 1: Using Docker or Podman (Recommended)
 
-Run both PostgreSQL and the Spring Boot backend using **Podman Desktop** (Docker Desktop alternative).
+For local development, you can use Docker Desktop or Podman Desktop to run PostgreSQL and the Spring Boot backend in containers.
 
-**First-time setup:**
+**Setup:**
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) or [Podman Desktop](https://podman-desktop.io/downloads)
+2. Create a `docker-compose.yml` file to define PostgreSQL and backend services
+3. Use `docker-compose up` or `podman-compose up` to start services
 
-1. Copy template files to create your local configuration:
-
-```powershell
-cd backend-service
-Copy-Item Dockerfile.template Dockerfile
-Copy-Item docker-compose.yml.template docker-compose.yml
-```
-
-2. Install Podman Desktop from https://podman-desktop.io/downloads
-
-3. Deploy the application:
-
-```powershell
-.\deploy-podman.ps1
-```
-
-This will:
-- Build the container images
-- Start PostgreSQL with persistent storage
-- Start the Spring Boot backend
-- Initialize the database schema automatically
-- Expose services on localhost:8080
-
-**Why Podman?**
-- Free and open source (no Docker Desktop subscription needed)
-- Docker-compatible (works with docker-compose files)
-- Better performance and resource usage
-- Rootless by default (more secure)
-
-**Note:** The Dockerfile and docker-compose.yml files are gitignored to allow each developer to customize their local setup without affecting the repository.
+The application will be available at http://localhost:8080 with PostgreSQL on port 5432.
 
 ### Option 2: Manual PostgreSQL + Maven
 
