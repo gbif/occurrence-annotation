@@ -228,7 +228,8 @@ public class StatsMapperTest {
       assertNotNull(stat.getRuleCount(), "Rule count should not be null");
       assertNotNull(stat.getTotalSupports(), "Total supports should not be null");
       assertNotNull(stat.getTotalContests(), "Total contests should not be null");
-      // memberCount can be null if members array is null
+      assertNotNull(stat.getMemberCount(), "Member count should not be null");
+      assertTrue(stat.getMemberCount() >= 0, "Member count should be non-negative");
     }
   }
 }
