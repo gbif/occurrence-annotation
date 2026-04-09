@@ -3,7 +3,6 @@ import App from './App';
 import { UserPage } from './components/UserPage';
 import { ProjectsPage } from './components/ProjectsPage';
 import { ProjectPage } from './components/ProjectPage';
-import { CommunityStats } from './components/CommunityStats';
 
 function AppWithNavigation() {
   const navigate = useNavigate();
@@ -33,7 +32,6 @@ function AppWithNavigation() {
       />
       <Route path="/projects" element={<ProjectsPage />} />
       <Route path="/project/:projectId" element={<ProjectPage />} />
-      <Route path="/community-stats" element={<CommunityStats />} />
     </Routes>
   );
 }

@@ -23,34 +23,34 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface StatsMapper {
-  
+
   /**
    * Get top rule creators ordered by rule count.
-   * 
+   *
    * @param limit Maximum number of creators to return
    * @return List of creator statistics
    */
   List<CreatorStats> getTopCreators(@Param("limit") int limit);
-  
+
   /**
    * Get top rule creators ordered by total support count.
-   * 
+   *
    * @param limit Maximum number of creators to return
    * @return List of creator statistics
    */
   List<CreatorStats> getMostSupportedCreators(@Param("limit") int limit);
-  
+
   /**
    * Get top projects ordered by rule count.
-   * 
+   *
    * @param limit Maximum number of projects to return
    * @return List of project statistics
    */
   List<ProjectStats> getTopProjects(@Param("limit") int limit);
-  
+
   /**
    * Get top projects ordered by total support count.
-   * 
+   *
    * @param limit Maximum number of projects to return
    * @return List of project statistics
    */

@@ -36,9 +36,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { TooltipProvider } from './ui/tooltip';
 import { Checkbox } from './ui/checkbox';
-import { ArrowLeft, User, MapPin, Eye, ExternalLink, Loader2, Trash2, Folder, Users, Plus, Edit, Check, Pencil, Download } from 'lucide-react';
+import { ArrowLeft, User, MapPin, Eye, ExternalLink, Loader2, Trash2, Folder, Users, Plus, Edit, Check, Pencil, Download, TrendingUp, ThumbsUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { LoginButton } from './LoginButton';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { UserPageFilters } from './UserPageFilters';
 import { SelectedSpecies } from './SpeciesSelector';
 import { getAnnotationApiUrl, getGbifApiUrl } from '../utils/apiConfig';
@@ -95,6 +96,25 @@ interface Project {
 
 interface UserPageProps {
   onNavigateToRule?: (rule: UserRule) => void;
+}
+
+interface CreatorStats {
+  username: string;
+  ruleCount: number;
+  totalSupports: number;
+  totalContests: number;
+  projectCount: number;
+}
+
+interface ProjectStats {
+  projectId: number;
+  projectName: string;
+  projectDescription: string;
+  createdBy: string;
+  ruleCount: number;
+  totalSupports: number;
+  totalContests: number;
+  memberCount: number;
 }
 
 // Searchable multi-select component for Basis of Record
@@ -347,6 +367,12 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     const stored = localStorage.getItem('selectedProjectId');
     return stored ? parseInt(stored, 10) : null;
   });
+
+  // Community stats state
+  const [topCreators, setTopCreators] = useState<CreatorStats[]>([]);
+  const [topProjects, setTopProjects] = useState<ProjectStats[]>([]);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   // Check if current user is viewing their own profile
   const getCurrentUser = () => {
@@ -947,6 +973,41 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     });
   }, [allRules, fetchSpeciesInfo]);
 
+  // Fetch community stats when stats tab is active
+  useEffect(() => {
+    if (activeTab === 'stats') {
+      const fetchStats = async () => {
+        try {
+          setStatsLoading(true);
+          setStatsError(null);
+
+          const [creatorsRes, projectsRes] = await Promise.all([
+            fetch(getAnnotationApiUrl('/stats/top-creators?limit=20')),
+            fetch(getAnnotationApiUrl('/stats/top-projects?limit=20'))
+          ]);
+
+          if (!creatorsRes.ok || !projectsRes.ok) {
+            throw new Error('Failed to fetch community statistics');
+          }
+
+          const [creators, projects] = await Promise.all([
+            creatorsRes.json(),
+            projectsRes.json()
+          ]);
+
+          setTopCreators(creators);
+          setTopProjects(projects);
+        } catch (err) {
+          setStatsError(err instanceof Error ? err.message : 'Failed to load statistics');
+        } finally {
+          setStatsLoading(false);
+        }
+      };
+
+      fetchStats();
+    }
+  }, [activeTab]);
+
   const handleViewRule = (rule: UserRule) => {
     if (onNavigateToRule) {
       onNavigateToRule(rule);
@@ -1342,6 +1403,10 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
               <TabsTrigger value="projects" className="gap-2">
                 <Folder className="w-4 h-4" />
                 Projects ({totalProjects})
+              </TabsTrigger>
+              <TabsTrigger value="stats" className="gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Community Stats
               </TabsTrigger>
               <TabsTrigger value="downloads" className="gap-2">
                 <Download className="w-4 h-4" />
@@ -1974,6 +2039,146 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                   </div>
                 ))}
             </div>
+          )}
+        </TabsContent>
+
+        {/* Community Stats Tab */}
+        <TabsContent value="stats" className="flex-1 overflow-auto m-0 px-6 pt-4 pb-6">
+          {statsLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <Loader2 className="inline-block animate-spin h-8 w-8 text-primary mb-2" />
+                <p className="text-muted-foreground">Loading community statistics...</p>
+              </div>
+            </div>
+          ) : statsError ? (
+            <div className="bg-destructive/10 text-destructive px-4 py-3 rounded">
+              <p className="font-medium">Error loading statistics</p>
+              <p className="text-sm">{statsError}</p>
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Most Prolific Creators */}
+              <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-primary" />
+                      Most Prolific Creators
+                    </CardTitle>
+                    <CardDescription>
+                      Users with the most annotation rules created
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-16">Rank</TableHead>
+                          <TableHead>Username</TableHead>
+                          <TableHead className="text-right">Rules</TableHead>
+                          <TableHead className="text-right">Supports</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {topCreators.map((creator, index) => (
+                          <TableRow key={creator.username}>
+                            <TableCell className="font-medium text-muted-foreground">
+                              #{index + 1}
+                            </TableCell>
+                            <TableCell>
+                              <Link 
+                                to={`/user/${creator.username}`}
+                                className="font-medium hover:underline"
+                              >
+                                {creator.username}
+                              </Link>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant="secondary">{creator.ruleCount}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <ThumbsUp className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-sm">{creator.totalSupports}</span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {topCreators.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                              No data available yet
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+
+                {/* Most Active Projects */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Folder className="h-5 w-5 text-primary" />
+                      Most Active Projects
+                    </CardTitle>
+                    <CardDescription>
+                      Projects with the most annotation rules
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-16">Rank</TableHead>
+                          <TableHead>Project</TableHead>
+                          <TableHead className="text-right">Rules</TableHead>
+                          <TableHead className="text-right">Supports</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {topProjects.map((project, index) => (
+                          <TableRow key={project.projectId}>
+                            <TableCell className="font-medium text-muted-foreground">
+                              #{index + 1}
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <Link 
+                                  to={`/project/${project.projectId}`}
+                                  className="font-medium hover:underline"
+                                >
+                                  {project.projectName}
+                                </Link>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  by {project.createdBy}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant="secondary">{project.ruleCount}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <ThumbsUp className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-sm">{project.totalSupports}</span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {topProjects.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                              No data available yet
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
           )}
         </TabsContent>
 

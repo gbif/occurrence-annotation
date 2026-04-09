@@ -17,9 +17,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * Statistics for top rule creators in the community.
- */
+/** Statistics for top rule creators in the community. */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

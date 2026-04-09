@@ -12,7 +12,7 @@ import { parseWKTGeometry } from './utils/wktParser';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
-import { Eye, EyeOff, Folder, X, Network, User, Loader2, HelpCircle, ThumbsDown, TrendingUp } from 'lucide-react';
+import { Eye, EyeOff, Folder, X, Network, User, Loader2, HelpCircle, ThumbsDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
 import gbifLogo from './gbif-mark-green-logo.svg';
 import { getSelectedProjectId, getSelectedProjectName } from './utils/projectSelection';
@@ -892,13 +892,7 @@ export default function App() {
       </div>
       
       {/* Floating login button */}
-      <div className="absolute top-4 right-4 z-20 flex gap-2">
-        <Link to="/community-stats">
-          <Button variant="outline" size="sm" title="View community statistics">
-            <TrendingUp className="w-4 h-4 mr-2" />
-            Community Stats
-          </Button>
-        </Link>
+      <div className="absolute top-4 right-4 z-20">
         <LoginButton />
       </div>
       
