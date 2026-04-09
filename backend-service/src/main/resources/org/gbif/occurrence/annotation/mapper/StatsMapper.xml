@@ -39,7 +39,7 @@
             COUNT(r.id) AS ruleCount,
             COALESCE(SUM(ARRAY_LENGTH(r.supported_by, 1)), 0) AS totalSupports,
             COALESCE(SUM(ARRAY_LENGTH(r.contested_by, 1)), 0) AS totalContests,
-            ARRAY_LENGTH(p.members, 1) AS memberCount
+            COALESCE(ARRAY_LENGTH(p.members, 1), 0) AS memberCount
         FROM project p
         LEFT JOIN rule r ON r.project_id = p.id AND r.deleted IS NULL
         WHERE p.deleted IS NULL
@@ -57,7 +57,7 @@
             COUNT(r.id) AS ruleCount,
             COALESCE(SUM(ARRAY_LENGTH(r.supported_by, 1)), 0) AS totalSupports,
             COALESCE(SUM(ARRAY_LENGTH(r.contested_by, 1)), 0) AS totalContests,
-            ARRAY_LENGTH(p.members, 1) AS memberCount
+            COALESCE(ARRAY_LENGTH(p.members, 1), 0) AS memberCount
         FROM project p
         LEFT JOIN rule r ON r.project_id = p.id AND r.deleted IS NULL
         WHERE p.deleted IS NULL
