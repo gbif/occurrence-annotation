@@ -38,7 +38,7 @@ public class StatsController {
   @Autowired private StatsMapper statsMapper;
 
   @Operation(summary = "Get top rule creators ordered by number of rules created")
-  @Parameter(name = "limit", description = "Maximum number of creators to return (default: 10)")
+  @Parameter(name = "limit", description = "Maximum number of creators to return (default: 10, max: 100)")
   @GetMapping("/top-creators")
   public List<CreatorStats> getTopCreators(
       @RequestParam(required = false, defaultValue = "10") Integer limit) {
@@ -46,7 +46,7 @@ public class StatsController {
   }
 
   @Operation(summary = "Get top rule creators ordered by total support count")
-  @Parameter(name = "limit", description = "Maximum number of creators to return (default: 10)")
+  @Parameter(name = "limit", description = "Maximum number of creators to return (default: 10, max: 100)")
   @GetMapping("/most-supported-creators")
   public List<CreatorStats> getMostSupportedCreators(
       @RequestParam(required = false, defaultValue = "10") Integer limit) {
@@ -54,7 +54,7 @@ public class StatsController {
   }
 
   @Operation(summary = "Get top projects ordered by number of rules")
-  @Parameter(name = "limit", description = "Maximum number of projects to return (default: 10)")
+  @Parameter(name = "limit", description = "Maximum number of projects to return (default: 10, max: 100)")
   @GetMapping("/top-projects")
   public List<ProjectStats> getTopProjects(
       @RequestParam(required = false, defaultValue = "10") Integer limit) {
@@ -62,7 +62,7 @@ public class StatsController {
   }
 
   @Operation(summary = "Get top projects ordered by total support count")
-  @Parameter(name = "limit", description = "Maximum number of projects to return (default: 10)")
+  @Parameter(name = "limit", description = "Maximum number of projects to return (default: 10, max: 100)")
   @GetMapping("/most-supported-projects")
   public List<ProjectStats> getMostSupportedProjects(
       @RequestParam(required = false, defaultValue = "10") Integer limit) {
@@ -70,10 +70,14 @@ public class StatsController {
   }
 
   /**
-   * Sanitize limit parameter to ensure it's positive.
+   * Sanitize limit parameter to ensure it's within valid range.
    * Returns 10 if limit is null, negative, or zero.
+   * Returns 100 if limit exceeds maximum.
    */
   private Integer sanitizeLimit(Integer limit) {
-    return (limit == null || limit < 1) ? 10 : limit;
+    if (limit == null || limit < 1) {
+      return 10;
+    }
+    return Math.min(limit, 100);
   }
 }
