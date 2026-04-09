@@ -42,7 +42,7 @@ public class StatsController {
   @GetMapping("/top-creators")
   public List<CreatorStats> getTopCreators(
       @RequestParam(required = false, defaultValue = "10") Integer limit) {
-    return statsMapper.getTopCreators(limit);
+    return statsMapper.getTopCreators(sanitizeLimit(limit));
   }
 
   @Operation(summary = "Get top rule creators ordered by total support count")
@@ -50,7 +50,7 @@ public class StatsController {
   @GetMapping("/most-supported-creators")
   public List<CreatorStats> getMostSupportedCreators(
       @RequestParam(required = false, defaultValue = "10") Integer limit) {
-    return statsMapper.getMostSupportedCreators(limit);
+    return statsMapper.getMostSupportedCreators(sanitizeLimit(limit));
   }
 
   @Operation(summary = "Get top projects ordered by number of rules")
@@ -58,7 +58,7 @@ public class StatsController {
   @GetMapping("/top-projects")
   public List<ProjectStats> getTopProjects(
       @RequestParam(required = false, defaultValue = "10") Integer limit) {
-    return statsMapper.getTopProjects(limit);
+    return statsMapper.getTopProjects(sanitizeLimit(limit));
   }
 
   @Operation(summary = "Get top projects ordered by total support count")
@@ -66,6 +66,14 @@ public class StatsController {
   @GetMapping("/most-supported-projects")
   public List<ProjectStats> getMostSupportedProjects(
       @RequestParam(required = false, defaultValue = "10") Integer limit) {
-    return statsMapper.getMostSupportedProjects(limit);
+    return statsMapper.getMostSupportedProjects(sanitizeLimit(limit));
+  }
+
+  /**
+   * Sanitize limit parameter to ensure it's positive.
+   * Returns 10 if limit is null, negative, or zero.
+   */
+  private Integer sanitizeLimit(Integer limit) {
+    return (limit == null || limit < 1) ? 10 : limit;
   }
 }
