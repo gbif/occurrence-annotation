@@ -16,7 +16,7 @@ package org.gbif.occurrence.annotation;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 public class EmbeddedPostgres implements BeforeAllCallback, AfterAllCallback {
   @SuppressWarnings("resource")
