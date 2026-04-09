@@ -16,12 +16,12 @@ package org.gbif.occurrence.annotation;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 public class EmbeddedPostgres implements BeforeAllCallback, AfterAllCallback {
   @SuppressWarnings("resource")
-  private static final PostgreSQLContainer<?> postgres =
-      new PostgreSQLContainer<>("postgres:17.2")
+  private static final PostgreSQLContainer postgres =
+      new PostgreSQLContainer("postgres:17.2")
           .withDatabaseName("annotations")
           .withInitScript("test-init.sql");
 
@@ -35,7 +35,6 @@ public class EmbeddedPostgres implements BeforeAllCallback, AfterAllCallback {
     postgres.stop();
   }
 
-  @SuppressWarnings("rawtypes")
   public static PostgreSQLContainer getPostgres() {
     return postgres;
   }

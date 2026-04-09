@@ -2,10 +2,13 @@ name: Test backend service
 
 on:
   push:
+    branches: [main, dev, 'feature/**']
+  pull_request:
+    branches: [main, dev]
   workflow_dispatch:
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
     services:
@@ -24,9 +27,8 @@ jobs:
           java-version: '17'
           cache: 'maven'
 
-        # tests use test containers which require docker
-      - name: Check if Docker is running
-        run: docker --version
-
-      - name: Build with Maven (with tests)
-        run: mvn -B package --file backend-service/pom.xml
+      - name: Run tests with Maven
+        run: mvn -B verify --file backend-service/pom.xml
+        
+      - name: Check code formatting
+        run: mvn -B spotless:check --file backend-service/pom.xml
