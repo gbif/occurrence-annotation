@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Upload, FileDown, Download, Loader2, AlertCircle, CheckCircle2, User, List, ChevronDown, Filter, X, Map as MapIcon, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -79,8 +79,13 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
   const [showFilters, setShowFilters] = useState(false);
   
   // Filter options
-  const [projects, setProjects] = useState<Array<{id: number, name: string}>>([]);
-  const [selectedProject, setSelectedProject] = useState<number | null>(null);
+  const [selectedProjects, setSelectedProjects] = useState<number[]>([]);
+  const [selectedProjectsDetails, setSelectedProjectsDetails] = useState<Array<{id: number, name: string}>>([]);
+  const [projectSearchTerm, setProjectSearchTerm] = useState('');
+  const [projectSearchResults, setProjectSearchResults] = useState<Array<{id: number, name: string}>>([]);
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const [searchingProjects, setSearchingProjects] = useState(false);
+  const projectSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [speciesFilter, setSpeciesFilter] = useState<SelectedSpecies | null>(null);
   const [myRulesOnly, setMyRulesOnly] = useState(false);
   const [includeHigherOrder, setIncludeHigherOrder] = useState(true); // Default true to include all taxonomic ranks
@@ -89,6 +94,97 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
   const [excludeAnnotations, setExcludeAnnotations] = useState<string[]>(['SUSPICIOUS']);
   const [conflictMode, setConflictMode] = useState<'exclude_any' | 'keep_conflicting' | 'exclude_all'>('exclude_any');
   const [showCleanOptions, setShowCleanOptions] = useState(false);
+  
+  // Vocabulary state
+  const [vocabulary, setVocabulary] = useState<Array<{term: string, color: string}>>([
+    { term: 'SUSPICIOUS', color: '#ef4444' },
+    { term: 'NATIVE', color: '#22c55e' },
+    { term: 'INTRODUCED', color: '#3b82f6' },
+    { term: 'MANAGED', color: '#a855f7' },
+    { term: 'FORMER', color: '#f97316' },
+    { term: 'VAGRANT', color: '#06b6d4' },
+    { term: 'OTHER', color: '#6b7280' },
+  ]);
+  const [loadingVocabulary, setLoadingVocabulary] = useState(false);
+
+  // Fetch vocabularies from all projects represented in fetched rules
+  useEffect(() => {
+    const fetchVocabulariesFromRules = async () => {
+      if (!fetchedRules || fetchedRules.length === 0) {
+        console.log('[DownloadAnnotator] No rules fetched, using default vocabulary');
+        return;
+      }
+
+      // Extract unique project IDs from rules
+      const projectIds = Array.from(new Set(
+        fetchedRules
+          .map(rule => rule.projectId)
+          .filter((id): id is number => id !== null && id !== undefined)
+      ));
+
+      console.log(`[DownloadAnnotator] Fetching vocabularies for ${projectIds.length} projects:`, projectIds);
+
+      if (projectIds.length === 0) {
+        console.log('[DownloadAnnotator] No project IDs in rules, using default vocabulary');
+        return;
+      }
+
+      setLoadingVocabulary(true);
+      try {
+        // Fetch vocabulary for each project
+        const vocabularyPromises = projectIds.map(async (projectId) => {
+          try {
+            const url = getAnnotationApiUrl(`/project/${projectId}/vocabulary`);
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+              console.warn(`[DownloadAnnotator] Failed to fetch vocabulary for project ${projectId}`);
+              return [];
+            }
+
+            const data = await response.json();
+            return data.map((v: any) => ({ term: v.term, color: v.color, projectId }));
+          } catch (error) {
+            console.error(`[DownloadAnnotator] Error fetching vocabulary for project ${projectId}:`, error);
+            return [];
+          }
+        });
+
+        const allVocabularies = await Promise.all(vocabularyPromises);
+        
+        // Merge vocabularies - later projects override earlier ones for same term
+        const mergedVocabMap = new Map<string, { term: string; color: string }>();
+        
+        // Start with defaults
+        [
+          { term: 'SUSPICIOUS', color: '#ef4444' },
+          { term: 'NATIVE', color: '#22c55e' },
+          { term: 'INTRODUCED', color: '#3b82f6' },
+          { term: 'MANAGED', color: '#a855f7' },
+          { term: 'FORMER', color: '#f97316' },
+          { term: 'VAGRANT', color: '#06b6d4' },
+          { term: 'OTHER', color: '#6b7280' },
+        ].forEach(v => mergedVocabMap.set(v.term, v));
+
+        // Override with project vocabularies
+        allVocabularies.flat().forEach(v => {
+          mergedVocabMap.set(v.term, { term: v.term, color: v.color });
+        });
+
+        const mergedVocabulary = Array.from(mergedVocabMap.values());
+        console.log(`[DownloadAnnotator] Merged vocabulary (${mergedVocabulary.length} terms):`, 
+          mergedVocabulary.map(v => `${v.term}:${v.color}`));
+        
+        setVocabulary(mergedVocabulary);
+      } catch (error) {
+        console.error('[DownloadAnnotator] Error fetching vocabularies:', error);
+      } finally {
+        setLoadingVocabulary(false);
+      }
+    };
+
+    fetchVocabulariesFromRules();
+  }, [fetchedRules]);
 
   // Map visualization state
   const [mapData, setMapData] = useState<FilteredMapData | null>(null);
@@ -137,29 +233,50 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
     }
   }, [report, onResultsChange]);
 
-  // Fetch projects for logged-in user
+  // Debounced project search
   useEffect(() => {
-    const fetchProjects = async () => {
-      if (!loggedInUser) {
-        setProjects([]);
-        return;
-      }
+    if (projectSearchRef.current) {
+      clearTimeout(projectSearchRef.current);
+    }
 
+    if (!projectSearchTerm.trim()) {
+      setProjectSearchResults([]);
+      setShowProjectDropdown(false);
+      return;
+    }
+
+    projectSearchRef.current = setTimeout(async () => {
+      setSearchingProjects(true);
       try {
-        const response = await fetch(getAnnotationApiUrl(`/project?member=${encodeURIComponent(loggedInUser.userName)}`));
+        // Search projects by name
+        const response = await fetch(
+          getAnnotationApiUrl(`/project?name=${encodeURIComponent(projectSearchTerm)}&limit=20`)
+        );
+        
         if (response.ok) {
           const data = await response.json();
-          if (Array.isArray(data)) {
-            setProjects(data.map((p: any) => ({ id: p.id, name: p.name })));
-          }
+          const results = Array.isArray(data) 
+            ? data.map((p: any) => ({ id: p.id, name: p.name }))
+            : [];
+          
+          // Filter out already selected projects
+          const filteredResults = results.filter(p => !selectedProjects.includes(p.id));
+          setProjectSearchResults(filteredResults);
+          setShowProjectDropdown(filteredResults.length > 0);
         }
       } catch (error) {
-        console.error('Error fetching projects:', error);
+        console.error('Error searching projects:', error);
+      } finally {
+        setSearchingProjects(false);
+      }
+    }, 300); // 300ms debounce
+
+    return () => {
+      if (projectSearchRef.current) {
+        clearTimeout(projectSearchRef.current);
       }
     };
-
-    fetchProjects();
-  }, [loggedInUser]);
+  }, [projectSearchTerm, selectedProjects]);
 
   // Fetch taxon names for all downloads
   useEffect(() => {
@@ -299,7 +416,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
     const filters: string[] = [];
 
     // Debug: log the predicate structure
-    console.log('Extracting filters from predicate:', JSON.stringify(predicate, null, 2));
+    // console.log('Extracting filters from predicate:', JSON.stringify(predicate, null, 2));
 
     const traverse = (pred: any) => {
       if (!pred || typeof pred !== 'object') return;
@@ -367,8 +484,8 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
 
     traverse(predicate);
     
-    console.log('Extracted taxon keys:', Array.from(taxonKeys));
-    console.log('Extracted filters:', filters);
+    // console.log('Extracted taxon keys:', Array.from(taxonKeys));
+    // console.log('Extracted filters:', filters);
     
     return {
       taxonKeys: Array.from(taxonKeys),
@@ -474,7 +591,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
         }
       });
       
-      console.log(`DEBUG: Fetched hierarchy for ${taxonKey}:`, parentKeys);
+      // console.log(`DEBUG: Fetched hierarchy for ${taxonKey}:`, parentKeys);
       return parentKeys;
     } catch (error) {
       console.error(`Error fetching taxonomy for ${taxonKey}:`, error);
@@ -553,6 +670,19 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
   };
 
 
+  const handleAddProject = (project: {id: number, name: string}) => {
+    setSelectedProjects([...selectedProjects, project.id]);
+    setSelectedProjectsDetails([...selectedProjectsDetails, project]);
+    setProjectSearchTerm('');
+    setProjectSearchResults([]);
+    setShowProjectDropdown(false);
+  };
+
+  const handleRemoveProject = (projectId: number) => {
+    setSelectedProjects(selectedProjects.filter(id => id !== projectId));
+    setSelectedProjectsDetails(selectedProjectsDetails.filter(p => p.id !== projectId));
+  };
+
   const fetchRulesForTaxonKeys = async (taxonKeys: number[]): Promise<AnnotationRule[]> => {
     const allRules: AnnotationRule[] = [];
     
@@ -577,8 +707,8 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
           let url = getAnnotationApiUrl(`/rule?taxonKey=${taxonKey}`);
           
           // Add project filter if selected
-          if (selectedProject !== null) {
-            url += `&projectId=${selectedProject}`;
+          if (selectedProjects.length > 0) {
+            url += `&projectId=${selectedProjects.join(',')}`;
           }
           
           // Add createdBy filter if myRulesOnly is checked
@@ -761,7 +891,8 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
     setMapData(null);
     setCurrentSpeciesIndex(0);
     // Reset filter options
-    setSelectedProject(null);
+    setSelectedProjects([]);
+    setSelectedProjectsDetails([]);
     setSpeciesFilter(null);
     setMyRulesOnly(false);
     setExcludeAnnotations(['SUSPICIOUS']);
@@ -933,10 +1064,10 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
               <h4 className="font-medium flex items-center gap-2">
                 <Filter className="h-5 w-5 text-gray-600" />
                 Options
-                {(selectedProject !== null || speciesFilter !== null || myRulesOnly || excludeAnnotations.length > 0) && (
+                {(selectedProjects.length > 0 || speciesFilter !== null || myRulesOnly || excludeAnnotations.length > 0) && (
                   <span className="ml-2 px-2 py-0.5 bg-blue-600 text-white text-xs rounded">
                     {[
-                      selectedProject !== null, 
+                      selectedProjects.length > 0, 
                       speciesFilter !== null, 
                       myRulesOnly,
                       excludeAnnotations.length > 0
@@ -958,41 +1089,81 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
                   <h5 className="text-sm font-semibold text-gray-900 mb-3">Rule Filtering</h5>
                   <p className="text-sm text-gray-600 mb-4">
                     Control which annotation rules to apply to the download.
-                    {!loggedInUser && <span className="font-medium"> Log in to access project and creator filters.</span>}
                   </p>
                   
                   <div className="grid gap-4">
                     {/* Project Filter */}
-                    {loggedInUser && projects.length > 0 && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Project
-                        </label>
-                        <div className="flex gap-2">
-                          <select
-                            value={selectedProject ?? ''}
-                            onChange={(e) => setSelectedProject(e.target.value ? parseInt(e.target.value) : null)}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            <option value="">All projects</option>
-                            {projects.map(project => (
-                              <option key={project.id} value={project.id}>
-                                {project.name}
-                              </option>
-                            ))}
-                          </select>
-                          {selectedProject !== null && (
-                            <button
-                              onClick={() => setSelectedProject(null)}
-                              className="px-3 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-                              title="Clear project filter"
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Projects (search to add)
+                      </label>
+                      
+                      {/* Selected projects chips */}
+                      {selectedProjectsDetails.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {selectedProjectsDetails.map(project => (
+                            <div
+                              key={project.id}
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
                             >
-                              <X className="h-5 w-5" />
-                            </button>
+                              <span>{project.name}</span>
+                              <button
+                                onClick={() => handleRemoveProject(project.id)}
+                                className="hover:bg-blue-200 rounded-full p-0.5 transition-colors"
+                                title={`Remove ${project.name}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Search input with dropdown */}
+                      <div className="relative">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={projectSearchTerm}
+                            onChange={(e) => setProjectSearchTerm(e.target.value)}
+                            onFocus={() => projectSearchTerm && setShowProjectDropdown(true)}
+                            placeholder="Type to search projects..."
+                            className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          {searchingProjects && (
+                            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 animate-spin" />
                           )}
                         </div>
+                        
+                        {/* Search results dropdown */}
+                        {showProjectDropdown && projectSearchResults.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                            {projectSearchResults.map(project => (
+                              <button
+                                key={project.id}
+                                onClick={() => handleAddProject(project)}
+                                className="w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors text-sm first:rounded-t-lg last:rounded-b-lg"
+                              >
+                                {project.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {/* No results message */}
+                        {showProjectDropdown && projectSearchTerm && !searchingProjects && projectSearchResults.length === 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg p-3 text-sm text-gray-500 text-center">
+                            No projects found
+                          </div>
+                        )}
                       </div>
-                    )}
+                      
+                      {selectedProjects.length === 0 && (
+                        <p className="mt-2 text-xs text-gray-500">
+                          Leave empty to search rules from all projects
+                        </p>
+                      )}
+                    </div>
 
                     {/* Species Filter */}
                     <div>
@@ -1038,13 +1209,13 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
                     </div>
 
                     {/* Active Rule Filters Summary */}
-                    {(selectedProject !== null || speciesFilter !== null || myRulesOnly || !includeHigherOrder) && (
+                    {(selectedProjects.length > 0 || speciesFilter !== null || myRulesOnly || !includeHigherOrder) && (
                       <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                         <p className="text-xs font-medium text-blue-900 mb-1.5">Active rule filters:</p>
                         <div className="flex flex-wrap gap-1.5">
-                          {selectedProject !== null && (
+                          {selectedProjects.length > 0 && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-600 text-white text-xs rounded">
-                              Project: {projects.find(p => p.id === selectedProject)?.name}
+                              {selectedProjects.length} {selectedProjects.length === 1 ? 'project' : 'projects'}: {selectedProjectsDetails.map(p => p.name).join(', ')}
                             </span>
                           )}
                           {speciesFilter && (
@@ -1162,22 +1333,22 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
                             Exclude annotation types:
                           </div>
                           <div className="space-y-1">
-                            {['SUSPICIOUS', 'NATIVE', 'INTRODUCED', 'MANAGED', 'FORMER', 'VAGRANT', 'OTHER'].map(annotationType => (
-                              <label key={annotationType} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer text-sm">
+                            {vocabulary.map(({ term }) => (
+                              <label key={term} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer text-sm">
                                 <input
                                   type="checkbox"
-                                  checked={excludeAnnotations.includes(annotationType)}
+                                  checked={excludeAnnotations.includes(term)}
                                   onChange={(e) => {
                                     if (e.target.checked) {
-                                      setExcludeAnnotations([...excludeAnnotations, annotationType]);
+                                      setExcludeAnnotations([...excludeAnnotations, term]);
                                     } else {
-                                      setExcludeAnnotations(excludeAnnotations.filter(a => a !== annotationType));
+                                      setExcludeAnnotations(excludeAnnotations.filter(a => a !== term));
                                     }
                                   }}
                                   className="h-3.5 w-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                                 />
                                 <span className="text-gray-700">
-                                  {annotationType.charAt(0) + annotationType.slice(1).toLowerCase()}
+                                  {term.charAt(0) + term.slice(1).toLowerCase()}
                                 </span>
                               </label>
                             ))}
@@ -1322,37 +1493,22 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
                   .map(([category, count]) => {
                     const percent = (count / report.totalRecords) * 100;
                     
-                    const colors: Record<string, string> = {
-                      'CLEAN': 'bg-gray-400',
-                      'SUSPICIOUS': 'bg-red-500',
-                      'INTRODUCED': 'bg-amber-600',
-                      'NATIVE': 'bg-emerald-500',
-                      'MANAGED': 'bg-blue-500',
-                      'FORMER': 'bg-purple-500',
-                      'VAGRANT': 'bg-orange-500',
-                      'MIXED': 'bg-yellow-500',
-                      'OTHER': 'bg-slate-500'
+                    // Get color from vocabulary, fallback to gray
+                    const getColorForCategory = (cat: string) => {
+                      if (cat === 'CLEAN') return '#9ca3af'; // gray-400
+                      const vocabTerm = vocabulary.find(v => v.term === cat);
+                      return vocabTerm?.color || '#6b7280'; // default gray
                     };
-                    const colorClass = colors[category] || colors.OTHER;
+                    const bgColor = getColorForCategory(category);
                     
-                    const labels: Record<string, string> = {
-                      'CLEAN': 'No annotations',
-                      'SUSPICIOUS': 'Suspicious',
-                      'INTRODUCED': 'Introduced',
-                      'NATIVE': 'Native',
-                      'MANAGED': 'Managed',
-                      'FORMER': 'Former',
-                      'VAGRANT': 'Vagrant',
-                      'MIXED': 'Mixed',
-                      'OTHER': 'Other'
-                    };
-                    const label = labels[category] || category;
+                    // Use actual term name, or 'No annotations' for CLEAN
+                    const label = category === 'CLEAN' ? 'No annotations' : category;
                     
                     return (
                       <div 
                         key={category}
-                        className={`${colorClass} h-full flex items-center justify-center`}
-                        style={{ width: `${percent}%` }}
+                        className="h-full flex items-center justify-center"
+                        style={{ width: `${percent}%`, backgroundColor: bgColor }}
                         title={`${label}: ${count.toLocaleString()} (${percent.toFixed(1)}%)`}
                       >
                         {percent > 8 && (
@@ -1377,35 +1533,20 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
                   .map(([category, count]) => {
                     const percent = (count / report.totalRecords) * 100;
                     
-                    const colors: Record<string, string> = {
-                      'CLEAN': 'bg-gray-400',
-                      'SUSPICIOUS': 'bg-red-500',
-                      'INTRODUCED': 'bg-amber-600',
-                      'NATIVE': 'bg-emerald-500',
-                      'MANAGED': 'bg-blue-500',
-                      'FORMER': 'bg-purple-500',
-                      'VAGRANT': 'bg-orange-500',
-                      'MIXED': 'bg-yellow-500',
-                      'OTHER': 'bg-slate-500'
+                    // Get color from vocabulary, fallback to gray
+                    const getColorForCategory = (cat: string) => {
+                      if (cat === 'CLEAN') return '#9ca3af'; // gray-400
+                      const vocabTerm = vocabulary.find(v => v.term === cat);
+                      return vocabTerm?.color || '#6b7280'; // default gray
                     };
-                    const colorClass = colors[category] || colors.OTHER;
+                    const bgColor = getColorForCategory(category);
                     
-                    const labels: Record<string, string> = {
-                      'CLEAN': 'No annotations',
-                      'SUSPICIOUS': 'Suspicious',
-                      'INTRODUCED': 'Introduced',
-                      'NATIVE': 'Native',
-                      'MANAGED': 'Managed',
-                      'FORMER': 'Former',
-                      'VAGRANT': 'Vagrant',
-                      'MIXED': 'Mixed',
-                      'OTHER': 'Other'
-                    };
-                    const label = labels[category] || category;
+                    // Use actual term name, or 'No annotations' for CLEAN
+                    const label = category === 'CLEAN' ? 'No annotations' : category;
                     
                     return (
                       <div key={category} className="flex items-center gap-2">
-                        <div className={`w-4 h-4 ${colorClass} rounded flex-shrink-0`}></div>
+                        <div className="w-4 h-4 rounded flex-shrink-0" style={{ backgroundColor: bgColor }}></div>
                         <div className="text-xs min-w-0">
                           <div className="font-medium truncate">{label}</div>
                           <div className="text-gray-500">
@@ -1451,6 +1592,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
                       passingPoints={mapData.passingPoints}
                       speciesInfo={mapData.speciesInfo}
                       selectedSpecies={currentSpeciesKey}
+                      vocabulary={vocabulary}
                     />
                     
                     {/* Species navigation overlay */}

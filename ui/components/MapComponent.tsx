@@ -12,6 +12,13 @@ import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loa
 import { AnnotationRule } from './AnnotationRules';
 import { toast } from 'sonner';
 
+interface VocabularyTerm {
+  term: string;
+  description: string;
+  color: string;
+  locked: boolean;
+}
+
 interface MapComponentProps {
   selectedSpecies: {
     name: string;
@@ -39,6 +46,7 @@ interface MapComponentProps {
   occurrenceFilters?: OccurrenceFilterOptions;
   onFiltersChange?: (filters: OccurrenceFilterOptions) => void;
   onCreateRuleFromSearch?: (coords: [number, number][], metadata?: { basisOfRecord?: string[]; datasetKey?: string }) => void;
+  vocabulary?: VocabularyTerm[];
 }
 
 // Tile conversion helpers for Web Mercator (EPSG:3857)
@@ -71,6 +79,7 @@ export function MapComponent({
   showContestedRules = false,
   editingPolygonId = null,
   onUpdatePolygon,
+  onStopEditing,
   onSaveAndEdit,
   onAutoSave,
   onNavigateToLocation,
@@ -80,7 +89,26 @@ export function MapComponent({
   occurrenceFilters = {},
   onFiltersChange,
   onCreateRuleFromSearch,
+  vocabulary = [
+    { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
+    { term: 'NATIVE', description: 'Native species', color: '#10b981', locked: false },
+    { term: 'MANAGED', description: 'Managed population', color: '#3b82f6', locked: false },
+    { term: 'FORMER', description: 'Former population', color: '#a855f7', locked: false },
+    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
+    { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
+  ],
 }: MapComponentProps) {
+  // Helper function to get colors from vocabulary
+  const getColorFromVocabulary = (annotation: string): { fill: string; stroke: string } => {
+    const term = vocabulary.find(v => v.term.toUpperCase() === annotation.toUpperCase());
+    if (term) {
+      return { fill: term.color, stroke: term.color };
+    }
+    // Fallback to SUSPICIOUS if term not found
+    const suspicious = vocabulary.find(v => v.term.toUpperCase() === 'SUSPICIOUS');
+    return { fill: suspicious?.color || '#ef4444', stroke: suspicious?.color || '#dc2626' };
+  };
+  
   const [center, setCenter] = useState<[number, number]>([20, 0]);
   const [zoom, setZoom] = useState(2);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -240,15 +268,7 @@ export function MapComponent({
   // Debug logging for current annotation
   useEffect(() => {
     if (currentPolygon && currentPolygon.length > 0) {
-      const annotationColors: { [key: string]: { fill: string; stroke: string } } = {
-        SUSPICIOUS: { fill: '#ef4444', stroke: '#dc2626' },
-        NATIVE: { fill: '#10b981', stroke: '#059669' },
-        MANAGED: { fill: '#3b82f6', stroke: '#2563eb' },
-        FORMER: { fill: '#a855f7', stroke: '#9333ea' },
-        VAGRANT: { fill: '#f97316', stroke: '#ea580c' },
-        INTRODUCED: { fill: '#d97706', stroke: '#b45309' },
-      };
-      const color = annotationColors[currentAnnotation.toUpperCase()] || annotationColors.SUSPICIOUS;
+      const color = getColorFromVocabulary(currentAnnotation);
       console.log('🎨 ACTIVE POLYGON DEBUG:', {
         annotationType: currentAnnotation,
         fillColor: color.fill,
@@ -1738,15 +1758,7 @@ export function MapComponent({
           }
           
           // Color based on annotation type
-          const colors = {
-            SUSPICIOUS: { fill: '#ef4444', stroke: '#dc2626' }, // red
-            NATIVE: { fill: '#10b981', stroke: '#059669' }, // green
-            MANAGED: { fill: '#3b82f6', stroke: '#2563eb' }, // blue
-            FORMER: { fill: '#a855f7', stroke: '#9333ea' }, // purple
-            VAGRANT: { fill: '#f97316', stroke: '#ea580c' }, // orange
-            INTRODUCED: { fill: '#d97706', stroke: '#b45309' }, // amber
-          };
-          const colorSet = colors[rule.annotation.toUpperCase() as keyof typeof colors] || { fill: '#6b7280', stroke: '#4b5563' };
+          const colorSet = getColorFromVocabulary(rule.annotation);
           
           // Find the first coordinate to use as anchor point
           const firstPolygon = rule.multiPolygon.polygons[0];
@@ -1810,15 +1822,7 @@ export function MapComponent({
         {!isZooming && savedPolygons.map((polygonData) => {
           // Get color based on annotation type
           const annotation = polygonData.annotation || 'SUSPICIOUS';
-          const annotationColors: { [key: string]: { fill: string; stroke: string } } = {
-            SUSPICIOUS: { fill: '#ef4444', stroke: '#dc2626' }, // red
-            NATIVE: { fill: '#10b981', stroke: '#059669' }, // green
-            MANAGED: { fill: '#3b82f6', stroke: '#2563eb' }, // blue
-            FORMER: { fill: '#a855f7', stroke: '#9333ea' }, // purple
-            VAGRANT: { fill: '#f97316', stroke: '#ea580c' }, // orange
-            INTRODUCED: { fill: '#d97706', stroke: '#b45309' }, // amber
-          };
-          const color = annotationColors[annotation.toUpperCase()] || annotationColors.SUSPICIOUS;
+          const color = getColorFromVocabulary(annotation);
           
           // Normalize coordinates to array of polygons
           const polygonParts: [number, number][][] = polygonData.isMultiPolygon 
@@ -2091,15 +2095,7 @@ export function MapComponent({
                       return `${offsetX},${offsetY}`;
                     }).join(' ');
                     
-                    const annotationColors: { [key: string]: { fill: string; stroke: string } } = {
-                      SUSPICIOUS: { fill: '#ef4444', stroke: '#dc2626' },
-                      NATIVE: { fill: '#10b981', stroke: '#059669' },
-                      MANAGED: { fill: '#3b82f6', stroke: '#2563eb' },
-                      FORMER: { fill: '#a855f7', stroke: '#9333ea' },
-                      VAGRANT: { fill: '#f97316', stroke: '#ea580c' },
-                      INTRODUCED: { fill: '#d97706', stroke: '#b45309' },
-                    };
-                    const color = annotationColors[currentAnnotation.toUpperCase()] || annotationColors.SUSPICIOUS;
+                    const color = getColorFromVocabulary(currentAnnotation);
                     
                     return (
                       <>

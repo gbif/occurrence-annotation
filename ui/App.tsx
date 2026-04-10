@@ -17,6 +17,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import gbifLogo from './gbif-mark-green-logo.svg';
 import { getSelectedProjectId, getSelectedProjectName } from './utils/projectSelection';
 
+interface VocabularyTerm {
+  term: string;
+  description: string;
+  color: string;
+  locked: boolean;
+}
+
 export interface PolygonData {
   id: string;
   coordinates: [number, number][] | [number, number][][]; // Single polygon or multipolygon
@@ -75,6 +82,16 @@ export default function App() {
     ], // All except FOSSIL_SPECIMEN
     showOnlyPresent: true // Default to showing only PRESENT occurrences (recommended)
   });
+  
+  // Vocabulary for dynamic annotation colors
+  const [vocabulary, setVocabulary] = useState<VocabularyTerm[]>([
+    { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
+    { term: 'NATIVE', description: 'Native species', color: '#10b981', locked: false },
+    { term: 'MANAGED', description: 'Managed population', color: '#3b82f6', locked: false },
+    { term: 'FORMER', description: 'Former population', color: '#a855f7', locked: false },
+    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
+    { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
+  ]);
 
   // URL state management functions - uses react-router's searchParams for HashRouter compatibility
   const updateURLWithSpecies = (species: SelectedSpecies | null) => {
@@ -85,6 +102,35 @@ export default function App() {
     }
   };
 
+  // Fetch vocabulary based on selected project
+  useEffect(() => {
+    const fetchVocabulary = async () => {
+      const projectId = getSelectedProjectId();
+      
+      if (!projectId) {
+        // No project selected, use default vocabulary
+        return;
+      }
+
+      try {
+        const response = await fetch(getAnnotationApiUrl(`/project/${projectId}/vocabulary`));
+        
+        if (!response.ok) {
+          console.error('Failed to fetch vocabulary, using defaults');
+          return;
+        }
+
+        const data = await response.json();
+        setVocabulary(data);
+      } catch (error) {
+        console.error('Error fetching vocabulary:', error);
+        // Keep default vocabulary on error
+      }
+    };
+
+    fetchVocabulary();
+  }, [selectedProjectId]); // Re-fetch when project changes
+  
   // Generate shareable URL for current state
   const getShareableURL = () => {
     const base = window.location.origin + window.location.pathname;
@@ -868,6 +914,7 @@ export default function App() {
             onRulesLoad={handleAnnotationRulesLoad}
             refreshTrigger={annotationRulesRefreshTrigger}
             filterProjectId={filterByActiveProject ? selectedProjectId : undefined}
+            vocabulary={vocabulary}
           />
         </div>
       </div>
@@ -925,6 +972,7 @@ export default function App() {
         occurrenceFilters={occurrenceFilters}
         onFiltersChange={setOccurrenceFilters}
         onCreateRuleFromSearch={handleCreateRuleFromSearch}
+        vocabulary={vocabulary}
       />
     </main>
       </div>

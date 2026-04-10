@@ -13,29 +13,38 @@
  */
 package org.gbif.occurrence.annotation.model;
 
-import java.util.Date;
-
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * Represents a single term in a project's annotation vocabulary.
+ * Each term has a unique name, optional description, display color, and locked status.
+ */
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class Project {
-  private Integer id;
-  @NotNull @NotBlank private String name;
-  @NotNull private String description;
-  private String[] members;
-  private VocabularyTerm[] customVocabulary;
-  private Date created;
-  private String createdBy;
-  private Date modified;
-  private String modifiedBy;
-  private Date deleted;
-  private String deletedBy;
+public class VocabularyTerm {
+  
+  /** The term identifier (e.g., "NATIVE", "INTRODUCED", "SUSPICIOUS") */
+  @NotNull @NotBlank private String term;
+  
+  /** Optional human-readable description of the term */
+  private String description;
+  
+  /** Display color as hex code (e.g., "#10b981" for green) */
+  @NotNull
+  @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "Color must be a valid hex code")
+  private String color;
+  
+  /**
+   * Whether this term is locked and cannot be edited or removed.
+   * SUSPICIOUS is always locked to ensure data quality requirements.
+   */
+  @Builder.Default private boolean locked = false;
 }

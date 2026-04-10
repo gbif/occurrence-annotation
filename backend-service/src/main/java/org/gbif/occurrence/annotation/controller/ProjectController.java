@@ -17,6 +17,8 @@ import org.gbif.occurrence.annotation.mapper.ProjectMapper;
 import org.gbif.occurrence.annotation.mapper.RuleMapper;
 import org.gbif.occurrence.annotation.mapper.RulesetMapper;
 import org.gbif.occurrence.annotation.model.Project;
+import org.gbif.occurrence.annotation.model.VocabularyTerm;
+import org.gbif.occurrence.annotation.service.VocabularyService;
 
 import java.util.Arrays;
 import java.util.List;
@@ -40,6 +42,7 @@ public class ProjectController implements Controller<Project> {
   @Autowired private ProjectMapper projectMapper;
   @Autowired private RulesetMapper rulesetMapper;
   @Autowired private RuleMapper ruleMapper;
+  @Autowired private VocabularyService vocabularyService;
 
   @Operation(summary = "List all projects that are not deleted")
   @Parameter(name = "limit", description = "The limit for paging", example = "100")
@@ -70,7 +73,7 @@ public class ProjectController implements Controller<Project> {
   @PostMapping
   @Secured("USER")
   @Override
-  public Project create(@Valid @RequestBody Project project) {
+  public Project create(@RequestBody Project project) {
     // Validate name is not empty or blank
     if (project.getName() == null || project.getName().trim().isEmpty()) {
       throw new IllegalArgumentException("Project name cannot be empty");
@@ -122,4 +125,71 @@ public class ProjectController implements Controller<Project> {
     // comments are not findable, so aren't deleted
     return projectMapper.get(id);
   }
+
+  @Operation(
+      summary = "Get vocabulary for a project",
+      description =
+          "Returns the custom vocabulary if defined, otherwise returns the default system vocabulary")
+  @GetMapping("/{id}/vocabulary")
+  public VocabularyTerm[] getVocabulary(@PathVariable(value = "id") int id) {
+    // Verify project exists
+    Project project = projectMapper.get(id);
+    if (project == null) {
+      throw new IllegalArgumentException("Project not found: " + id);
+    }
+    return vocabularyService.getVocabulary(id);
+  }
+
+  @Operation(
+      summary = "Update custom vocabulary for a project",
+      description =
+          "Set custom annotation vocabulary for a project. Only project members can update. "
+              + "Vocabulary must include SUSPICIOUS term (locked). Maximum 50 terms. "
+              + "Pass null or empty array to reset to default vocabulary.")
+  @PutMapping("/{id}/vocabulary")
+  @Secured("USER")
+  public VocabularyTerm[] updateVocabulary(
+      @PathVariable(value = "id") int id, @Valid @RequestBody VocabularyTerm[] vocabulary) {
+    Project existing = projectMapper.get(id);
+
+    // Only members can update vocabulary
+    if (existing == null || !Arrays.asList(existing.getMembers()).contains(getLoggedInUser())) {
+      throw new IllegalArgumentException(
+          "User must be a member of the project to update vocabulary");
+    }
+
+    // Validate the vocabulary
+    vocabularyService.validateVocabulary(vocabulary);
+
+    // Update the project with new vocabulary
+    existing.setCustomVocabulary(vocabulary);
+    existing.setModifiedBy(getLoggedInUser());
+    projectMapper.update(existing);
+
+    return vocabularyService.getVocabulary(id);
+  }
+
+  @Operation(
+      summary = "Reset project vocabulary to default",
+      description =
+          "Remove custom vocabulary and revert to default system vocabulary. Only project members can perform this action.")
+  @DeleteMapping("/{id}/vocabulary")
+  @Secured("USER")
+  public VocabularyTerm[] deleteVocabulary(@PathVariable(value = "id") int id) {
+    Project existing = projectMapper.get(id);
+
+    // Only members can delete vocabulary
+    if (existing == null || !Arrays.asList(existing.getMembers()).contains(getLoggedInUser())) {
+      throw new IllegalArgumentException(
+          "User must be a member of the project to reset vocabulary");
+    }
+
+    // Set vocabulary to null (means use default)
+    existing.setCustomVocabulary(null);
+    existing.setModifiedBy(getLoggedInUser());
+    projectMapper.update(existing);
+
+    return vocabularyService.getDefaultVocabulary();
+  }
 }
+

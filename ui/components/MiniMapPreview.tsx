@@ -8,6 +8,13 @@ import { geoMercator } from 'd3-geo';
 // Use a reliable CDN URL for world map data
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
+interface VocabularyTerm {
+  term: string;
+  description?: string;
+  color: string;
+  locked?: boolean;
+}
+
 interface MiniMapPreviewProps {
   coordinates: [number, number][] | [number, number][][];
   isMultiPolygon?: boolean;
@@ -16,6 +23,7 @@ interface MiniMapPreviewProps {
   width?: number;
   height?: number;
   className?: string;
+  vocabulary?: VocabularyTerm[];
 }
 
 export function MiniMapPreview({
@@ -26,16 +34,35 @@ export function MiniMapPreview({
   width = 200,
   height = 120,
   className = "",
+  vocabulary,
 }: MiniMapPreviewProps) {
-  // Get color based on annotation type
-  const annotationColors: { [key: string]: { fill: string; fillRgba: string; stroke: string; strokeRgba: string } } = {
-    SUSPICIOUS: { fill: '#ef4444', fillRgba: 'rgba(239, 68, 68, 0.4)', stroke: '#dc2626', strokeRgba: 'rgba(220, 38, 38, 0.6)' },
-    NATIVE: { fill: '#10b981', fillRgba: 'rgba(16, 185, 129, 0.4)', stroke: '#059669', strokeRgba: 'rgba(5, 150, 105, 0.6)' },
-    MANAGED: { fill: '#3b82f6', fillRgba: 'rgba(59, 130, 246, 0.4)', stroke: '#2563eb', strokeRgba: 'rgba(37, 99, 235, 0.6)' },
-    FORMER: { fill: '#a855f7', fillRgba: 'rgba(168, 85, 247, 0.4)', stroke: '#9333ea', strokeRgba: 'rgba(147, 51, 234, 0.6)' },
-    VAGRANT: { fill: '#f97316', fillRgba: 'rgba(249, 115, 22, 0.4)', stroke: '#ea580c', strokeRgba: 'rgba(234, 88, 12, 0.6)' },
-    INTRODUCED: { fill: '#d97706', fillRgba: 'rgba(217, 119, 6, 0.4)', stroke: '#b45309', strokeRgba: 'rgba(180, 83, 9, 0.6)' },
+  // Helper function to convert hex color to RGBA
+  const hexToRgba = (hex: string, alpha: number): string => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
+
+  // Build color map from vocabulary if provided, otherwise use defaults
+  const annotationColors: { [key: string]: { fill: string; fillRgba: string; stroke: string; strokeRgba: string } } = vocabulary && vocabulary.length > 0
+    ? vocabulary.reduce((acc, term) => {
+        acc[term.term.toUpperCase()] = {
+          fill: term.color,
+          fillRgba: hexToRgba(term.color, 0.4),
+          stroke: term.color,
+          strokeRgba: hexToRgba(term.color, 0.6),
+        };
+        return acc;
+      }, {} as { [key: string]: { fill: string; fillRgba: string; stroke: string; strokeRgba: string } })
+    : {
+        SUSPICIOUS: { fill: '#ef4444', fillRgba: 'rgba(239, 68, 68, 0.4)', stroke: '#dc2626', strokeRgba: 'rgba(220, 38, 38, 0.6)' },
+        NATIVE: { fill: '#10b981', fillRgba: 'rgba(16, 185, 129, 0.4)', stroke: '#059669', strokeRgba: 'rgba(5, 150, 105, 0.6)' },
+        MANAGED: { fill: '#3b82f6', fillRgba: 'rgba(59, 130, 246, 0.4)', stroke: '#2563eb', strokeRgba: 'rgba(37, 99, 235, 0.6)' },
+        FORMER: { fill: '#a855f7', fillRgba: 'rgba(168, 85, 247, 0.4)', stroke: '#9333ea', strokeRgba: 'rgba(147, 51, 234, 0.6)' },
+        VAGRANT: { fill: '#f97316', fillRgba: 'rgba(249, 115, 22, 0.4)', stroke: '#ea580c', strokeRgba: 'rgba(234, 88, 12, 0.6)' },
+        INTRODUCED: { fill: '#d97706', fillRgba: 'rgba(217, 119, 6, 0.4)', stroke: '#b45309', strokeRgba: 'rgba(180, 83, 9, 0.6)' },
+      };
   
   const color = annotationColors[annotation.toUpperCase()] || annotationColors.SUSPICIOUS;
   

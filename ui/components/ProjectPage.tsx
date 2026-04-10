@@ -41,6 +41,7 @@ import { toast } from 'sonner';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
 import { getSpeciesInfo } from '../utils/speciesCache';
 import { SpeciesSelector, SelectedSpecies } from './SpeciesSelector';
+import { VocabularyManager } from './VocabularyManager';
 
 interface Project {
   id: number;
@@ -734,6 +735,12 @@ export function ProjectPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Project Vocabulary Section */}
+          <VocabularyManager 
+            projectId={parseInt(projectId as string)} 
+            isUserMember={isCurrentUserMember()}
+          />
 
           {/* Project Rules Table */}
           <Card>

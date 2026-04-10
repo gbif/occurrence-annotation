@@ -64,7 +64,7 @@ public class RulesetController implements Controller<Ruleset> {
   @PostMapping
   @Secured("USER")
   @Override
-  public Ruleset create(@Valid @RequestBody Ruleset ruleset) {
+  public Ruleset create(@RequestBody Ruleset ruleset) {
     String username = getLoggedInUser();
     ruleset.setCreatedBy(username);
     ruleset.setMembers(new String[] {username}); // creator is always a member

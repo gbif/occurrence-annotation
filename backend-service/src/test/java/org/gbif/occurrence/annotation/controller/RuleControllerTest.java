@@ -96,7 +96,7 @@ public class RuleControllerTest {
             .taxonKey(12345)
             .datasetKey("test-dataset-key")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .annotation("NATIVE")
             .basisOfRecord(new String[] {"PRESERVED_SPECIMEN", "HUMAN_OBSERVATION"})
             .yearRange("2000,2023")
             .rulesetId(1)
@@ -126,7 +126,7 @@ public class RuleControllerTest {
             .taxonKey(67890)
             .datasetKey("test-dataset-key-2")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation(Rule.ANNOTATION_TYPE.INTRODUCED)
+            .annotation("INTRODUCED")
             .basisOfRecord(new String[] {"MACHINE_OBSERVATION"})
             .yearRange("2010,2023")
             .rulesetId(1)
@@ -155,7 +155,7 @@ public class RuleControllerTest {
             .taxonKey(11111)
             .datasetKey("test-dataset-key-3")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation(Rule.ANNOTATION_TYPE.SUSPICIOUS)
+            .annotation("SUSPICIOUS")
             .basisOfRecord(null)
             .yearRange("1990,2023")
             .rulesetId(1)
@@ -183,7 +183,7 @@ public class RuleControllerTest {
             .taxonKey(22222)
             .datasetKey("test-dataset-key-4")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation(Rule.ANNOTATION_TYPE.VAGRANT)
+            .annotation("VAGRANT")
             .basisOfRecord(new String[] {})
             .yearRange("2005,2023")
             .rulesetId(1)
@@ -212,7 +212,7 @@ public class RuleControllerTest {
             .taxonKey(33333)
             .datasetKey("test-dataset-key-5")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation(Rule.ANNOTATION_TYPE.FORMER)
+            .annotation("FORMER")
             .basisOfRecord(
                 new String[] {"PRESERVED_SPECIMEN", "FOSSIL_SPECIMEN", "LIVING_SPECIMEN"})
             .yearRange("1800,2000")
@@ -281,7 +281,7 @@ public class RuleControllerTest {
             .taxonKey(44444)
             .datasetKey("test-dataset-key-negated")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation(Rule.ANNOTATION_TYPE.SUSPICIOUS)
+            .annotation("SUSPICIOUS")
             .basisOfRecord(new String[] {"FOSSIL_SPECIMEN", "PRESERVED_SPECIMEN"})
             .basisOfRecordNegated(true)
             .yearRange("2000,2023")
@@ -320,7 +320,7 @@ public class RuleControllerTest {
     Rule rule = new Rule();
     rule.setTaxonKey(99999);
     rule.setGeometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))");
-    rule.setAnnotation(Rule.ANNOTATION_TYPE.SUSPICIOUS);
+    rule.setAnnotation("SUSPICIOUS");
     rule.setBasisOfRecord(new String[] {"HUMAN_OBSERVATION"});
     // Don't set basisOfRecordNegated - should default to false
     rule.setRulesetId(1);
@@ -344,7 +344,7 @@ public class RuleControllerTest {
     Rule rule = new Rule();
     rule.setTaxonKey(88888);
     rule.setGeometry("POLYGON((10 10, 10 11, 11 11, 11 10, 10 10))");
-    rule.setAnnotation(Rule.ANNOTATION_TYPE.SUSPICIOUS);
+    rule.setAnnotation("SUSPICIOUS");
     rule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN", "PRESERVED_SPECIMEN"});
     rule.setBasisOfRecordNegated(true);
     rule.setRulesetId(1);
@@ -371,7 +371,7 @@ public class RuleControllerTest {
     Rule negatedRule = new Rule();
     negatedRule.setTaxonKey(77777);
     negatedRule.setGeometry("POLYGON((20 20, 20 21, 21 21, 21 20, 20 20))");
-    negatedRule.setAnnotation(Rule.ANNOTATION_TYPE.SUSPICIOUS);
+    negatedRule.setAnnotation("SUSPICIOUS");
     negatedRule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
     negatedRule.setBasisOfRecordNegated(true);
     negatedRule.setRulesetId(1);
@@ -459,7 +459,7 @@ public class RuleControllerTest {
             .taxonKey(11111)
             .datasetKey("dataset-project1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .annotation("NATIVE")
             .rulesetId(1)
             .projectId(createdProject1.getId())
             .build();
@@ -476,7 +476,7 @@ public class RuleControllerTest {
             .taxonKey(22222)
             .datasetKey("dataset-project2")
             .geometry("POLYGON((1 1, 1 2, 2 2, 2 1, 1 1))")
-            .annotation(Rule.ANNOTATION_TYPE.INTRODUCED)
+            .annotation("INTRODUCED")
             .rulesetId(1)
             .projectId(createdProject2.getId())
             .build();
@@ -538,7 +538,7 @@ public class RuleControllerTest {
             .taxonKey(targetTaxonKey)
             .datasetKey("dataset-combined-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .annotation("NATIVE")
             .rulesetId(1)
             .projectId(createdProject.getId())
             .build();
@@ -555,7 +555,7 @@ public class RuleControllerTest {
             .taxonKey(66666)
             .datasetKey("dataset-combined-2")
             .geometry("POLYGON((1 1, 1 2, 2 2, 2 1, 1 1))")
-            .annotation(Rule.ANNOTATION_TYPE.INTRODUCED)
+            .annotation("INTRODUCED")
             .rulesetId(1)
             .projectId(createdProject.getId())
             .build();

@@ -16,6 +16,14 @@ import { getAnnotationApiUrl } from '../utils/apiConfig';
 import { getSelectedProjectName } from '../utils/projectSelection';
 import { Checkbox } from './ui/checkbox';
 
+// Vocabulary term interface
+interface VocabularyTerm {
+  term: string;
+  description: string;
+  color: string;
+  locked: boolean;
+}
+
 // Helper function to generate species page URL
 const getSpeciesPageUrl = (taxonKey: number): string => {
   return `https://www.gbif.org/species/${taxonKey}`;
@@ -329,6 +337,14 @@ interface SaveToGBIFDialogProps {
   autoOpen?: boolean;
 }
 
+// Vocabulary term interface
+interface VocabularyTerm {
+  term: string;
+  description?: string;
+  color: string;
+  locked: boolean;
+}
+
 interface ImportWKTDialogProps {
   onImport: (coordinates: [number, number][] | [number, number][][], isMulti?: boolean) => void;
 }
@@ -517,6 +533,17 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
 
   // Year range validation state
   const [yearRangeError, setYearRangeError] = useState<string>('');
+  
+  // Vocabulary state
+  const [vocabulary, setVocabulary] = useState<VocabularyTerm[]>([
+    { term: 'SUSPICIOUS', color: '#ef4444', locked: true },
+    { term: 'MANAGED', color: '#a855f7', locked: false },
+    { term: 'FORMER', color: '#f97316', locked: false },
+    { term: 'VAGRANT', color: '#06b6d4', locked: false },
+    { term: 'NATIVE', color: '#22c55e', locked: false },
+    { term: 'INTRODUCED', color: '#3b82f6', locked: false },
+  ]);
+  const [loadingVocabulary, setLoadingVocabulary] = useState(false);
 
   // Validate year range input
   const validateYearRange = (value: string): string => {
@@ -659,6 +686,38 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
 
     fetchBasisOfRecordOptions();
   }, []);
+
+  // Fetch vocabulary based on selected project
+  useEffect(() => {
+    const fetchVocabulary = async () => {
+      const selectedProjectId = localStorage.getItem('selectedProjectId');
+      
+      if (!selectedProjectId) {
+        // No project selected, use default vocabulary
+        return;
+      }
+
+      setLoadingVocabulary(true);
+      try {
+        const response = await fetch(getAnnotationApiUrl(`/project/${selectedProjectId}/vocabulary`));
+        
+        if (!response.ok) {
+          console.error('Failed to fetch vocabulary, using defaults');
+          return;
+        }
+
+        const data = await response.json();
+        setVocabulary(data);
+      } catch (error) {
+        console.error('Error fetching vocabulary:', error);
+        // Keep default vocabulary on error
+      } finally {
+        setLoadingVocabulary(false);
+      }
+    };
+
+    fetchVocabulary();
+  }, [isOpen]); // Fetch when dialog opens
 
   // Update yearRange string when slider values change
   useEffect(() => {
@@ -1136,14 +1195,17 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
                       value={selectedAnnotation}
                       onChange={(e) => setSelectedAnnotation(e.target.value)}
                       className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      disabled={loadingVocabulary}
                     >
-                      <option value="SUSPICIOUS">SUSPICIOUS</option>
-                      <option value="MANAGED">MANAGED</option>
-                      <option value="FORMER">FORMER</option>
-                      <option value="VAGRANT">VAGRANT</option>
-                      <option value="NATIVE">NATIVE</option>
-                      <option value="INTRODUCED">INTRODUCED</option>
+                      {vocabulary.map((term) => (
+                        <option key={term.term} value={term.term}>
+                          {term.term}
+                        </option>
+                      ))}
                     </select>
+                    {loadingVocabulary && (
+                      <p className="text-xs text-gray-500">Loading annotation options...</p>
+                    )}
                   </div>
 
                   {/* Warning for non-SUSPICIOUS annotations */}
@@ -1414,7 +1476,19 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
   );
 }
 
-function PolygonPreview({ coordinates, annotation = 'SUSPICIOUS', isMultiPolygon = false, onClick }: { coordinates: [number, number][] | [number, number][][], annotation?: string, isMultiPolygon?: boolean, onClick?: () => void }) {
+function PolygonPreview({ 
+  coordinates, 
+  annotation = 'SUSPICIOUS', 
+  isMultiPolygon = false, 
+  onClick,
+  vocabulary 
+}: { 
+  coordinates: [number, number][] | [number, number][][], 
+  annotation?: string, 
+  isMultiPolygon?: boolean, 
+  onClick?: () => void,
+  vocabulary?: VocabularyTerm[]
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -1460,6 +1534,35 @@ function PolygonPreview({ coordinates, annotation = 'SUSPICIOUS', isMultiPolygon
     // Scale to fit canvas
     const scale = Math.min(width / lngRange, height / latRange);
 
+    // Helper function to convert hex color to RGBA
+    const hexToRgba = (hex: string, alpha: number): string => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+
+    // Build color map from vocabulary if provided, otherwise use defaults
+    const annotationColors: { [key: string]: { fill: string; fillRgba: string; stroke: string; strokeRgba: string } } = vocabulary && vocabulary.length > 0
+      ? vocabulary.reduce((acc, term) => {
+          acc[term.term.toUpperCase()] = {
+            fill: term.color,
+            fillRgba: hexToRgba(term.color, 0.1),
+            stroke: term.color,
+            strokeRgba: hexToRgba(term.color, 0.6),
+          };
+          return acc;
+        }, {} as { [key: string]: { fill: string; fillRgba: string; stroke: string; strokeRgba: string } })
+      : {
+          SUSPICIOUS: { fill: '#ef4444', fillRgba: 'rgba(239, 68, 68, 0.1)', stroke: '#dc2626', strokeRgba: 'rgba(220, 38, 38, 0.6)' },
+          NATIVE: { fill: '#10b981', fillRgba: 'rgba(16, 185, 129, 0.1)', stroke: '#059669', strokeRgba: 'rgba(5, 150, 105, 0.6)' },
+          MANAGED: { fill: '#3b82f6', fillRgba: 'rgba(59, 130, 246, 0.1)', stroke: '#2563eb', strokeRgba: 'rgba(37, 99, 235, 0.6)' },
+          FORMER: { fill: '#a855f7', fillRgba: 'rgba(168, 85, 247, 0.1)', stroke: '#9333ea', strokeRgba: 'rgba(147, 51, 234, 0.6)' },
+          VAGRANT: { fill: '#f97316', fillRgba: 'rgba(249, 115, 22, 0.1)', stroke: '#ea580c', strokeRgba: 'rgba(234, 88, 12, 0.6)' },
+          INTRODUCED: { fill: '#d97706', fillRgba: 'rgba(217, 119, 6, 0.1)', stroke: '#b45309', strokeRgba: 'rgba(180, 83, 9, 0.6)' },
+        };
+    const color = annotationColors[annotation.toUpperCase()] || annotationColors.SUSPICIOUS;
+
     // Draw all polygons
     polygons.forEach(polyCoords => {
       ctx.beginPath();
@@ -1474,17 +1577,6 @@ function PolygonPreview({ coordinates, annotation = 'SUSPICIOUS', isMultiPolygon
         }
       });
       ctx.closePath();
-
-    // Get color based on annotation type
-    const annotationColors: { [key: string]: { fill: string; fillRgba: string; stroke: string; strokeRgba: string } } = {
-      SUSPICIOUS: { fill: '#ef4444', fillRgba: 'rgba(239, 68, 68, 0.1)', stroke: '#dc2626', strokeRgba: 'rgba(220, 38, 38, 0.6)' },
-      NATIVE: { fill: '#10b981', fillRgba: 'rgba(16, 185, 129, 0.1)', stroke: '#059669', strokeRgba: 'rgba(5, 150, 105, 0.6)' },
-      MANAGED: { fill: '#3b82f6', fillRgba: 'rgba(59, 130, 246, 0.1)', stroke: '#2563eb', strokeRgba: 'rgba(37, 99, 235, 0.6)' },
-      FORMER: { fill: '#a855f7', fillRgba: 'rgba(168, 85, 247, 0.1)', stroke: '#9333ea', strokeRgba: 'rgba(147, 51, 234, 0.6)' },
-      VAGRANT: { fill: '#f97316', fillRgba: 'rgba(249, 115, 22, 0.1)', stroke: '#ea580c', strokeRgba: 'rgba(234, 88, 12, 0.6)' },
-      INTRODUCED: { fill: '#d97706', fillRgba: 'rgba(217, 119, 6, 0.1)', stroke: '#b45309', strokeRgba: 'rgba(180, 83, 9, 0.6)' },
-    };
-    const color = annotationColors[annotation.toUpperCase()] || annotationColors.SUSPICIOUS;
 
       // Fill and stroke each polygon
       ctx.fillStyle = color.fillRgba;
@@ -1503,7 +1595,7 @@ function PolygonPreview({ coordinates, annotation = 'SUSPICIOUS', isMultiPolygon
         ctx.fill();
       });
     });
-  }, [coordinates, annotation, isMultiPolygon]);
+  }, [coordinates, annotation, isMultiPolygon, vocabulary]);
 
   return (
     <canvas
@@ -1522,7 +1614,8 @@ function PolygonCard({
   onToggleInvert,
   onUpdateAnnotation,
   onNavigateToPolygon,
-  onRuleSavedToGBIF
+  onRuleSavedToGBIF,
+  vocabulary
 }: { 
   polygon: PolygonData; 
   onDelete: (id: string) => void;
@@ -1530,6 +1623,7 @@ function PolygonCard({
   onUpdateAnnotation?: (id: string, annotation: string) => void;
   onNavigateToPolygon?: (lat: number, lng: number) => void;
   onRuleSavedToGBIF?: () => void;
+  vocabulary?: VocabularyTerm[];
 }) {
   const annotation = polygon.annotation || 'SUSPICIOUS'; // Use polygon annotation or default to SUSPICIOUS
   
@@ -1678,6 +1772,7 @@ function PolygonCard({
                 width={120}
                 height={80}
                 className="rounded-md shadow-sm"
+                vocabulary={vocabulary}
               />
             </div>
             <p className="text-gray-400 text-xs">
@@ -1797,6 +1892,45 @@ export function SavedPolygons({
   onNavigateToPolygon,
   onRuleSavedToGBIF,
 }: SavedPolygonsProps) {
+  // Vocabulary state for polygon colors
+  const [vocabulary, setVocabulary] = useState<VocabularyTerm[]>([
+    { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
+    { term: 'NATIVE', description: 'Native species', color: '#10b981', locked: false },
+    { term: 'MANAGED', description: 'Managed population', color: '#3b82f6', locked: false },
+    { term: 'FORMER', description: 'Former population', color: '#a855f7', locked: false },
+    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
+    { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
+  ]);
+
+  // Fetch vocabulary based on selected project
+  useEffect(() => {
+    const fetchVocabulary = async () => {
+      const selectedProjectId = localStorage.getItem('selectedProjectId');
+      
+      if (!selectedProjectId) {
+        // No project selected, use default vocabulary
+        return;
+      }
+
+      try {
+        const response = await fetch(getAnnotationApiUrl(`/project/${selectedProjectId}/vocabulary`));
+        
+        if (!response.ok) {
+          console.error('Failed to fetch vocabulary, using defaults');
+          return;
+        }
+
+        const data = await response.json();
+        setVocabulary(data);
+      } catch (error) {
+        console.error('Error fetching vocabulary:', error);
+        // Keep default vocabulary on error
+      }
+    };
+
+    fetchVocabulary();
+  }, []); // Fetch once on mount
+
   if (polygons.length === 0) {
     return (
       <div className="space-y-3">
@@ -1831,6 +1965,7 @@ export function SavedPolygons({
               onUpdateAnnotation={onUpdateAnnotation}
               onNavigateToPolygon={onNavigateToPolygon}
               onRuleSavedToGBIF={onRuleSavedToGBIF}
+              vocabulary={vocabulary}
             />
           ))}
         </div>
