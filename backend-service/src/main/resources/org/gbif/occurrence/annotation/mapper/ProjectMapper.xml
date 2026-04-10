@@ -12,10 +12,10 @@
         <if test="member != null">
             AND #{member} = ANY(members)
         </if>
-        ORDER BY created DESC
         <if test="name != null">
             AND name ILIKE '%' || #{name} || '%'
         </if>
+        ORDER BY created DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
