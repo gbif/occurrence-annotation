@@ -13,6 +13,9 @@
             AND #{member} = ANY(members)
         </if>
         ORDER BY created DESC
+        <if test="name != null">
+            AND name ILIKE '%' || #{name} || '%'
+        </if>
         LIMIT #{limit} OFFSET #{offset}
     </select>
 

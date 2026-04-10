@@ -52,14 +52,19 @@ public class ProjectController implements Controller<Project> {
       description =
           "Filter projects by member username (returns only projects where this user is a member)",
       example = "jwaller")
+  @Parameter(
+      name = "name",
+      description = "Filter projects by name (case-insensitive partial match)",
+      example = "bird")
   @GetMapping
   public List<Project> list(
       @RequestParam(required = false) Integer limit,
       @RequestParam(required = false) Integer offset,
-      @RequestParam(required = false) String member) {
+      @RequestParam(required = false) String member,
+      @RequestParam(required = false) String name) {
     int limitInt = limit == null ? 100 : limit;
     int offsetInt = offset == null ? 0 : offset;
-    return projectMapper.list(limitInt, offsetInt, member);
+    return projectMapper.list(limitInt, offsetInt, member, name);
   }
 
   @Operation(summary = "Get a single project (may be deleted)")
