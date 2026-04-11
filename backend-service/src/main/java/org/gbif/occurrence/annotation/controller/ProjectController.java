@@ -88,19 +88,10 @@ public class ProjectController implements Controller<Project> {
     String username = getLoggedInUser();
     project.setCreatedBy(username);
 
-    // Add creator to members list if not already present
-    String[] existingMembers = project.getMembers();
-    if (existingMembers == null || existingMembers.length == 0) {
+    // If no members specified, add creator as the only member
+    // Otherwise respect the provided members list (even if creator not included)
+    if (project.getMembers() == null || project.getMembers().length == 0) {
       project.setMembers(new String[] {username});
-    } else {
-      // Check if creator is already in the list
-      boolean creatorIsMember = Arrays.asList(existingMembers).contains(username);
-      if (!creatorIsMember) {
-        // Add creator to the members array
-        String[] newMembers = Arrays.copyOf(existingMembers, existingMembers.length + 1);
-        newMembers[existingMembers.length] = username;
-        project.setMembers(newMembers);
-      }
     }
 
     projectMapper.create(project); // mybatis sets id
