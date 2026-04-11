@@ -134,15 +134,26 @@ export function VocabularyManager({ projectId, isUserMember }: VocabularyManager
 
     try {
       setIsSaving(true);
-      const updatedVocabulary = [
-        ...vocabulary,
-        {
-          term: newTerm.trim().toUpperCase(),
-          description: newDescription.trim() || undefined,
-          color: newColor,
-          locked: false,
-        },
-      ];
+      const newTermData: VocabularyTerm = {
+        term: newTerm.trim().toUpperCase(),
+        color: newColor,
+        locked: false,
+      };
+      
+      // Only add description if it's not empty
+      if (newDescription.trim()) {
+        newTermData.description = newDescription.trim();
+      }
+      
+      const updatedVocabulary = [...vocabulary, newTermData];
+
+      console.log('Adding term to vocabulary:', {
+        projectId,
+        newTerm: newTermData.term,
+        vocabularyLength: updatedVocabulary.length,
+        hasSuspicious: updatedVocabulary.some(t => t.term === 'SUSPICIOUS'),
+        suspiciousLocked: updatedVocabulary.find(t => t.term === 'SUSPICIOUS')?.locked
+      });
 
       const gbifAuth = localStorage.getItem('gbifAuth');
       if (!gbifAuth) {
@@ -163,8 +174,21 @@ export function VocabularyManager({ projectId, isUserMember }: VocabularyManager
       );
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Failed to add term');
+        let errorMessage = `Failed to add term (${response.status})`;
+        try {
+          const errorText = await response.text();
+          errorMessage = errorText || errorMessage;
+        } catch (e) {
+          // Ignore parsing errors
+        }
+        console.error('Vocabulary update failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          projectId,
+          vocabularyLength: updatedVocabulary.length,
+          newTerm: newTerm.trim().toUpperCase()
+        });
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -214,16 +238,23 @@ export function VocabularyManager({ projectId, isUserMember }: VocabularyManager
         return;
       }
 
-      const updatedVocabulary = vocabulary.map((term, i) =>
-        i === editingIndex
-          ? {
-              ...term,
-              term: editTerm.trim().toUpperCase(),
-              description: editDescription.trim() || undefined,
-              color: editColor,
-            }
-          : term
-      );
+      const updatedVocabulary = vocabulary.map((term, i) => {
+        if (i === editingIndex) {
+          const updatedTerm: VocabularyTerm = {
+            ...term,
+            term: editTerm.trim().toUpperCase(),
+            color: editColor,
+          };
+          // Only add description if it's not empty
+          if (editDescription.trim()) {
+            updatedTerm.description = editDescription.trim();
+          } else {
+            delete updatedTerm.description;
+          }
+          return updatedTerm;
+        }
+        return term;
+      });
 
       const response = await fetch(
         getAnnotationApiUrl(`/project/${projectId}/vocabulary`),
