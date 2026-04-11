@@ -314,7 +314,7 @@ public class RuleControllerTest {
 
   @Test
   @WithMockUser(
-      username = "alice",
+      username = "test-user",
       roles = {"USER"})
   public void testCreateRuleWithNegatedBasisOfRecordDefaults() throws Exception {
     Rule rule = new Rule();
@@ -338,7 +338,7 @@ public class RuleControllerTest {
 
   @Test
   @WithMockUser(
-      username = "alice",
+      username = "test-user",
       roles = {"USER"})
   public void testCreateRuleWithExplicitlyNegatedBasisOfRecord() throws Exception {
     Rule rule = new Rule();
@@ -364,7 +364,7 @@ public class RuleControllerTest {
 
   @Test
   @WithMockUser(
-      username = "alice",
+      username = "test-user",
       roles = {"USER"})
   public void testFilterRulesByBasisOfRecordAndNegated() throws Exception {
     // Create a negated rule first
