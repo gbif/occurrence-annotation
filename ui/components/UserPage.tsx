@@ -436,8 +436,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   // Filter states
   const [speciesFilter, setSpeciesFilter] = useState<SelectedSpecies | null>(null);
   const [projectFilter, setProjectFilter] = useState<number | null>(null);
-  const [showAllUsers, setShowAllUsers] = useState(false);
-  const [userFilter, setUserFilter] = useState<string | null>(null);
+  const [userFilter, setUserFilter] = useState<string[]>([username]); // Pre-filled with current user
 
   // Multi-select states
   const [selectedRules, setSelectedRules] = useState<Set<number>>(new Set());
@@ -461,6 +460,11 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   useEffect(() => {
     setCurrentPage(1);
   }, [speciesFilter, projectFilter, userFilter]);
+
+  // Reset userFilter to current username when username changes (different user page)
+  useEffect(() => {
+    setUserFilter([username]);
+  }, [username]);
 
   // Helper functions
   const formatDate = (dateString: string) => {
@@ -554,27 +558,18 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
           setTotalRules(metricsData.ruleCount || 0);
         }
 
-        // Build API URL with filters
-        let apiUrl = showAllUsers 
-          ? getAnnotationApiUrl('/rule')
-          : getAnnotationApiUrl(`/rule?createdBy=${encodeURIComponent(username)}`);
+        // Build API URL - fetch all rules and filter client-side by selected users
+        let apiUrl = getAnnotationApiUrl('/rule');
         
         // Add taxonKey filter if species is selected
         if (speciesFilter) {
-          const separator = apiUrl.includes('?') ? '&' : '?';
-          apiUrl += `${separator}taxonKey=${speciesFilter.key}`;
+          apiUrl += `?taxonKey=${speciesFilter.key}`;
         }
 
         // Add projectId filter if project is selected
         if (projectFilter !== null) {
           const separator = apiUrl.includes('?') ? '&' : '?';
           apiUrl += `${separator}projectId=${projectFilter}`;
-        }
-
-        // Add createdBy filter if user filter is active
-        if (userFilter && showAllUsers) {
-          const separator = apiUrl.includes('?') ? '&' : '?';
-          apiUrl += `${separator}createdBy=${encodeURIComponent(userFilter)}`;
         }
 
         const response = await fetch(apiUrl);
@@ -586,17 +581,18 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         const data = await response.json();
         
         if (Array.isArray(data)) {
-          // Store all rules for client-side pagination
-          setAllRules(data);
-          // If metrics API failed, fallback to counting rules
-          if (!metricsResponse.ok) {
-            setTotalRules(data.length);
-          }
+          // Filter by selected users (client-side)
+          const filteredData = data.filter(rule => 
+            userFilter.length === 0 || userFilter.includes(rule.createdBy)
+          );
+          
+          // Store filtered rules for client-side pagination
+          setAllRules(filteredData);
+          // Update total count based on filtered results
+          setTotalRules(filteredData.length);
         } else {
           setAllRules([]);
-          if (!metricsResponse.ok) {
-            setTotalRules(0);
-          }
+          setTotalRules(0);
         }
       } catch (err) {
         console.error('Error fetching user rules:', err);
@@ -608,9 +604,9 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
       }
     };
 
-    // Fetch data when username, showAllUsers, or filters change
+    // Fetch data when username or filters change
     fetchUserRules();
-  }, [username, showAllUsers, speciesFilter, projectFilter, userFilter]);
+  }, [username, speciesFilter, projectFilter, userFilter]);
 
   // Fetch projects where user is a member
   useEffect(() => {
@@ -1419,28 +1415,15 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         <TabsContent value="rules" className="flex-1 flex flex-col overflow-hidden m-0">
           {/* Filters */}
           <div className="px-6 py-3 bg-white border-b">
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <UserPageFilters
-                  speciesFilter={speciesFilter}
-                  onSpeciesFilterChange={setSpeciesFilter}
-                  projectFilter={projectFilter}
-                  onProjectFilterChange={setProjectFilter}
-                  userFilter={userFilter}
-                  onUserFilterChange={setUserFilter}
-                  selectedProjectName={projects.find(p => p.id === projectFilter)?.name || null}
-                />
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowAllUsers(!showAllUsers)}
-                className={`h-8 w-8 p-0 ${showAllUsers ? 'bg-purple-100 hover:bg-purple-200' : ''}`}
-                title={showAllUsers ? 'Show only this user\'s rules' : 'Show rules from all users'}
-              >
-                <User className={`h-4 w-4 ${showAllUsers ? 'text-purple-700' : ''}`} />
-              </Button>
-            </div>
+            <UserPageFilters
+              speciesFilter={speciesFilter}
+              onSpeciesFilterChange={setSpeciesFilter}
+              projectFilter={projectFilter}
+              onProjectFilterChange={setProjectFilter}
+              userFilter={userFilter}
+              onUserFilterChange={setUserFilter}
+              selectedProjectName={projects.find(p => p.id === projectFilter)?.name || null}
+            />
           </div>
           
           {/* Rules Content */}
@@ -1558,7 +1541,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                             setSelectedRules(new Set());
                           }
                         }}
-                        disabled={!isOwnProfile && !isAdmin() || showAllUsers}
+                        disabled={!isOwnProfile && !isAdmin()}
                         className="rounded border-gray-300"
                       />
                     </TableHead>

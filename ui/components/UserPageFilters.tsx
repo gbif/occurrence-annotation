@@ -16,8 +16,8 @@ interface UserPageFiltersProps {
   onSpeciesFilterChange: (species: SelectedSpecies | null) => void;
   projectFilter: number | null;
   onProjectFilterChange: (projectId: number | null) => void;
-  userFilter: string | null;
-  onUserFilterChange: (username: string | null) => void;
+  userFilter: string[];
+  onUserFilterChange: (usernames: string[]) => void;
   selectedProjectName: string | null;
 }
 
@@ -114,7 +114,8 @@ export function UserPageFilters({
           const filtered = Array.isArray(data)
             ? data
                 .filter((user: any) => 
-                  user.username.toLowerCase().includes(userSearchTerm.toLowerCase())
+                  user.username.toLowerCase().includes(userSearchTerm.toLowerCase()) &&
+                  !userFilter.includes(user.username) // Exclude already selected users
                 )
                 .slice(0, 20)
                 .map((user: any) => ({
@@ -143,7 +144,7 @@ export function UserPageFilters({
   const clearAllFilters = () => {
     onSpeciesFilterChange(null);
     onProjectFilterChange(null);
-    onUserFilterChange(null);
+    onUserFilterChange([]);
   };
 
   const handleSelectProject = (project: Project) => {
@@ -154,13 +155,20 @@ export function UserPageFilters({
   };
 
   const handleSelectUser = (username: string) => {
-    onUserFilterChange(username);
+    // Add user to filter if not already selected
+    if (!userFilter.includes(username)) {
+      onUserFilterChange([...userFilter, username]);
+    }
     setUserSearchTerm('');
     setUserSuggestions([]);
     setShowUserDropdown(false);
   };
 
-  const hasActiveFilters = speciesFilter || projectFilter || userFilter;
+  const handleRemoveUser = (username: string) => {
+    onUserFilterChange(userFilter.filter(u => u !== username));
+  };
+
+  const hasActiveFilters = speciesFilter || projectFilter || userFilter.length > 0;
 
   return (
     <div className="space-y-2">
@@ -244,69 +252,69 @@ export function UserPageFilters({
                 )}
               </div>
 
-              {/* Username Filter */}
+              {/* Username Filter - Multi-select */}
               <div className="space-y-1">
                 <label className="text-xs font-medium text-gray-700">
-                  Username
+                  Usernames
                 </label>
                 
-                {/* Selected user chip */}
-                {userFilter && (
-                  <div className="flex items-center gap-1 mb-1">
-                    <div className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
-                      <span>{userFilter}</span>
-                      <button
-                        onClick={() => onUserFilterChange(null)}
-                        className="hover:bg-green-200 rounded-full p-0.5 transition-colors"
-                        title={`Remove ${userFilter}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
+                {/* Selected users as chips */}
+                {userFilter.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-1">
+                    {userFilter.map(username => (
+                      <div key={username} className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                        <span>{username}</span>
+                        <button
+                          onClick={() => handleRemoveUser(username)}
+                          className="hover:bg-green-200 rounded-full p-0.5 transition-colors"
+                          title={`Remove ${username}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
                 
                 {/* Search input with dropdown */}
-                {!userFilter && (
+                <div className="relative">
                   <div className="relative">
-                    <div className="relative">
-                      <Input
-                        type="text"
-                        value={userSearchTerm}
-                        onChange={(e) => setUserSearchTerm(e.target.value)}
-                        onFocus={() => userSearchTerm && setShowUserDropdown(true)}
-                        placeholder="Type to search users..."
-                        className="h-9 text-sm pr-10"
-                      />
-                      {loadingUsers && (
-                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
-                      )}
-                    </div>
-                    
-                    {/* User suggestions dropdown */}
-                    {showUserDropdown && userSuggestions.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                        {userSuggestions.map(user => (
-                          <button
-                            key={user.username}
-                            onClick={() => handleSelectUser(user.username)}
-                            className="w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors text-sm first:rounded-t-lg last:rounded-b-lg flex justify-between items-center"
-                          >
-                            <span className="font-medium">{user.username}</span>
-                            <span className="text-xs text-gray-500">{user.ruleCount} rules</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {/* No results message */}
-                    {showUserDropdown && userSearchTerm && !loadingUsers && userSuggestions.length === 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg p-3 text-sm text-gray-500 text-center">
-                        No users found
-                      </div>
+                    <Input
+                      type="text"
+                      value={userSearchTerm}
+                      onChange={(e) => setUserSearchTerm(e.target.value)}
+                      onFocus={() => userSearchTerm && setShowUserDropdown(true)}
+                      placeholder="Type to search users..."
+                      className="h-9 text-sm pr-10"
+                    />
+                    {loadingUsers && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
                     )}
                   </div>
-                )}
+                  
+                  {/* User suggestions dropdown */}
+                  {showUserDropdown && userSuggestions.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {userSuggestions.map(user => (
+                        <button
+                          key={user.username}
+                          onClick={() => handleSelectUser(user.username)}
+                          className="w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors text-sm first:rounded-t-lg last:rounded-b-lg flex justify-between items-center"
+                        >
+                          <span className="font-medium">{user.username}</span>
+                          <span className="text-xs text-gray-500">{user.ruleCount} rules</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* No results message */}
+                  {showUserDropdown && userSearchTerm && !loadingUsers && userSuggestions.length === 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg p-3 text-sm text-gray-500 text-center">
+                      No users found
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </CardContent>
