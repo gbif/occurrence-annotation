@@ -22,6 +22,7 @@ import org.gbif.occurrence.annotation.service.VocabularyService;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.annotation.Secured;
@@ -86,7 +87,22 @@ public class ProjectController implements Controller<Project> {
 
     String username = getLoggedInUser();
     project.setCreatedBy(username);
-    project.setMembers(new String[] {username}); // creator is always a member
+
+    // Add creator to members list if not already present
+    String[] existingMembers = project.getMembers();
+    if (existingMembers == null || existingMembers.length == 0) {
+      project.setMembers(new String[] {username});
+    } else {
+      // Check if creator is already in the list
+      boolean creatorIsMember = Arrays.asList(existingMembers).contains(username);
+      if (!creatorIsMember) {
+        // Add creator to the members array
+        String[] newMembers = Arrays.copyOf(existingMembers, existingMembers.length + 1);
+        newMembers[existingMembers.length] = username;
+        project.setMembers(newMembers);
+      }
+    }
+
     projectMapper.create(project); // mybatis sets id
     return projectMapper.get(project.getId());
   }
@@ -157,10 +173,22 @@ public class ProjectController implements Controller<Project> {
       @PathVariable(value = "id") int id, @Valid @RequestBody VocabularyTerm[] vocabulary) {
     Project existing = projectMapper.get(id);
 
+    // Check project exists
+    if (existing == null) {
+      throw new IllegalArgumentException("Project not found: " + id);
+    }
+
     // Only members can update vocabulary
-    if (existing == null || !Arrays.asList(existing.getMembers()).contains(getLoggedInUser())) {
+    if (!Arrays.asList(existing.getMembers()).contains(getLoggedInUser())) {
       throw new IllegalArgumentException(
           "User must be a member of the project to update vocabulary");
+    }
+
+    // Normalize terms to uppercase
+    if (vocabulary != null) {
+      for (VocabularyTerm term : vocabulary) {
+        term.setTerm(term.getTerm().toUpperCase(Locale.ROOT));
+      }
     }
 
     // Validate the vocabulary
@@ -183,8 +211,13 @@ public class ProjectController implements Controller<Project> {
   public VocabularyTerm[] deleteVocabulary(@PathVariable(value = "id") int id) {
     Project existing = projectMapper.get(id);
 
+    // Check project exists
+    if (existing == null) {
+      throw new IllegalArgumentException("Project not found: " + id);
+    }
+
     // Only members can delete vocabulary
-    if (existing == null || !Arrays.asList(existing.getMembers()).contains(getLoggedInUser())) {
+    if (!Arrays.asList(existing.getMembers()).contains(getLoggedInUser())) {
       throw new IllegalArgumentException(
           "User must be a member of the project to reset vocabulary");
     }
