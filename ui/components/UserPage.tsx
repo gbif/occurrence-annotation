@@ -680,7 +680,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         },
         body: JSON.stringify({
           name: newProjectName,
-          description: newProjectDescription || null,
+          description: newProjectDescription || '',
         }),
       });
 
