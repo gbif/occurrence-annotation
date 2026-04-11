@@ -13,10 +13,11 @@
  */
 package org.gbif.occurrence.annotation.controller;
 
-import jakarta.validation.Valid;
 import org.springframework.security.access.annotation.Secured;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+
+import jakarta.validation.Valid;
 
 interface Controller<T> {
   T get(int id);

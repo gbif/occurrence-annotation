@@ -586,4 +586,188 @@ public class RuleControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$", hasSize(0)));
   }
+
+  @Test
+  @WithMockUser(
+      username = "non-member-user",
+      roles = {"USER"})
+  public void testNonMemberCannotCreateRuleForProject() throws Exception {
+    // Project 1 only has 'test-user' as member, not 'non-member-user'
+    Rule rule =
+        Rule.builder()
+            .taxonKey(12345)
+            .datasetKey("test-dataset")
+            .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
+            .annotation("NATIVE")
+            .rulesetId(1)
+            .projectId(1) // Project where user is not a member
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule)))
+        .andExpect(status().isBadRequest())
+        .andExpect(
+            jsonPath(
+                "$.message",
+                containsString(
+                    "Only project members can create or update rules for this project")));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "test-user",
+      roles = {"USER"})
+  public void testMemberCanCreateRuleForProject() throws Exception {
+    // Project 1 has 'test-user' as member
+    Rule rule =
+        Rule.builder()
+            .taxonKey(54321)
+            .datasetKey("member-dataset")
+            .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
+            .annotation("INTRODUCED")
+            .rulesetId(1)
+            .projectId(1) // Project where user is a member
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id", notNullValue()))
+        .andExpect(jsonPath("$.projectId", is(1)))
+        .andExpect(jsonPath("$.createdBy", is("test-user")));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "test-user",
+      roles = {"USER"})
+  public void testCanCreateRuleWithoutProject() throws Exception {
+    // Users can create rules without a projectId (orphan rules)
+    Rule rule =
+        Rule.builder()
+            .taxonKey(99999)
+            .datasetKey("orphan-dataset")
+            .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
+            .annotation("SUSPICIOUS")
+            .rulesetId(1)
+            .projectId(null) // No project association
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id", notNullValue()))
+        .andExpect(jsonPath("$.projectId").doesNotExist());
+  }
+
+  @Test
+  @WithMockUser(
+      username = "non-member-user",
+      roles = {"USER"})
+  public void testNonMemberCannotUpdateRuleToTheirNonMemberProject() throws Exception {
+    // First create a project with a different member
+    String projectJson =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        "{\"name\":\"Other Project\",\"description\":\"Project for other users\",\"members\":[\"other-user\"]}"))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Integer otherProjectId = objectMapper.readTree(projectJson).get("id").asInt();
+
+    // Create a rule without project as non-member-user
+    Rule originalRule =
+        Rule.builder()
+            .taxonKey(11111)
+            .datasetKey("update-test-dataset")
+            .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
+            .annotation("VAGRANT")
+            .rulesetId(1)
+            .projectId(null) // No project initially
+            .build();
+
+    String ruleResponse =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/rule")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(originalRule)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Rule createdRule = objectMapper.readValue(ruleResponse, Rule.class);
+
+    // Try to update it to a project where user is not a member
+    createdRule.setProjectId(otherProjectId);
+
+    mockMvc
+        .perform(
+            put("/occurrence/experimental/annotation/rule/{id}", createdRule.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(createdRule)))
+        .andExpect(status().isBadRequest())
+        .andExpect(
+            jsonPath(
+                "$.message",
+                containsString(
+                    "Only project members can create or update rules for this project")));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "test-user",
+      roles = {"USER"})
+  public void testMemberCanUpdateRuleWithinSameProject() throws Exception {
+    // Create a rule in project 1 where test-user is a member
+    Rule rule =
+        Rule.builder()
+            .taxonKey(77777)
+            .datasetKey("same-project-dataset")
+            .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
+            .annotation("NATIVE")
+            .rulesetId(1)
+            .projectId(1)
+            .build();
+
+    String ruleResponse =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/rule")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(rule)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Rule createdRule = objectMapper.readValue(ruleResponse, Rule.class);
+
+    // Update the rule (keeping same projectId)
+    createdRule.setAnnotation("INTRODUCED");
+
+    mockMvc
+        .perform(
+            put("/occurrence/experimental/annotation/rule/{id}", createdRule.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(createdRule)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.annotation", is("INTRODUCED")))
+        .andExpect(jsonPath("$.projectId", is(1)));
+  }
 }

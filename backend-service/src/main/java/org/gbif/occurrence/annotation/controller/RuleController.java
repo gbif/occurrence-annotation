@@ -14,11 +14,14 @@
 package org.gbif.occurrence.annotation.controller;
 
 import org.gbif.occurrence.annotation.mapper.CommentMapper;
+import org.gbif.occurrence.annotation.mapper.ProjectMapper;
 import org.gbif.occurrence.annotation.mapper.RuleMapper;
 import org.gbif.occurrence.annotation.model.Comment;
+import org.gbif.occurrence.annotation.model.Project;
 import org.gbif.occurrence.annotation.model.Rule;
 import org.gbif.occurrence.annotation.service.VocabularyService;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +51,7 @@ import static org.gbif.occurrence.annotation.controller.AuthAdvice.assertCreator
 public class RuleController implements Controller<Rule> {
   @Autowired private RuleMapper ruleMapper;
   @Autowired private CommentMapper commentMapper;
+  @Autowired private ProjectMapper projectMapper;
   @Autowired private VocabularyService vocabularyService;
 
   @Operation(
@@ -234,6 +238,9 @@ public class RuleController implements Controller<Rule> {
   @Secured("USER")
   @Override
   public Rule create(@RequestBody Rule rule) {
+    // Check project membership if rule is associated with a project
+    assertProjectMember(rule.getProjectId());
+
     // Validate annotation term exists in project vocabulary
     validateAnnotationTerm(rule);
 
@@ -258,6 +265,11 @@ public class RuleController implements Controller<Rule> {
 
     // Only creator or admin can update
     assertCreatorOrAdmin(existing.getCreatedBy());
+
+    // Check project membership if rule is being moved to a different project
+    if (!java.util.Objects.equals(existing.getProjectId(), rule.getProjectId())) {
+      assertProjectMember(rule.getProjectId());
+    }
 
     // Validate annotation term exists in project vocabulary
     validateAnnotationTerm(rule);
@@ -371,6 +383,31 @@ public class RuleController implements Controller<Rule> {
   }
 
   /**
+   * Validates that the current user is a member of the project (if projectId is not null).
+   *
+   * @param projectId the project ID to check, or null for rules not associated with a project
+   * @throws IllegalArgumentException if user is not a member of the project
+   */
+  private void assertProjectMember(Integer projectId) {
+    if (projectId == null) {
+      return; // Rules without a project don't require membership
+    }
+
+    Project project = projectMapper.get(projectId);
+    if (project == null) {
+      throw new IllegalArgumentException("Project not found: " + projectId);
+    }
+
+    String currentUser = getLoggedInUser();
+    if (!Arrays.asList(project.getMembers()).contains(currentUser)) {
+      throw new IllegalArgumentException(
+          "Only project members can create or update rules for this project. "
+              + "Please ask a project member to add you to project: "
+              + project.getName());
+    }
+  }
+
+  /**
    * Validates that the annotation term in a rule exists in the project's vocabulary.
    *
    * @param rule the rule to validate
@@ -394,4 +431,3 @@ public class RuleController implements Controller<Rule> {
     }
   }
 }
-

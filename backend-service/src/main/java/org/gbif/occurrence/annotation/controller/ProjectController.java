@@ -197,4 +197,3 @@ public class ProjectController implements Controller<Project> {
     return vocabularyService.getDefaultVocabulary();
   }
 }
-
