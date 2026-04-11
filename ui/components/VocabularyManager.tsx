@@ -191,14 +191,27 @@ export function VocabularyManager({ projectId, isUserMember }: VocabularyManager
         throw new Error(errorMessage);
       }
 
-      const data = await response.json();
-      setVocabulary(data);
-      setIsCustom(true);
-      setIsAddDialogOpen(false);
-      setNewTerm('');
-      setNewDescription('');
-      setNewColor('#22c55e');
-      toast.success('Term added successfully');
+      try {
+        const data = await response.json();
+        console.log('Vocabulary update successful, received:', {
+          termCount: data.length,
+          terms: data.map((t: VocabularyTerm) => t.term),
+          newTermIncluded: data.some((t: VocabularyTerm) => t.term === newTerm.trim().toUpperCase())
+        });
+        
+        setVocabulary(data);
+        setIsCustom(true);
+        setIsAddDialogOpen(false);
+        setNewTerm('');
+        setNewDescription('');
+        setNewColor('#22c55e');
+        toast.success('Term added successfully');
+        console.log('State updates complete, dialog should close');
+      } catch (parseError: any) {
+        console.error('Error parsing successful response:', parseError);
+        toast.error('Response parsing failed: ' + parseError.message);
+        throw parseError;
+      }
     } catch (error: any) {
       console.error('Error adding term:', error);
       toast.error(error.message || 'Failed to add term');

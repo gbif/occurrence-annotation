@@ -4,6 +4,7 @@
     <resultMap id="PROJECT_MAP" type="Project" autoMapping="true">
         <result property="members" column="members" typeHandler="org.apache.ibatis.type.ArrayTypeHandler"/>
         <result property="ruleset_id" column="ruleset_id" typeHandler="org.apache.ibatis.type.ArrayTypeHandler"/>
+        <result property="customVocabulary" column="custom_vocabulary" typeHandler="org.gbif.occurrence.annotation.typehandler.JsonbVocabularyTypeHandler"/>
     </resultMap>
 
     <select id="list" resultMap="org.gbif.occurrence.annotation.mapper.ProjectMapper.PROJECT_MAP">
@@ -29,7 +30,13 @@
     </insert>
 
     <update id="update" parameterType="Project">
-        UPDATE project SET name=#{name}, description=#{description}, members=#{members,typeHandler=org.apache.ibatis.type.ArrayTypeHandler}, modified=now(), modified_by=#{modifiedBy}
+        UPDATE project SET 
+            name=#{name}, 
+            description=#{description}, 
+            members=#{members,typeHandler=org.apache.ibatis.type.ArrayTypeHandler}, 
+            custom_vocabulary=#{customVocabulary,typeHandler=org.gbif.occurrence.annotation.typehandler.JsonbVocabularyTypeHandler},
+            modified=now(), 
+            modified_by=#{modifiedBy}
         WHERE id = #{id} AND DELETED IS NULL
     </update>
 
