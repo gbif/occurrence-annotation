@@ -534,7 +534,7 @@ public class ProjectControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(invalidVocabulary)))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.message", containsString("must include SUSPICIOUS")));
+        .andExpect(jsonPath("$.message", containsString("must include the 'SUSPICIOUS' term")));
   }
 
   @Test
@@ -588,7 +588,7 @@ public class ProjectControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(oversizedVocabulary)))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.message", containsString("maximum of 50 terms")));
+        .andExpect(jsonPath("$.message", containsString("cannot exceed 50 terms")));
   }
 
   @Test

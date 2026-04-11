@@ -266,8 +266,9 @@ public class RuleController implements Controller<Rule> {
     // Only creator or admin can update
     assertCreatorOrAdmin(existing.getCreatedBy());
 
-    // Check project membership if rule is being moved to a different project
-    if (!java.util.Objects.equals(existing.getProjectId(), rule.getProjectId())) {
+    // Check project membership if rule is being assigned to a project
+    if (rule.getProjectId() != null
+        && !java.util.Objects.equals(existing.getProjectId(), rule.getProjectId())) {
       assertProjectMember(rule.getProjectId());
     }
 
