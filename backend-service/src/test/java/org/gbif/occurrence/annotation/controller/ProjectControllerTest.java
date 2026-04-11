@@ -16,6 +16,7 @@ package org.gbif.occurrence.annotation.controller;
 import org.gbif.occurrence.annotation.EmbeddedPostgres;
 import org.gbif.occurrence.annotation.config.TestSecurityConfig;
 import org.gbif.occurrence.annotation.model.Project;
+import org.gbif.occurrence.annotation.model.VocabularyTerm;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -335,4 +336,522 @@ public class ProjectControllerTest {
   //       .contentType(MediaType.APPLICATION_JSON)
   //       .content(objectMapper.writeValueAsString(createdProject)));
   // }
+
+  // ==================== Vocabulary Tests ====================
+
+  @Test
+  @WithMockUser(
+      username = "vocab-user",
+      roles = {"USER"})
+  public void testGetDefaultVocabulary() throws Exception {
+    // Create a project without custom vocabulary
+    Project project = new Project();
+    project.setName("Vocabulary Test Project");
+    project.setDescription("Project for testing default vocabulary");
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Get vocabulary - should return default vocabulary
+    mockMvc
+        .perform(
+            get(
+                "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                createdProject.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", isA(java.util.List.class)))
+        .andExpect(jsonPath("$", hasSize(greaterThan(0))))
+        .andExpect(
+            jsonPath("$[?(@.term == 'SUSPICIOUS')]", hasSize(1))) // SUSPICIOUS must be present
+        .andExpect(jsonPath("$[?(@.term == 'SUSPICIOUS')].locked", contains(true))); // and locked
+  }
+
+  @Test
+  @WithMockUser(
+      username = "vocab-member",
+      roles = {"USER"})
+  public void testUpdateCustomVocabulary() throws Exception {
+    // Create a project
+    Project project = new Project();
+    project.setName("Custom Vocab Project");
+    project.setDescription("Project for custom vocabulary");
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Update vocabulary with custom terms
+    VocabularyTerm[] customVocabulary =
+        new VocabularyTerm[] {
+          VocabularyTerm.builder()
+              .term("SUSPICIOUS")
+              .description("Questionable data")
+              .color("#ef4444")
+              .locked(true)
+              .build(),
+          VocabularyTerm.builder()
+              .term("NATIVE")
+              .description("Native species")
+              .color("#10b981")
+              .locked(false)
+              .build(),
+          VocabularyTerm.builder()
+              .term("INTRODUCED")
+              .description("Introduced species")
+              .color("#f59e0b")
+              .locked(false)
+              .build()
+        };
+
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(customVocabulary)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(3)))
+        .andExpect(jsonPath("$[?(@.term == 'SUSPICIOUS')]", hasSize(1)))
+        .andExpect(jsonPath("$[?(@.term == 'NATIVE')]", hasSize(1)))
+        .andExpect(jsonPath("$[?(@.term == 'INTRODUCED')]", hasSize(1)));
+
+    // Verify the vocabulary persisted
+    mockMvc
+        .perform(
+            get(
+                "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                createdProject.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(3)))
+        .andExpect(jsonPath("$[?(@.term == 'NATIVE')].description", contains("Native species")));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "vocab-non-member",
+      roles = {"USER"})
+  public void testNonMemberCannotUpdateVocabulary() throws Exception {
+    // Create a project as different user
+    Project project = new Project();
+    project.setName("Member-Only Vocab Project");
+    project.setDescription("Testing vocabulary access control");
+    project.setMembers(new String[] {"vocab-owner"}); // Different user
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Try to update vocabulary as non-member
+    VocabularyTerm[] customVocabulary =
+        new VocabularyTerm[] {
+          VocabularyTerm.builder()
+              .term("SUSPICIOUS")
+              .description("Changed")
+              .color("#ef4444")
+              .locked(true)
+              .build()
+        };
+
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(customVocabulary)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message", containsString("User must be a member of the project")));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "vocab-validator",
+      roles = {"USER"})
+  public void testVocabularyMustIncludeSuspicious() throws Exception {
+    // Create a project
+    Project project = new Project();
+    project.setName("Suspicious Required Project");
+    project.setDescription("Testing SUSPICIOUS term requirement");
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Try to update vocabulary WITHOUT SUSPICIOUS term
+    VocabularyTerm[] invalidVocabulary =
+        new VocabularyTerm[] {
+          VocabularyTerm.builder()
+              .term("NATIVE")
+              .description("Native species")
+              .color("#10b981")
+              .locked(false)
+              .build()
+        };
+
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(invalidVocabulary)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message", containsString("must include SUSPICIOUS")));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "vocab-size-test",
+      roles = {"USER"})
+  public void testVocabularyExceedsMaxSize() throws Exception {
+    // Create a project
+    Project project = new Project();
+    project.setName("Size Limit Project");
+    project.setDescription("Testing vocabulary size limits");
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Create vocabulary with 51 terms (exceeds max of 50)
+    VocabularyTerm[] oversizedVocabulary = new VocabularyTerm[51];
+    oversizedVocabulary[0] =
+        VocabularyTerm.builder()
+            .term("SUSPICIOUS")
+            .description("Required term")
+            .color("#ef4444")
+            .locked(true)
+            .build();
+
+    for (int i = 1; i < 51; i++) {
+      oversizedVocabulary[i] =
+          VocabularyTerm.builder()
+              .term("TERM_" + i)
+              .description("Test term " + i)
+              .color("#3b82f6")
+              .locked(false)
+              .build();
+    }
+
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(oversizedVocabulary)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message", containsString("maximum of 50 terms")));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "vocab-duplicate-test",
+      roles = {"USER"})
+  public void testVocabularyRejectsDuplicates() throws Exception {
+    // Create a project
+    Project project = new Project();
+    project.setName("Duplicate Check Project");
+    project.setDescription("Testing duplicate term detection");
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Try to update with duplicate terms
+    VocabularyTerm[] duplicateVocabulary =
+        new VocabularyTerm[] {
+          VocabularyTerm.builder()
+              .term("SUSPICIOUS")
+              .description("Required term")
+              .color("#ef4444")
+              .locked(true)
+              .build(),
+          VocabularyTerm.builder()
+              .term("NATIVE")
+              .description("First native")
+              .color("#10b981")
+              .locked(false)
+              .build(),
+          VocabularyTerm.builder()
+              .term("NATIVE") // Duplicate!
+              .description("Second native")
+              .color("#059669")
+              .locked(false)
+              .build()
+        };
+
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(duplicateVocabulary)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message", containsString("Duplicate terms found")));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "vocab-color-test",
+      roles = {"USER"})
+  public void testVocabularyRejectsInvalidColor() throws Exception {
+    // Create a project
+    Project project = new Project();
+    project.setName("Color Validation Project");
+    project.setDescription("Testing color format validation");
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Try with invalid color format
+    VocabularyTerm[] invalidColorVocabulary =
+        new VocabularyTerm[] {
+          VocabularyTerm.builder()
+              .term("SUSPICIOUS")
+              .description("Required term")
+              .color("#ef4444")
+              .locked(true)
+              .build(),
+          VocabularyTerm.builder()
+              .term("NATIVE")
+              .description("Native species")
+              .color("red") // Invalid: not hex format
+              .locked(false)
+              .build()
+        };
+
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(invalidColorVocabulary)))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @WithMockUser(
+      username = "vocab-delete-user",
+      roles = {"USER"})
+  public void testDeleteVocabularyRevertsToDefault() throws Exception {
+    // Create a project
+    Project project = new Project();
+    project.setName("Vocabulary Delete Project");
+    project.setDescription("Testing vocabulary deletion");
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Set custom vocabulary
+    VocabularyTerm[] customVocabulary =
+        new VocabularyTerm[] {
+          VocabularyTerm.builder()
+              .term("SUSPICIOUS")
+              .description("Custom suspicious")
+              .color("#ef4444")
+              .locked(true)
+              .build(),
+          VocabularyTerm.builder()
+              .term("CUSTOM_TERM")
+              .description("My custom term")
+              .color("#8b5cf6")
+              .locked(false)
+              .build()
+        };
+
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(customVocabulary)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(2)));
+
+    // Delete vocabulary - should revert to default
+    mockMvc
+        .perform(
+            delete(
+                "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                createdProject.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(greaterThan(2)))) // Default has more terms
+        .andExpect(jsonPath("$[?(@.term == 'CUSTOM_TERM')]", hasSize(0))); // Custom term gone
+
+    // Verify it persisted
+    mockMvc
+        .perform(
+            get(
+                "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                createdProject.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(greaterThan(2))));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "vocab-delete-non-member",
+      roles = {"USER"})
+  public void testNonMemberCannotDeleteVocabulary() throws Exception {
+    // Create a project as different user
+    Project project = new Project();
+    project.setName("Delete Access Control Project");
+    project.setDescription("Testing vocabulary deletion access control");
+    project.setMembers(new String[] {"vocab-owner-2"}); // Different user
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Try to delete vocabulary as non-member
+    mockMvc
+        .perform(
+            delete(
+                "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                createdProject.getId()))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message", containsString("User must be a member of the project")));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "vocab-case-test",
+      roles = {"USER"})
+  public void testVocabularyTermsCaseInsensitive() throws Exception {
+    // Create a project
+    Project project = new Project();
+    project.setName("Case Sensitivity Project");
+    project.setDescription("Testing case-insensitive term handling");
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Set vocabulary with lowercase terms
+    VocabularyTerm[] customVocabulary =
+        new VocabularyTerm[] {
+          VocabularyTerm.builder()
+              .term("suspicious") // lowercase
+              .description("Required term")
+              .color("#ef4444")
+              .locked(true)
+              .build(),
+          VocabularyTerm.builder()
+              .term("native") // lowercase
+              .description("Native species")
+              .color("#10b981")
+              .locked(false)
+              .build()
+        };
+
+    // Should succeed - terms are normalized to uppercase
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(customVocabulary)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[?(@.term == 'SUSPICIOUS')]", hasSize(1)))
+        .andExpect(jsonPath("$[?(@.term == 'NATIVE')]", hasSize(1)));
+  }
 }
