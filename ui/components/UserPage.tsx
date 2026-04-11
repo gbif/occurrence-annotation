@@ -1428,7 +1428,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                   onProjectFilterChange={setProjectFilter}
                   userFilter={userFilter}
                   onUserFilterChange={setUserFilter}
-                  projects={projects}
+                  selectedProjectName={projects.find(p => p.id === projectFilter)?.name || null}
                 />
               </div>
               <Button
