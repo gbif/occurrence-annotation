@@ -493,6 +493,88 @@ public class ProjectControllerTest {
   }
 
   @Test
+  public void testNonCreatorMemberCanUpdateVocabulary() throws Exception {
+    // Create a project as one user with multiple members
+    Project project = new Project();
+    project.setName("Collaborative Vocab Project");
+    project.setDescription("Testing that non-creator members can update vocabulary");
+    project.setMembers(new String[] {"vocab-creator", "vocab-member"});
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project))
+                    .with(user("vocab-creator").roles("USER")))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Verify project was created with both members
+    assertEquals(2, createdProject.getMembers().length);
+    assertTrue(Arrays.asList(createdProject.getMembers()).contains("vocab-creator"));
+    assertTrue(Arrays.asList(createdProject.getMembers()).contains("vocab-member"));
+
+    // Now, as non-creator member, update vocabulary
+    VocabularyTerm[] customVocabulary =
+        new VocabularyTerm[] {
+          VocabularyTerm.builder()
+              .term("SUSPICIOUS")
+              .description("Required term")
+              .color("#ef4444")
+              .locked(true)
+              .build(),
+          VocabularyTerm.builder()
+              .term("NATIVE")
+              .description("Added by member, not creator")
+              .color("#10b981")
+              .locked(false)
+              .build(),
+          VocabularyTerm.builder()
+              .term("INTRODUCED")
+              .description("Introduced species")
+              .color("#f59e0b")
+              .locked(false)
+              .build()
+        };
+
+    // Should succeed - member can update vocabulary even if not creator
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(customVocabulary))
+                .with(user("vocab-member").roles("USER")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(3)))
+        .andExpect(jsonPath("$[?(@.term == 'SUSPICIOUS')]", hasSize(1)))
+        .andExpect(jsonPath("$[?(@.term == 'NATIVE')]", hasSize(1)))
+        .andExpect(
+            jsonPath(
+                "$[?(@.term == 'NATIVE')].description", contains("Added by member, not creator")))
+        .andExpect(jsonPath("$[?(@.term == 'INTRODUCED')]", hasSize(1)));
+
+    // Verify vocabulary persists by retrieving it
+    mockMvc
+        .perform(
+            get(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId())
+                .with(user("vocab-member").roles("USER")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(3)))
+        .andExpect(
+            jsonPath(
+                "$[?(@.term == 'NATIVE')].description", hasItem("Added by member, not creator")));
+  }
+
+  @Test
   @WithMockUser(
       username = "vocab-validator",
       roles = {"USER"})
