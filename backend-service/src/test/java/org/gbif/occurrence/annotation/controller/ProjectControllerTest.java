@@ -1254,4 +1254,133 @@ public class ProjectControllerTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.message", containsString("Duplicate terms found")));
   }
+
+  @Test
+  @WithMockUser(
+      username = "vocab-user",
+      roles = {"USER"})
+  public void testVocabularyTermsIsolatedBetweenProjects() throws Exception {
+    // Create first project
+    Project project1 = new Project();
+    project1.setName("Project One");
+    project1.setDescription("First project with custom vocabulary");
+
+    String response1 =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project1)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject1 = objectMapper.readValue(response1, Project.class);
+
+    // Create second project
+    Project project2 = new Project();
+    project2.setName("Project Two");
+    project2.setDescription("Second project with custom vocabulary");
+
+    String response2 =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project2)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject2 = objectMapper.readValue(response2, Project.class);
+
+    // Add vocabulary with "NATIVE" term to first project
+    VocabularyTerm[] vocabulary1 =
+        new VocabularyTerm[] {
+          VocabularyTerm.builder()
+              .term("SUSPICIOUS")
+              .description("Required term")
+              .color("#ef4444")
+              .locked(true)
+              .build(),
+          VocabularyTerm.builder()
+              .term("NATIVE")
+              .description("Native to Project One region")
+              .color("#10b981")
+              .locked(false)
+              .build()
+        };
+
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject1.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(vocabulary1)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(2)))
+        .andExpect(
+            jsonPath(
+                "$[?(@.term == 'NATIVE')].description", hasItem("Native to Project One region")))
+        .andExpect(jsonPath("$[?(@.term == 'NATIVE')].color", hasItem("#10b981")));
+
+    // Add vocabulary with the same "NATIVE" term to second project - should succeed
+    VocabularyTerm[] vocabulary2 =
+        new VocabularyTerm[] {
+          VocabularyTerm.builder()
+              .term("SUSPICIOUS")
+              .description("Required term")
+              .color("#ef4444")
+              .locked(true)
+              .build(),
+          VocabularyTerm.builder()
+              .term("NATIVE")
+              .description("Native to Project Two region")
+              .color("#3b82f6") // Different color
+              .locked(false)
+              .build()
+        };
+
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject2.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(vocabulary2)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(2)))
+        .andExpect(
+            jsonPath(
+                "$[?(@.term == 'NATIVE')].description", hasItem("Native to Project Two region")))
+        .andExpect(jsonPath("$[?(@.term == 'NATIVE')].color", hasItem("#3b82f6")));
+
+    // Verify both projects still have their own independent "NATIVE" terms
+    mockMvc
+        .perform(
+            get(
+                "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                createdProject1.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(2)))
+        .andExpect(
+            jsonPath(
+                "$[?(@.term == 'NATIVE')].description", hasItem("Native to Project One region")))
+        .andExpect(jsonPath("$[?(@.term == 'NATIVE')].color", hasItem("#10b981")));
+
+    mockMvc
+        .perform(
+            get(
+                "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                createdProject2.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(2)))
+        .andExpect(
+            jsonPath(
+                "$[?(@.term == 'NATIVE')].description", hasItem("Native to Project Two region")))
+        .andExpect(jsonPath("$[?(@.term == 'NATIVE')].color", hasItem("#3b82f6")));
+  }
 }
