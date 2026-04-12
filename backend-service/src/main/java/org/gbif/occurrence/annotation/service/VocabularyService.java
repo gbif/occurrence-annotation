@@ -157,7 +157,7 @@ public class VocabularyService {
     Set<String> uniqueTerms = new HashSet<>();
     List<String> duplicates =
         Arrays.stream(vocabulary)
-            .map(term -> term.getTerm().toUpperCase(Locale.ROOT))
+            .map(term -> term.getTerm().trim().toUpperCase(Locale.ROOT))
             .filter(term -> !uniqueTerms.add(term))
             .collect(Collectors.toList());
 
@@ -168,7 +168,7 @@ public class VocabularyService {
 
     // Validate each term
     for (VocabularyTerm term : vocabulary) {
-      if (term.getTerm() == null || term.getTerm().isBlank()) {
+      if (term.getTerm() == null || term.getTerm().trim().isBlank()) {
         throw new IllegalArgumentException("All vocabulary terms must have a non-blank term name");
       }
 

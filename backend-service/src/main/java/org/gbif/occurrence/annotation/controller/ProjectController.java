@@ -175,10 +175,10 @@ public class ProjectController implements Controller<Project> {
           "User must be a member of the project to update vocabulary");
     }
 
-    // Normalize terms to uppercase
+    // Normalize terms: trim whitespace and convert to uppercase
     if (vocabulary != null) {
       for (VocabularyTerm term : vocabulary) {
-        term.setTerm(term.getTerm().toUpperCase(Locale.ROOT));
+        term.setTerm(term.getTerm().trim().toUpperCase(Locale.ROOT));
       }
     }
 

@@ -854,4 +854,240 @@ public class ProjectControllerTest {
         .andExpect(jsonPath("$[?(@.term == 'SUSPICIOUS')]", hasSize(1)))
         .andExpect(jsonPath("$[?(@.term == 'NATIVE')]", hasSize(1)));
   }
+
+  @Test
+  @WithMockUser(
+      username = "vocab-whitespace-test",
+      roles = {"USER"})
+  public void testVocabularyAllowsWhitespace() throws Exception {
+    // Create a project
+    Project project = new Project();
+    project.setName("Whitespace Project");
+    project.setDescription("Testing vocabulary terms with whitespace");
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Set vocabulary with terms containing whitespace
+    VocabularyTerm[] customVocabulary =
+        new VocabularyTerm[] {
+          VocabularyTerm.builder()
+              .term("SUSPICIOUS")
+              .description("Required term")
+              .color("#ef4444")
+              .locked(true)
+              .build(),
+          VocabularyTerm.builder()
+              .term("PROBABLY NATIVE")
+              .description("Species likely native to area")
+              .color("#10b981")
+              .locked(false)
+              .build(),
+          VocabularyTerm.builder()
+              .term("LIKELY INTRODUCED")
+              .description("Species likely introduced")
+              .color("#f59e0b")
+              .locked(false)
+              .build(),
+          VocabularyTerm.builder()
+              .term("NEEDS REVIEW")
+              .description("Requires expert review")
+              .color("#8b5cf6")
+              .locked(false)
+              .build()
+        };
+
+    // Should succeed - whitespace is allowed in vocabulary terms
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(customVocabulary)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[?(@.term == 'SUSPICIOUS')]", hasSize(1)))
+        .andExpect(jsonPath("$[?(@.term == 'PROBABLY NATIVE')]", hasSize(1)))
+        .andExpect(jsonPath("$[?(@.term == 'LIKELY INTRODUCED')]", hasSize(1)))
+        .andExpect(jsonPath("$[?(@.term == 'NEEDS REVIEW')]", hasSize(1)));
+
+    // Verify the vocabulary was actually stored
+    mockMvc
+        .perform(
+            get(
+                "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                createdProject.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(4)))
+        .andExpect(
+            jsonPath(
+                "$[?(@.term == 'PROBABLY NATIVE')].description",
+                hasItem("Species likely native to area")))
+        .andExpect(
+            jsonPath(
+                "$[?(@.term == 'LIKELY INTRODUCED')].description",
+                hasItem("Species likely introduced")))
+        .andExpect(
+            jsonPath(
+                "$[?(@.term == 'NEEDS REVIEW')].description", hasItem("Requires expert review")));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "vocab-whitespace-edge-test",
+      roles = {"USER"})
+  public void testVocabularyTermsWithLeadingTrailingWhitespace() throws Exception {
+    // Create a project
+    Project project = new Project();
+    project.setName("Whitespace Edge Case Project");
+    project.setDescription("Testing terms with leading/trailing whitespace");
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Set vocabulary with terms that have leading/trailing whitespace
+    VocabularyTerm[] customVocabulary =
+        new VocabularyTerm[] {
+          VocabularyTerm.builder()
+              .term("  SUSPICIOUS  ") // spaces before and after
+              .description("Required term with spaces")
+              .color("#ef4444")
+              .locked(true)
+              .build(),
+          VocabularyTerm.builder()
+              .term("  NATIVE") // leading space
+              .description("Native term with leading space")
+              .color("#10b981")
+              .locked(false)
+              .build(),
+          VocabularyTerm.builder()
+              .term("INTRODUCED  ") // trailing space
+              .description("Introduced term with trailing space")
+              .color("#f59e0b")
+              .locked(false)
+              .build()
+        };
+
+    // Submit vocabulary update - should either trim or reject
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(customVocabulary)))
+        .andExpect(status().isOk());
+
+    // Retrieve vocabulary to check how whitespace was handled
+    String vocabResponse =
+        mockMvc
+            .perform(
+                get(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId()))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    VocabularyTerm[] retrievedVocab = objectMapper.readValue(vocabResponse, VocabularyTerm[].class);
+
+    // Document current behavior: terms should be trimmed during processing
+    // If this test fails, it means whitespace is preserved, which could cause issues
+    boolean allTermsTrimmed = true;
+    for (VocabularyTerm term : retrievedVocab) {
+      if (!term.getTerm().equals(term.getTerm().trim())) {
+        allTermsTrimmed = false;
+        break;
+      }
+    }
+
+    // This assertion documents the expected behavior
+    if (!allTermsTrimmed) {
+      throw new AssertionError(
+          "Vocabulary terms should have leading/trailing whitespace trimmed. "
+              + "Current behavior preserves whitespace, which could cause: "
+              + "(1) duplicate detection to miss variations like 'NATIVE' vs ' NATIVE', "
+              + "(2) UI display issues with extra spaces, "
+              + "(3) confusion for users comparing terms.");
+    }
+  }
+
+  @Test
+  @WithMockUser(
+      username = "vocab-whitespace-duplicate-test",
+      roles = {"USER"})
+  public void testVocabularyWhitespaceDoesNotBypassDuplicateDetection() throws Exception {
+    // Create a project
+    Project project = new Project();
+    project.setName("Whitespace Duplicate Project");
+    project.setDescription("Testing duplicate detection with whitespace variations");
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Try to create "duplicates" using whitespace variations
+    VocabularyTerm[] duplicateVocabulary =
+        new VocabularyTerm[] {
+          VocabularyTerm.builder()
+              .term("SUSPICIOUS")
+              .description("Required term")
+              .color("#ef4444")
+              .locked(true)
+              .build(),
+          VocabularyTerm.builder()
+              .term("NATIVE") // no whitespace
+              .description("First native")
+              .color("#10b981")
+              .locked(false)
+              .build(),
+          VocabularyTerm.builder()
+              .term("  NATIVE  ") // same term with whitespace
+              .description("Second native with spaces")
+              .color("#059669")
+              .locked(false)
+              .build()
+        };
+
+    // Should reject if duplicate detection works correctly after trimming
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(duplicateVocabulary)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message", containsString("Duplicate terms found")));
+  }
 }
