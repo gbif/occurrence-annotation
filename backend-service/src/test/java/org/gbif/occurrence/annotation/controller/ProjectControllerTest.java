@@ -786,6 +786,84 @@ public class ProjectControllerTest {
 
   @Test
   @WithMockUser(
+      username = "vocab-duplicate-color-test",
+      roles = {"USER"})
+  public void testVocabularyAllowsDuplicateColors() throws Exception {
+    // Create a project
+    Project project = new Project();
+    project.setName("Duplicate Color Project");
+    project.setDescription("Testing that duplicate colors are allowed");
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(response, Project.class);
+
+    // Update vocabulary with multiple terms using the same color
+    VocabularyTerm[] sameColorVocabulary =
+        new VocabularyTerm[] {
+          VocabularyTerm.builder()
+              .term("SUSPICIOUS")
+              .description("Required term")
+              .color("#ef4444")
+              .locked(true)
+              .build(),
+          VocabularyTerm.builder()
+              .term("NATIVE")
+              .description("Native species")
+              .color("#10b981") // Same color as INTRODUCED
+              .locked(false)
+              .build(),
+          VocabularyTerm.builder()
+              .term("INTRODUCED")
+              .description("Introduced species")
+              .color("#10b981") // Same color as NATIVE
+              .locked(false)
+              .build(),
+          VocabularyTerm.builder()
+              .term("ENDEMIC")
+              .description("Endemic species")
+              .color("#10b981") // Same color again
+              .locked(false)
+              .build()
+        };
+
+    // Should succeed - duplicate colors are allowed
+    mockMvc
+        .perform(
+            put(
+                    "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                    createdProject.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(sameColorVocabulary)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(4)))
+        .andExpect(jsonPath("$[?(@.term == 'SUSPICIOUS')]", hasSize(1)))
+        .andExpect(jsonPath("$[?(@.term == 'NATIVE')]", hasSize(1)))
+        .andExpect(jsonPath("$[?(@.term == 'INTRODUCED')]", hasSize(1)))
+        .andExpect(jsonPath("$[?(@.term == 'ENDEMIC')]", hasSize(1)));
+
+    // Verify all three terms with the same color were stored
+    mockMvc
+        .perform(
+            get(
+                "/occurrence/experimental/annotation/project/{id}/vocabulary",
+                createdProject.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(4)))
+        .andExpect(jsonPath("$[?(@.color == '#10b981')]", hasSize(3)));
+  }
+
+  @Test
+  @WithMockUser(
       username = "vocab-delete-user",
       roles = {"USER"})
   public void testDeleteVocabularyRevertsToDefault() throws Exception {
