@@ -34,5 +34,7 @@ public interface ProjectMapper {
 
   void update(Project rule);
 
+  void clearVocabulary(@Param("id") int id, @Param("username") String modifiedBy);
+
   void delete(@Param("id") int id, @Param("username") String username);
 }

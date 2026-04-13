@@ -42,6 +42,14 @@
         WHERE id = #{id} AND DELETED IS NULL
     </update>
 
+    <update id="clearVocabulary" parameterType="map">
+        UPDATE project SET 
+            custom_vocabulary=NULL,
+            modified=now(), 
+            modified_by=#{modifiedBy}
+        WHERE id = #{id} AND DELETED IS NULL
+    </update>
+
     <update id="delete" parameterType="map">
         UPDATE project SET deleted = now(), deleted_by = #{username} WHERE id = #{id} AND DELETED IS NULL
     </update>

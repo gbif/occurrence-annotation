@@ -212,10 +212,8 @@ public class ProjectController implements Controller<Project> {
           "User must be a member of the project to reset vocabulary");
     }
 
-    // Set vocabulary to null (means use default)
-    existing.setCustomVocabulary(null);
-    existing.setModifiedBy(getLoggedInUser());
-    projectMapper.update(existing);
+    // Clear custom vocabulary (revert to default)
+    projectMapper.clearVocabulary(id, getLoggedInUser());
 
     return vocabularyService.getDefaultVocabulary();
   }
