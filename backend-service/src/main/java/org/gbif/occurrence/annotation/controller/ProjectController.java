@@ -17,9 +17,12 @@ import org.gbif.occurrence.annotation.mapper.ProjectMapper;
 import org.gbif.occurrence.annotation.mapper.RuleMapper;
 import org.gbif.occurrence.annotation.mapper.RulesetMapper;
 import org.gbif.occurrence.annotation.model.Project;
+import org.gbif.occurrence.annotation.model.VocabularyTerm;
+import org.gbif.occurrence.annotation.service.VocabularyService;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.annotation.Secured;
@@ -40,6 +43,7 @@ public class ProjectController implements Controller<Project> {
   @Autowired private ProjectMapper projectMapper;
   @Autowired private RulesetMapper rulesetMapper;
   @Autowired private RuleMapper ruleMapper;
+  @Autowired private VocabularyService vocabularyService;
 
   @Operation(summary = "List all projects that are not deleted")
   @Parameter(name = "limit", description = "The limit for paging", example = "100")
@@ -49,14 +53,19 @@ public class ProjectController implements Controller<Project> {
       description =
           "Filter projects by member username (returns only projects where this user is a member)",
       example = "jwaller")
+  @Parameter(
+      name = "name",
+      description = "Filter projects by name (case-insensitive partial match)",
+      example = "bird")
   @GetMapping
   public List<Project> list(
       @RequestParam(required = false) Integer limit,
       @RequestParam(required = false) Integer offset,
-      @RequestParam(required = false) String member) {
+      @RequestParam(required = false) String member,
+      @RequestParam(required = false) String name) {
     int limitInt = limit == null ? 100 : limit;
     int offsetInt = offset == null ? 0 : offset;
-    return projectMapper.list(limitInt, offsetInt, member);
+    return projectMapper.list(limitInt, offsetInt, member, name);
   }
 
   @Operation(summary = "Get a single project (may be deleted)")
@@ -78,7 +87,13 @@ public class ProjectController implements Controller<Project> {
 
     String username = getLoggedInUser();
     project.setCreatedBy(username);
-    project.setMembers(new String[] {username}); // creator is always a member
+
+    // If no members specified, add creator as the only member
+    // Otherwise respect the provided members list (even if creator not included)
+    if (project.getMembers() == null || project.getMembers().length == 0) {
+      project.setMembers(new String[] {username});
+    }
+
     projectMapper.create(project); // mybatis sets id
     return projectMapper.get(project.getId());
   }
@@ -121,5 +136,85 @@ public class ProjectController implements Controller<Project> {
     ruleMapper.deleteByProject(id, username);
     // comments are not findable, so aren't deleted
     return projectMapper.get(id);
+  }
+
+  @Operation(
+      summary = "Get vocabulary for a project",
+      description =
+          "Returns the custom vocabulary if defined, otherwise returns the default system vocabulary")
+  @GetMapping("/{id}/vocabulary")
+  public VocabularyTerm[] getVocabulary(@PathVariable(value = "id") int id) {
+    // Verify project exists
+    Project project = projectMapper.get(id);
+    if (project == null) {
+      throw new IllegalArgumentException("Project not found: " + id);
+    }
+    return vocabularyService.getVocabulary(id);
+  }
+
+  @Operation(
+      summary = "Update custom vocabulary for a project",
+      description =
+          "Set custom annotation vocabulary for a project. Only project members can update. "
+              + "Vocabulary must include SUSPICIOUS term (locked). Maximum 50 terms.")
+  @PutMapping("/{id}/vocabulary")
+  @Secured("USER")
+  public VocabularyTerm[] updateVocabulary(
+      @PathVariable(value = "id") int id, @Valid @RequestBody VocabularyTerm[] vocabulary) {
+    Project existing = projectMapper.get(id);
+
+    // Check project exists
+    if (existing == null) {
+      throw new IllegalArgumentException("Project not found: " + id);
+    }
+
+    // Only members can update vocabulary
+    if (!Arrays.asList(existing.getMembers()).contains(getLoggedInUser())) {
+      throw new IllegalArgumentException(
+          "User must be a member of the project to update vocabulary");
+    }
+
+    // Normalize terms: trim whitespace and convert to uppercase
+    if (vocabulary != null) {
+      for (VocabularyTerm term : vocabulary) {
+        term.setTerm(term.getTerm().trim().toUpperCase(Locale.ROOT));
+      }
+    }
+
+    // Validate the vocabulary
+    vocabularyService.validateVocabulary(vocabulary);
+
+    // Update the project with new vocabulary
+    existing.setCustomVocabulary(vocabulary);
+    existing.setModifiedBy(getLoggedInUser());
+    projectMapper.update(existing);
+
+    return vocabularyService.getVocabulary(id);
+  }
+
+  @Operation(
+      summary = "Reset project vocabulary to default",
+      description =
+          "Remove custom vocabulary and revert to default system vocabulary. Only project members can perform this action.")
+  @DeleteMapping("/{id}/vocabulary")
+  @Secured("USER")
+  public VocabularyTerm[] deleteVocabulary(@PathVariable(value = "id") int id) {
+    Project existing = projectMapper.get(id);
+
+    // Check project exists
+    if (existing == null) {
+      throw new IllegalArgumentException("Project not found: " + id);
+    }
+
+    // Only members can delete vocabulary
+    if (!Arrays.asList(existing.getMembers()).contains(getLoggedInUser())) {
+      throw new IllegalArgumentException(
+          "User must be a member of the project to reset vocabulary");
+    }
+
+    // Clear custom vocabulary (revert to default)
+    projectMapper.clearVocabulary(id, getLoggedInUser());
+
+    return vocabularyService.getDefaultVocabulary();
   }
 }

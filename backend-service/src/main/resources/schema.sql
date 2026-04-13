@@ -8,6 +8,7 @@ CREATE TABLE project (
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     members TEXT[] NOT NULL DEFAULT '{}',
+    custom_vocabulary JSONB,
     created TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     created_by TEXT NOT NULL,
     modified TIMESTAMP WITHOUT TIME ZONE,

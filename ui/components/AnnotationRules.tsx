@@ -14,6 +14,14 @@ import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl, getGbifApiUrl } from '../utils/apiConfig';
+
+interface VocabularyTerm {
+  term: string;
+  description?: string;
+  color: string;
+  locked: boolean;
+}
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -309,6 +317,7 @@ interface AnnotationRulesProps {
   onRulesLoad?: (rules: AnnotationRule[]) => void;
   refreshTrigger?: number; // Add this to force refresh when rules are saved
   filterProjectId?: number | null; // Filter rules by project ID
+  vocabulary?: VocabularyTerm[];
 }
 
 export function AnnotationRules({ 
@@ -317,7 +326,15 @@ export function AnnotationRules({
   onShowHigherOrderChange,
   onRulesLoad,
   refreshTrigger,
-  filterProjectId
+  filterProjectId,
+  vocabulary = [
+    { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
+    { term: 'NATIVE', description: 'Native species', color: '#10b981', locked: false },
+    { term: 'MANAGED', description: 'Managed population', color: '#3b82f6', locked: false },
+    { term: 'FORMER', description: 'Former population', color: '#a855f7', locked: false },
+    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
+    { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
+  ],
 }: AnnotationRulesProps) {
   const [rules, setRules] = useState<AnnotationRule[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1267,20 +1284,25 @@ export function AnnotationRules({
   };
 
   const getAnnotationColor = (annotation: string) => {
-    switch (annotation.toUpperCase()) {
-      case 'SUSPICIOUS':
-        return 'bg-red-100 text-red-800 border-red-300';
-      case 'NATIVE':
-        return 'bg-green-100 text-green-800 border-green-300';
-      case 'MANAGED':
-        return 'bg-blue-100 text-blue-800 border-blue-300';
-      case 'FORMER':
-        return 'bg-purple-100 text-purple-800 border-purple-300';
-      case 'VAGRANT':
-        return 'bg-orange-100 text-orange-800 border-orange-300';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-300';
+    // Look up color from vocabulary
+    const vocabTerm = vocabulary.find(v => v.term.toUpperCase() === annotation.toUpperCase());
+    if (vocabTerm) {
+      // Convert hex color to Tailwind-style classes
+      const color = vocabTerm.color.toLowerCase();
+      // Use custom style instead of Tailwind classes for dynamic colors
+      return {
+        backgroundColor: `${color}20`, // 20 = 12.5% opacity
+        color: color,
+        borderColor: `${color}80`, // 80 = 50% opacity
+      };
     }
+    
+    // Fallback for unknown annotations
+    return {
+      backgroundColor: '#f3f4f620',
+      color: '#6b7280',
+      borderColor: '#6b728080',
+    };
   };
 
   const renderPolygonPreview = (multiPolygon: MultiPolygon | undefined, annotation: string) => {
@@ -1351,6 +1373,7 @@ export function AnnotationRules({
         width={80}
         height={60}
         className="rounded-md shadow-sm"
+        vocabulary={vocabulary}
       />
     );
 
@@ -1443,7 +1466,11 @@ export function AnnotationRules({
                 {/* Rule details */}
                 <div className="flex-1 space-y-2 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Badge className={getAnnotationColor(rule.annotation)} variant="outline">
+                    <Badge 
+                      style={getAnnotationColor(rule.annotation)} 
+                      variant="outline"
+                      className="border"
+                    >
                       {rule.annotation}
                     </Badge>
                     {rule.projectId && (
@@ -1836,13 +1863,11 @@ export function AnnotationRules({
                   value={editingRule.annotation}
                   onChange={(e) => setEditingRule({ ...editingRule, annotation: e.target.value })}
                 >
-                  <option value="NATIVE">Native</option>
-                  <option value="INTRODUCED">Introduced</option>
-                  <option value="MANAGED">Managed</option>
-                  <option value="FORMER">Former</option>
-                  <option value="VAGRANT">Vagrant</option>
-                  <option value="SUSPICIOUS">Suspicious</option>
-                  <option value="OTHER">Other</option>
+                  {vocabulary.map((term) => (
+                    <option key={term.term} value={term.term}>
+                      {term.term}
+                    </option>
+                  ))}
                 </select>
               </div>
 

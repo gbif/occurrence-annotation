@@ -12,18 +12,30 @@ interface DownloadResultsMapProps {
   passingPoints?: MapPoint[];
   speciesInfo: Map<number, SpeciesHierarchy>;
   selectedSpecies?: number | null;
+  vocabulary?: Array<{term: string, color: string}>;
 }
 
-// Annotation type color mapping (matches main map colors)
-const ANNOTATION_COLORS: Record<string, { fill: string; stroke: string; label: string }> = {
-  SUSPICIOUS: { fill: '#ef4444', stroke: '#dc2626', label: 'Suspicious' },
-  INTRODUCED: { fill: '#d97706', stroke: '#b45309', label: 'Introduced' },
-  NATIVE: { fill: '#10b981', stroke: '#059669', label: 'Native' },
-  MANAGED: { fill: '#3b82f6', stroke: '#2563eb', label: 'Managed' },
-  FORMER: { fill: '#a855f7', stroke: '#9333ea', label: 'Former' },
-  VAGRANT: { fill: '#f97316', stroke: '#ea580c', label: 'Vagrant' },
-  OTHER: { fill: '#64748b', stroke: '#475569', label: 'Other' },
-};
+// Build annotation color mapping from vocabulary
+function getAnnotationColors(vocabulary?: Array<{term: string, color: string}>): Record<string, { fill: string; stroke: string }> {
+  const colors: Record<string, { fill: string; stroke: string }> = {};
+  
+  if (vocabulary && vocabulary.length > 0) {
+    vocabulary.forEach(v => {
+      colors[v.term.toUpperCase()] = { fill: v.color, stroke: v.color };
+    });
+  } else {
+    // Default fallback colors
+    colors.SUSPICIOUS = { fill: '#ef4444', stroke: '#dc2626' };
+    colors.INTRODUCED = { fill: '#d97706', stroke: '#b45309' };
+    colors.NATIVE = { fill: '#10b981', stroke: '#059669' };
+    colors.MANAGED = { fill: '#3b82f6', stroke: '#2563eb' };
+    colors.FORMER = { fill: '#a855f7', stroke: '#9333ea' };
+    colors.VAGRANT = { fill: '#f97316', stroke: '#ea580c' };
+    colors.OTHER = { fill: '#64748b', stroke: '#475569' };
+  }
+  
+  return colors;
+}
 
 const PASSING_COLOR = { fill: '#22c55e', stroke: '#16a34a' };
 
@@ -88,8 +100,10 @@ export function DownloadResultsMap({
   flaggedPoints,
   passingPoints = [],
   speciesInfo,
-  selectedSpecies = null
+  selectedSpecies = null,
+  vocabulary
 }: DownloadResultsMapProps) {
+  const ANNOTATION_COLORS = useMemo(() => getAnnotationColors(vocabulary), [vocabulary]);
   const [center, setCenter] = useState<[number, number]>(() => {
     // Calculate center from points
     if (flaggedPoints.length > 0) {
@@ -212,7 +226,7 @@ export function DownloadResultsMap({
               }
 
               const [anchorLat, anchorLng] = firstPolygon.outer[0];
-              const color = ANNOTATION_COLORS[rule.annotation] || ANNOTATION_COLORS.OTHER;
+              const color = ANNOTATION_COLORS[rule.annotation] || { fill: '#6b7280', stroke: '#475569' };
 
               return (
                 <Overlay key={`rule-${rule.id}`} anchor={[anchorLat, anchorLng]} offset={[0, 0]}>
@@ -271,7 +285,7 @@ export function DownloadResultsMap({
             const isSinglePoint = cluster.points.length === 1;
             const point = cluster.points[0];
             const primaryAnnotation = point.annotations[0] || 'OTHER';
-            const color = ANNOTATION_COLORS[primaryAnnotation] || ANNOTATION_COLORS.OTHER;
+            const color = ANNOTATION_COLORS[primaryAnnotation] || { fill: '#6b7280', stroke: '#475569' };
 
             return (
               <Overlay key={`flagged-${idx}`} anchor={cluster.center} offset={[0, 0]}>
@@ -358,7 +372,7 @@ export function DownloadResultsMap({
           </div>
           <div className="space-y-2">
             {displayRules.map((rule, index) => {
-              const color = ANNOTATION_COLORS[rule.annotation] || ANNOTATION_COLORS.SUSPICIOUS;
+              const color = ANNOTATION_COLORS[rule.annotation] || { fill: '#ef4444', stroke: '#dc2626' };
               const recordCount = rule.id ? (ruleRecordCounts[rule.id] || 0) : 0;
               
               // Check if this is a complex rule (has additional criteria beyond spatial/taxonomic)
@@ -399,7 +413,7 @@ export function DownloadResultsMap({
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="font-medium text-gray-900">{color.label}</div>
+                        <div className="font-medium text-gray-900">{rule.annotation}</div>
                         <div className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${recordCount > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
                           {recordCount} record{recordCount !== 1 ? 's' : ''}
                         </div>
@@ -446,7 +460,7 @@ export function DownloadResultsMap({
         <div className="font-semibold mb-2">Annotation Types</div>
         <div className="space-y-1">
           {Object.entries(annotationCounts).map(([type, count]) => {
-            const color = ANNOTATION_COLORS[type] || ANNOTATION_COLORS.OTHER;
+            const color = ANNOTATION_COLORS[type] || { fill: '#6b7280', stroke: '#475569' };
             return (
               <div key={type} className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5">
@@ -459,7 +473,7 @@ export function DownloadResultsMap({
                       border: `2px solid ${color.stroke}`,
                     }}
                   />
-                  <span>{color.label}</span>
+                  <span>{type}</span>
                 </div>
                 <span className="text-gray-500">{count}</span>
               </div>

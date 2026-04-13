@@ -77,7 +77,7 @@ public class StatsMapperTest {
             .taxonKey(12345)
             .datasetKey("test-dataset-key")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .annotation("NATIVE")
             .basisOfRecord(new String[] {"PRESERVED_SPECIMEN"})
             .yearRange("2000,2023")
             .rulesetId(1)

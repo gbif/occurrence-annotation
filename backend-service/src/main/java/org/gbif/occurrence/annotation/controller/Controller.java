@@ -17,11 +17,13 @@ import org.springframework.security.access.annotation.Secured;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import jakarta.validation.Valid;
+
 interface Controller<T> {
   T get(int id);
 
   @Secured("USER")
-  T create(T object);
+  T create(@Valid T object);
 
   @Secured("USER")
   T delete(int id);

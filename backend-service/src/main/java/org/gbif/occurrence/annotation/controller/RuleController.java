@@ -14,10 +14,14 @@
 package org.gbif.occurrence.annotation.controller;
 
 import org.gbif.occurrence.annotation.mapper.CommentMapper;
+import org.gbif.occurrence.annotation.mapper.ProjectMapper;
 import org.gbif.occurrence.annotation.mapper.RuleMapper;
 import org.gbif.occurrence.annotation.model.Comment;
+import org.gbif.occurrence.annotation.model.Project;
 import org.gbif.occurrence.annotation.model.Rule;
+import org.gbif.occurrence.annotation.service.VocabularyService;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +51,8 @@ import static org.gbif.occurrence.annotation.controller.AuthAdvice.assertCreator
 public class RuleController implements Controller<Rule> {
   @Autowired private RuleMapper ruleMapper;
   @Autowired private CommentMapper commentMapper;
+  @Autowired private ProjectMapper projectMapper;
+  @Autowired private VocabularyService vocabularyService;
 
   @Operation(
       summary =
@@ -232,6 +238,12 @@ public class RuleController implements Controller<Rule> {
   @Secured("USER")
   @Override
   public Rule create(@Valid @RequestBody Rule rule) {
+    // Check project membership if rule is associated with a project
+    assertProjectMember(rule.getProjectId());
+
+    // Validate annotation term exists in project vocabulary
+    validateAnnotationTerm(rule);
+
     rule.setCreatedBy(getLoggedInUser());
     ruleMapper.create(rule); // id set by mybatis
     return ruleMapper.get(rule.getId());
@@ -253,6 +265,15 @@ public class RuleController implements Controller<Rule> {
 
     // Only creator or admin can update
     assertCreatorOrAdmin(existing.getCreatedBy());
+
+    // Check project membership if rule is being assigned to a project
+    if (rule.getProjectId() != null
+        && !java.util.Objects.equals(existing.getProjectId(), rule.getProjectId())) {
+      assertProjectMember(rule.getProjectId());
+    }
+
+    // Validate annotation term exists in project vocabulary
+    validateAnnotationTerm(rule);
 
     // Set the ID from path parameter to ensure we're updating the correct rule
     rule.setId(id);
@@ -360,5 +381,54 @@ public class RuleController implements Controller<Rule> {
     return results.isEmpty()
         ? new org.gbif.occurrence.annotation.model.RuleMetrics()
         : results.get(0);
+  }
+
+  /**
+   * Validates that the current user is a member of the project (if projectId is not null).
+   *
+   * @param projectId the project ID to check, or null for rules not associated with a project
+   * @throws IllegalArgumentException if user is not a member of the project
+   */
+  private void assertProjectMember(Integer projectId) {
+    if (projectId == null) {
+      return; // Rules without a project don't require membership
+    }
+
+    Project project = projectMapper.get(projectId);
+    if (project == null) {
+      throw new IllegalArgumentException("Project not found: " + projectId);
+    }
+
+    String currentUser = getLoggedInUser();
+    if (!Arrays.asList(project.getMembers()).contains(currentUser)) {
+      throw new IllegalArgumentException(
+          "Only project members can create or update rules for this project. "
+              + "Please ask a project member to add you to project: "
+              + project.getName());
+    }
+  }
+
+  /**
+   * Validates that the annotation term in a rule exists in the project's vocabulary.
+   *
+   * @param rule the rule to validate
+   * @throws IllegalArgumentException if the annotation term is not in the vocabulary
+   */
+  private void validateAnnotationTerm(Rule rule) {
+    if (rule.getAnnotation() == null || rule.getAnnotation().isBlank()) {
+      return; // Annotation is optional, so null/blank is valid
+    }
+
+    String annotationTerm = rule.getAnnotation().toUpperCase();
+    Integer projectId = rule.getProjectId();
+
+    // Check if term exists in vocabulary
+    if (!vocabularyService.isValidTerm(projectId, annotationTerm)) {
+      throw new IllegalArgumentException(
+          "Annotation term '"
+              + annotationTerm
+              + "' is not in the vocabulary for this project. "
+              + "Please add the term to the project vocabulary first or use a different term.");
+    }
   }
 }

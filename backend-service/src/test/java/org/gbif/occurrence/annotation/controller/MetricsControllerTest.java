@@ -99,7 +99,7 @@ public class MetricsControllerTest {
             .taxonKey(12345)
             .datasetKey("dataset-metrics-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .annotation("NATIVE")
             .rulesetId(1)
             .projectId(createdProject1.getId())
             .build();
@@ -229,7 +229,7 @@ public class MetricsControllerTest {
             .taxonKey(11111)
             .datasetKey("dataset-project-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .annotation("NATIVE")
             .rulesetId(1)
             .projectId(createdProject.getId())
             .build();
@@ -246,7 +246,7 @@ public class MetricsControllerTest {
             .taxonKey(22222)
             .datasetKey("dataset-project-2")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation(Rule.ANNOTATION_TYPE.INTRODUCED)
+            .annotation("INTRODUCED")
             .rulesetId(1)
             .projectId(createdProject.getId())
             .build();
@@ -299,7 +299,7 @@ public class MetricsControllerTest {
             .taxonKey(testTaxonKey)
             .datasetKey("dataset-taxon-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .annotation("NATIVE")
             .rulesetId(1)
             .projectId(createdProject.getId())
             .build();
@@ -316,7 +316,7 @@ public class MetricsControllerTest {
             .taxonKey(testTaxonKey)
             .datasetKey("dataset-taxon-2")
             .geometry("POLYGON((1 1, 1 2, 2 2, 2 1, 1 1))")
-            .annotation(Rule.ANNOTATION_TYPE.INTRODUCED)
+            .annotation("INTRODUCED")
             .rulesetId(1)
             .projectId(createdProject.getId())
             .build();
@@ -368,7 +368,7 @@ public class MetricsControllerTest {
             .taxonKey(88888)
             .datasetKey("dataset-multi-filter")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation(Rule.ANNOTATION_TYPE.NATIVE)
+            .annotation("NATIVE")
             .rulesetId(1)
             .projectId(createdProject.getId())
             .build();
