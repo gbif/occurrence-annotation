@@ -21,7 +21,7 @@ function getAnnotationColors(vocabulary?: Array<{term: string, color: string}>):
   
   if (vocabulary && vocabulary.length > 0) {
     vocabulary.forEach(v => {
-      colors[v.term] = { fill: v.color, stroke: v.color };
+      colors[v.term.toUpperCase()] = { fill: v.color, stroke: v.color };
     });
   } else {
     // Default fallback colors

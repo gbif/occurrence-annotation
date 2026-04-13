@@ -73,7 +73,7 @@ export function UserPageFilters({
             : [];
           
           setProjectSearchResults(results);
-          setShowProjectDropdown(results.length > 0);
+          setShowProjectDropdown(true);
         }
       } catch (error) {
         console.error('Error searching projects:', error);
@@ -125,7 +125,7 @@ export function UserPageFilters({
             : [];
           
           setUserSuggestions(filtered);
-          setShowUserDropdown(filtered.length > 0);
+          setShowUserDropdown(true);
         }
       } catch (error) {
         console.error('Error fetching users:', error);
@@ -139,7 +139,7 @@ export function UserPageFilters({
         clearTimeout(userSearchRef.current);
       }
     };
-  }, [userSearchTerm]);
+  }, [userSearchTerm, userFilter]);
 
   const clearAllFilters = () => {
     onSpeciesFilterChange(null);

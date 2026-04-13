@@ -237,7 +237,7 @@ public class RuleController implements Controller<Rule> {
   @PostMapping
   @Secured("USER")
   @Override
-  public Rule create(@RequestBody Rule rule) {
+  public Rule create(@Valid @RequestBody Rule rule) {
     // Check project membership if rule is associated with a project
     assertProjectMember(rule.getProjectId());
 

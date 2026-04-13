@@ -19,7 +19,7 @@ import { Checkbox } from './ui/checkbox';
 // Vocabulary term interface
 interface VocabularyTerm {
   term: string;
-  description: string;
+  description?: string;
   color: string;
   locked: boolean;
 }
@@ -335,14 +335,6 @@ interface SaveToGBIFDialogProps {
   annotation: string;
   onRuleSavedToGBIF?: (polygonId?: string) => void;
   autoOpen?: boolean;
-}
-
-// Vocabulary term interface
-interface VocabularyTerm {
-  term: string;
-  description?: string;
-  color: string;
-  locked: boolean;
 }
 
 interface ImportWKTDialogProps {

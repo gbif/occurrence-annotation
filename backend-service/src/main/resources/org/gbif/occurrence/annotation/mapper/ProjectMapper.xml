@@ -33,8 +33,10 @@
         UPDATE project SET 
             name=#{name}, 
             description=#{description}, 
-            members=#{members,typeHandler=org.apache.ibatis.type.ArrayTypeHandler}, 
+            members=#{members,typeHandler=org.apache.ibatis.type.ArrayTypeHandler},
+            <if test="customVocabulary != null">
             custom_vocabulary=#{customVocabulary,typeHandler=org.gbif.occurrence.annotation.typehandler.JsonbVocabularyTypeHandler},
+            </if>
             modified=now(), 
             modified_by=#{modifiedBy}
         WHERE id = #{id} AND DELETED IS NULL

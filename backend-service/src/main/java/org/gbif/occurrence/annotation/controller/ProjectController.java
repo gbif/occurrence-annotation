@@ -79,7 +79,7 @@ public class ProjectController implements Controller<Project> {
   @PostMapping
   @Secured("USER")
   @Override
-  public Project create(@RequestBody Project project) {
+  public Project create(@Valid @RequestBody Project project) {
     // Validate name is not empty or blank
     if (project.getName() == null || project.getName().trim().isEmpty()) {
       throw new IllegalArgumentException("Project name cannot be empty");
@@ -156,8 +156,7 @@ public class ProjectController implements Controller<Project> {
       summary = "Update custom vocabulary for a project",
       description =
           "Set custom annotation vocabulary for a project. Only project members can update. "
-              + "Vocabulary must include SUSPICIOUS term (locked). Maximum 50 terms. "
-              + "Pass null or empty array to reset to default vocabulary.")
+              + "Vocabulary must include SUSPICIOUS term (locked). Maximum 50 terms.")
   @PutMapping("/{id}/vocabulary")
   @Secured("USER")
   public VocabularyTerm[] updateVocabulary(

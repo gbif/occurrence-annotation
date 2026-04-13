@@ -17,7 +17,7 @@ import { getAnnotationApiUrl, getGbifApiUrl } from '../utils/apiConfig';
 
 interface VocabularyTerm {
   term: string;
-  description: string;
+  description?: string;
   color: string;
   locked: boolean;
 }
@@ -284,13 +284,6 @@ export interface RuleComment {
   comment: string;
   created: string;
   createdBy: string;
-}
-
-interface VocabularyTerm {
-  term: string;
-  description?: string;
-  color: string;
-  locked: boolean;
 }
 
 export interface AnnotationRule {
