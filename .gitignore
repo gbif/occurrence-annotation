@@ -6,6 +6,9 @@
 .Rproj.user
 **/fixtures
 
+# R package build artifacts
+r-package/country-polygons/
+
 .history
 
 # Copilot customization files
