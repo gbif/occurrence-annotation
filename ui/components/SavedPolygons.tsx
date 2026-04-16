@@ -1945,20 +1945,21 @@ export function SavedPolygons({
                     className="h-6 px-2 text-xs gap-1.5"
                   >
                     <Globe className="h-3.5 w-3.5" />
-                    Political
+                    Geography
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Select Political Boundaries</DialogTitle>
+                    <DialogTitle>Select Geographic Regions</DialogTitle>
                     <DialogDescription>
-                      These are low-resolution polygons for convenience only and include EEZ (Exclusive Economic Zone) areas. They may not accurately reflect national borders and may bleed into neighboring countries. Custom polygons generally produce better annotation rules.
+                      These are low-resolution polygons for convenience only, including political boundaries (with EEZ), continents, and ocean regions. They may not accurately reflect actual borders and may overlap with neighboring areas. Custom polygons generally produce better annotation rules.
                     </DialogDescription>
                   </DialogHeader>
                   <CountrySelector
                     selectedCountries={[]}
                     onCountriesChange={onCountriesChange || (() => {})}
                     onClose={() => setShowCountryDialog(false)}
+                    allowedTypes={['Political', 'Continent', 'IHO']}
                   />
                 </DialogContent>
               </Dialog>
@@ -1991,20 +1992,21 @@ export function SavedPolygons({
                     className="h-6 px-2 text-xs gap-1.5"
                   >
                     <Globe className="h-3.5 w-3.5" />
-                    Political
+                    Geography
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Select Political Boundaries</DialogTitle>
+                    <DialogTitle>Select Geographic Regions</DialogTitle>
                     <DialogDescription>
-                      These are low-resolution polygons for convenience only and include EEZ (Exclusive Economic Zone) areas. They may not accurately reflect national borders and may bleed into neighboring countries. Custom polygons generally produce better annotation rules.
+                      These are low-resolution polygons for convenience only, including political boundaries (with EEZ), continents, and ocean regions. They may not accurately reflect actual borders and may overlap with neighboring areas. Custom polygons generally produce better annotation rules.
                     </DialogDescription>
                   </DialogHeader>
                   <CountrySelector
                     selectedCountries={[]}
                     onCountriesChange={onCountriesChange || (() => {})}
                     onClose={() => setShowCountryDialog(false)}
+                    allowedTypes={['Political', 'Continent', 'IHO']}
                   />
                 </DialogContent>
               </Dialog>

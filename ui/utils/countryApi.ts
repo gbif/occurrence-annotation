@@ -1,23 +1,28 @@
 /**
- * Country API client for fetching country geometries from static JSON.
+ * Boundary API client for fetching geographic boundary geometries from static JSON.
+ * Supports Political (countries), Continent, and IHO (ocean) boundary types.
  * Data is served from public folder (no backend required).
  */
 
+export type BoundaryType = 'Political' | 'Continent' | 'IHO';
+
 export interface Country {
-  iso2: string;
-  name: string;
-  wkt: string;
-  vertexCount: number;
+  identifier: string;      // Unified ID: ISO2 for Political, title for Continent/IHO
+  type: BoundaryType;      // Boundary type
+  name: string;            // Display name
+  wkt: string;             // Well-Known Text geometry
+  vertexCount: number;     // Number of vertices (performance metric)
+  iso2?: string;           // Optional ISO2 code (only for Political type, for backward compat)
 }
 
-// In-memory cache for country list (loaded once per session)
+// In-memory cache for boundary list (loaded once per session)
 let countryCache: Country[] | null = null;
 
 /**
- * Fetch all country geometries from static JSON file.
+ * Fetch all geographic boundary geometries from static JSON file.
  * Results are cached in memory after first load.
  * 
- * @returns Promise resolving to array of Country objects
+ * @returns Promise resolving to array of boundary objects (Political, Continent, IHO)
  * @throws Error if fetch fails
  */
 export async function fetchCountryGeometries(): Promise<Country[]> {
@@ -36,6 +41,19 @@ export async function fetchCountryGeometries(): Promise<Country[]> {
     }
 
     const countries: Country[] = await response.json();
+    
+    // Debug logging
+    console.log('[countryApi] Loaded boundaries:', countries.length);
+    const typeBreakdown = countries.reduce((acc, c) => {
+      acc[c.type] = (acc[c.type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    console.log('[countryApi] By type:', typeBreakdown);
+    console.log('[countryApi] Sample items:', {
+      political: countries.find(c => c.type === 'Political')?.name,
+      continent: countries.find(c => c.type === 'Continent')?.name,
+      iho: countries.find(c => c.type === 'IHO')?.name
+    });
     
     // Cache for subsequent requests
     countryCache = countries;
@@ -145,8 +163,63 @@ export async function getMergedCountryWKT(iso2Codes: string[]): Promise<string> 
 }
 
 /**
- * Clear the country cache (useful for forcing reload).
+ * Clear the boundary cache (useful for forcing reload).
  */
 export function clearCountryCache(): void {
   countryCache = null;
+}
+
+/**
+ * Filter boundaries by type.
+ * 
+ * @param boundaries - Array of boundary objects
+ * @param types - Array of boundary types to include
+ * @returns Filtered array containing only boundaries of specified types
+ */
+export function filterByType(boundaries: Country[], types: BoundaryType[]): Country[] {
+  const filtered = boundaries.filter(b => types.includes(b.type));
+  console.log('[countryApi] filterByType - requested:', types, 'total:', boundaries.length, 'filtered:', filtered.length);
+  const typeBreakdown = filtered.reduce((acc, c) => {
+    acc[c.type] = (acc[c.type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  console.log('[countryApi] filterByType - result breakdown:', typeBreakdown);
+  return filtered;
+}
+
+/**
+ * Group boundaries by type.
+ * 
+ * @param boundaries - Array of boundary objects
+ * @returns Map of type to array of boundaries
+ */
+export function groupByType(boundaries: Country[]): Map<BoundaryType, Country[]> {
+  const groups = new Map<BoundaryType, Country[]>();
+  
+  for (const boundary of boundaries) {
+    const existing = groups.get(boundary.type) || [];
+    existing.push(boundary);
+    groups.set(boundary.type, existing);
+  }
+  
+  return groups;
+}
+
+/**
+ * Get display label for boundary type.
+ * 
+ * @param type - Boundary type
+ * @returns Human-readable label
+ */
+export function getTypeLabel(type: BoundaryType): string {
+  switch (type) {
+    case 'Political':
+      return 'Political Boundary';
+    case 'Continent':
+      return 'Continent';
+    case 'IHO':
+      return 'Ocean Region';
+    default:
+      return type;
+  }
 }
