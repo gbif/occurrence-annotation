@@ -11,6 +11,7 @@ import { Separator } from './ui/separator';
 import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown } from 'lucide-react';
 import { AnnotationRule } from './AnnotationRules';
 import { toast } from 'sonner';
+import { parseWKTGeometry } from '../utils/wktParser';
 
 interface VocabularyTerm {
   term: string;
@@ -111,9 +112,6 @@ export function MapComponent({
   
   const [center, setCenter] = useState<[number, number]>([20, 0]);
   const [zoom, setZoom] = useState(2);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [drawingMode, setDrawingMode] = useState<'polygon' | 'rectangle' | 'latband'>('polygon');
-  const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
   const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
   const [gbifTiles, setGbifTiles] = useState<Array<{ x: number; y: number; z: number; anchor: [number, number]; url: string }>>([]);
   const [isZooming, setIsZooming] = useState(false);
@@ -125,6 +123,10 @@ export function MapComponent({
   const [dragCurrent, setDragCurrent] = useState<[number, number] | null>(null);
   const [isEditingCurrent, setIsEditingCurrent] = useState(false);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [drawingMode, setDrawingMode] = useState<'polygon' | 'rectangle' | 'latband'>('polygon');
+  const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
+  const [latBandStart, setLatBandStart] = useState<number | null>(null);
   
   // Base map style state - load from localStorage or use default
   const [baseMapStyle, setBaseMapStyle] = useState<string>(() => {

@@ -2,20 +2,32 @@ import { useState, useEffect, useMemo } from 'react';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
-import { Copy, Check, RefreshCw, Repeat } from 'lucide-react';
+import { Copy, Check, RefreshCw, Repeat, Globe } from 'lucide-react';
 import { Card } from './ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { toast } from 'sonner';
+import { CountrySelector } from './CountrySelector';
 
 interface WKTFormProps {
   currentPolygon: [number, number][] | null;
   onPolygonChange: (polygon: [number, number][] | null) => void;
   isInverted?: boolean;
   onInvertedChange?: (inverted: boolean) => void;
+  selectedCountries?: string[];
+  onCountriesChange?: (iso2Codes: string[]) => void;
 }
 
-export function WKTForm({ currentPolygon, onPolygonChange, isInverted = false, onInvertedChange }: WKTFormProps) {
+export function WKTForm({ 
+  currentPolygon, 
+  onPolygonChange, 
+  isInverted = false, 
+  onInvertedChange,
+  selectedCountries = [],
+  onCountriesChange
+}: WKTFormProps) {
   const [copied, setCopied] = useState(false);
   const [wktInput, setWktInput] = useState('');
+  const [showCountryDialog, setShowCountryDialog] = useState(false);
 
   // Convert polygon coordinates to WKT format - memoized
   const wktString = useMemo(() => {
@@ -143,38 +155,55 @@ export function WKTForm({ currentPolygon, onPolygonChange, isInverted = false, o
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label>Polygon (WKT)</Label>
-          {currentPolygon && currentPolygon.length >= 3 && (
-            <div className="flex gap-1">
+          <div className="flex gap-1">
+            {onCountriesChange && (
               <Button
-                onClick={handleInvert}
-                variant={isInverted ? 'default' : 'outline'}
+                onClick={() => setShowCountryDialog(true)}
+                variant={selectedCountries.length > 0 ? 'default' : 'outline'}
                 size="sm"
                 className="h-7"
-                title="Invert polygon (make it a hole in the world)"
+                title="Select countries to load polygons"
               >
-                <Repeat className="w-3 h-3 mr-1" />
-                Invert
-              </Button>
-              <Button
-                onClick={handleCopy}
-                variant="outline"
-                size="sm"
-                className="h-7"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-3 h-3 mr-1" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3 h-3 mr-1" />
-                    Copy
-                  </>
+                <Globe className="w-3 h-3 mr-1" />
+                Countries
+                {selectedCountries.length > 0 && (
+                  <span className="ml-1 text-xs">({selectedCountries.length})</span>
                 )}
               </Button>
-            </div>
-          )}
+            )}
+            {currentPolygon && currentPolygon.length >= 3 && (
+              <>
+                <Button
+                  onClick={handleInvert}
+                  variant={isInverted ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-7"
+                  title="Invert polygon (make it a hole in the world)"
+                >
+                  <Repeat className="w-3 h-3 mr-1" />
+                  Invert
+                </Button>
+                <Button
+                  onClick={handleCopy}
+                  variant="outline"
+                  size="sm"
+                  className="h-7"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3 h-3 mr-1" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3 mr-1" />
+                      Copy
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
+          </div>
         </div>
         
         <Textarea
@@ -211,6 +240,35 @@ export function WKTForm({ currentPolygon, onPolygonChange, isInverted = false, o
           </p>
         </div>
       </div>
+
+      {/* Country Selection Dialog */}
+      {onCountriesChange && (
+        <Dialog open={showCountryDialog} onOpenChange={setShowCountryDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Select Countries</DialogTitle>
+              <DialogDescription>
+                Choose one or more countries to load their boundary polygons on the map.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <CountrySelector
+                selectedCountries={selectedCountries}
+                onCountriesChange={onCountriesChange}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                onClick={() => setShowCountryDialog(false)}
+                variant="outline"
+                size="sm"
+              >
+                Done
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
   );
 }
