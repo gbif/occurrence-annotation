@@ -95,9 +95,13 @@ Key fields to examine:
 - coordinateUncertaintyInMeters: ${occurrence.coordinateUncertaintyInMeters ?? 'not specified'}
 - basisOfRecord: ${occurrence.basisOfRecord ?? 'not specified'}
 
-Focus primarily on:
-1. Is this location plausible for this species/taxon?
-2. Do the coordinates match the locality description?
+**Answer these questions in your analysis:**
+
+1. **Do we expect this species or group to occur in this location?** Consider the taxon's known geographic range, habitat requirements, and biogeographic patterns.
+
+2. **Do the coordinates match the locality description?** Check if lat/lon values align with the stated locality, state/province, and country.
+
+3. Are there any other location quality issues (coordinate errors, centroid bias, etc.)?
 
 GBIF quality flags (for reference only, don't over-emphasize): ${occurrence.issues?.join(', ') ?? 'none'}
 
