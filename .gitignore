@@ -7,7 +7,16 @@
 **/fixtures
 
 # R package build artifacts
-r-package/country-polygons/
+r-package/country-polygons/cache/
+r-package/country-polygons/isea3h-data/
+r-package/country-polygons/natural-earth-data/
+r-package/country-polygons/output/
+
+# R script artifacts (when run from root)
+cache/
+isea3h-data/
+natural-earth-data/
+output/
 
 .history
 
