@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ocean Polygon Test</title>
+</head>
+<body>
+    <h1>Ocean Polygon Parsing Test</h1>
+    <pre id="output"></pre>
+
+    <script type="module">
+        const output = document.getElementById('output');
+        
+        function log(msg) {
+            output.textContent += msg + '\n';
+            console.log(msg);
+        }
+
+        // Copy the parseWKTGeometry functions here
+        function parseWKTPolygonWithHoles(wkt) {
+            try {
+                const coordsStr = wkt.replace(/POLYGON\s*\(\(/i, '').replace(/\)\)$/, '');
+                const rings = coordsStr.split(/\),\s*\(/);
+                
+                const parseRing = (ringStr) => {
+                    return ringStr
+                        .split(',')
+                        .map((pair) => {
+                            const parts = pair.trim().split(/\s+/).map(Number);
+                            const [lng, lat] = parts;
+                            return [lat, lng]; // [lat, lng] internal format
+                        })
+                        .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng));
+                };
+                
+                const outerRing = parseRing(rings[0]);
+                const holes = rings.slice(1).map(parseRing).filter(ring => ring.length >= 3);
+                
+                if (outerRing.length < 3) return null;
+                
+                return { outer: outerRing, holes: holes };
+            } catch (error) {
+                console.error('Failed to parse WKT:', error);
+                return null;
+            }
+        }
+
+        function parseWKTMultiPolygon(wkt) {
+            try {
+                if (!wkt.trim().toUpperCase().startsWith('MULTIPOLYGON')) {
+                    return null;
+                }
+                
+                // Remove "MULTIPOLYGON" prefix and outer parentheses
+                const coordsStr = wkt.replace(/MULTIPOLYGON\s*\(\(\(/i, '').replace(/\)\)\)$/, '');
+                
+                // Split by ")), ((" to separate individual polygons
+                const polygonStrings = coordsStr.split(/\)\),\s*\(\(/);
+                
+                log(`Found ${polygonStrings.length} polygon(s) in MULTIPOLYGON`);
+                
+                const polygons = [];
+                
+                for (let i = 0; i < polygonStrings.length; i++) {
+                    const polyStr = polygonStrings[i];
+                    const polygonWkt = `POLYGON ((${polyStr}))`;
+                    const parsed = parseWKTPolygonWithHoles(polygonWkt);
+                    if (parsed) {
+                        polygons.push(parsed);
+                        log(`  Polygon ${i+1}: ${parsed.outer.length} vertices`);
+                    } else {
+                        log(`  Polygon ${i+1}: FAILED TO PARSE`);
+                    }
+                }
+                
+                if (polygons.length === 0) return null;
+                
+                return { polygons };
+            } catch (error) {
+                console.error('Failed to parse MULTIPOLYGON:', error);
+                return null;
+            }
+        }
+
+        function parseWKTGeometry(wkt) {
+            if (!wkt) return null;
+            
+            const trimmed = wkt.trim().toUpperCase();
+            
+            if (trimmed.startsWith('MULTIPOLYGON')) {
+                return parseWKTMultiPolygon(wkt);
+            } else if (trimmed.startsWith('POLYGON')) {
+                const polygon = parseWKTPolygonWithHoles(wkt);
+                return polygon ? { polygons: [polygon] } : null;
+            }
+            
+            return null;
+        }
+
+        // Load ocean polygon
+        async function testOceanPolygon() {
+            try {
+                log('Loading country_polygons.json...\n');
+                
+                const response = await fetch('/country_polygons.json');
+                const boundaries = await response.json();
+                
+                const oceanBoundary = boundaries.find(b => b.identifier === 'OCEAN');
+                
+                if (!oceanBoundary) {
+                    log('ERROR: Ocean boundary not found!');
+                    return;
+                }
+                
+                log(`Found Ocean boundary:`);
+                log(`  Type: ${oceanBoundary.type}`);
+                log(`  Vertex count: ${oceanBoundary.vertexCount}`);
+                log(`  WKT length: ${oceanBoundary.wkt.length} chars`);
+                log(`  WKT starts with: ${oceanBoundary.wkt.substring(0, 50)}...`);
+                log('');
+                
+                // Parse the WKT
+                log('Parsing WKT...');
+                const parsed = parseWKTGeometry(oceanBoundary.wkt);
+                
+                if (!parsed) {
+                    log('ERROR: Failed to parse ocean WKT!');
+                    return;
+                }
+                
+                log(`✓ Successfully parsed!`);
+                log(`  Total polygons: ${parsed.polygons.length}`);
+                
+                let totalVertices = 0;
+                parsed.polygons.forEach((poly, i) => {
+                    totalVertices += poly.outer.length;
+                    if (i < 5) { // Show first 5 only
+                        log(`  Polygon ${i+1}: ${poly.outer.length} vertices, ${poly.holes.length} holes`);
+                    }
+                });
+                
+                if (parsed.polygons.length > 5) {
+                    log(`  ... and ${parsed.polygons.length - 5} more polygons`);
+                }
+                
+                log(`\nTotal vertices across all polygons: ${totalVertices}`);
+                log(`Expected from JSON: ${oceanBoundary.vertexCount}`);
+                
+                if (totalVertices !== oceanBoundary.vertexCount) {
+                    log(`⚠️ VERTEX MISMATCH! Lost ${oceanBoundary.vertexCount - totalVertices} vertices during parsing!`);
+                } else {
+                    log(`✓ Vertex count matches!`);
+                }
+                
+            } catch (error) {
+                log(`ERROR: ${error.message}`);
+                console.error(error);
+            }
+        }
+
+        testOceanPolygon();
+    </script>
+</body>
+</html>
