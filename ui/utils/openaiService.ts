@@ -97,11 +97,13 @@ Key fields to examine:
 
 **Answer these questions in your analysis:**
 
-1. **Do we expect this species or group to occur in this location?** Consider the taxon's known geographic range, habitat requirements, and biogeographic patterns.
+1. **Does this genus (or higher taxonomic group) even belong on this continent?** Check if the genus or family has ever been documented on this continent based on known biogeographic distributions.
 
-2. **Do the coordinates match the locality description?** Check if lat/lon values align with the stated locality, state/province, and country.
+2. **Do we expect this species or group to occur in this specific location?** Consider the taxon's known geographic range, habitat requirements, and biogeographic patterns.
 
-3. Are there any other location quality issues (coordinate errors, centroid bias, etc.)?
+3. **Do the coordinates match the locality description?** Check if lat/lon values align with the stated locality, state/province, and country.
+
+4. Are there any other location quality issues (coordinate errors, centroid bias, etc.)?
 
 GBIF quality flags (for reference only, don't over-emphasize): ${occurrence.issues?.join(', ') ?? 'none'}
 
