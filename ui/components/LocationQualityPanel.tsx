@@ -105,8 +105,8 @@ export function LocationQualityPanel({ gbifid, onClose }: LocationQualityPanelPr
 
   return (
     <Drawer open={!!gbifid} onOpenChange={(open) => !open && onClose()} direction="right">
-      <DrawerContent className="data-[vaul-drawer-direction=right]:w-2/5 data-[vaul-drawer-direction=right]:max-w-2xl">
-        <DrawerHeader className="border-b">
+      <DrawerContent className="data-[vaul-drawer-direction=right]:w-2/5 data-[vaul-drawer-direction=right]:max-w-2xl data-[vaul-drawer-direction=right]:h-full flex flex-col">
+        <DrawerHeader className="border-b flex-shrink-0">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2">
               <Bot className="w-6 h-6 text-blue-600" />
@@ -125,7 +125,8 @@ export function LocationQualityPanel({ gbifid, onClose }: LocationQualityPanelPr
           </div>
         </DrawerHeader>
 
-        <ScrollArea className="flex-1 p-6 select-text">
+        <ScrollArea className="flex-1 overflow-y-auto">
+          <div className="p-6 select-text">
           {isLoading && (
             <div className="flex flex-col items-center justify-center py-12 space-y-4">
               <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
@@ -245,6 +246,7 @@ export function LocationQualityPanel({ gbifid, onClose }: LocationQualityPanelPr
               </Alert>
             </div>
           )}
+          </div>
         </ScrollArea>
       </DrawerContent>
     </Drawer>
