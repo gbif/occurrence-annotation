@@ -61,6 +61,14 @@ export function InvestigateArea({
   
   // Check if user is admin
   const userIsAdmin = isAdmin();
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 InvestigateArea: Admin check:', {
+      userIsAdmin,
+      userFromStorage: localStorage.getItem('gbifUser'),
+    });
+  }, [userIsAdmin]);
 
   // Notify parent of radius changes
   useEffect(() => {
@@ -464,7 +472,10 @@ export function InvestigateArea({
                                     size="sm"
                                     variant="outline"
                                     className="h-7 text-xs"
-                                    onClick={() => setSelectedOccurrenceForQualityCheck(occurrence.key)}
+                                    onClick={() => {
+                                      console.log('🤖 AI Check clicked for occurrence:', occurrence.key);
+                                      setSelectedOccurrenceForQualityCheck(occurrence.key);
+                                    }}
                                   >
                                     <Bot className="w-3 h-3 mr-1" />
                                     AI Check
@@ -475,6 +486,11 @@ export function InvestigateArea({
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
+                          )}
+                          {!userIsAdmin && (
+                            <span className="text-xs text-gray-400 italic" style={{display: 'none'}}>
+                              (Admin only: AI Check hidden)
+                            </span>
                           )}
                         </div>
                       </div>
