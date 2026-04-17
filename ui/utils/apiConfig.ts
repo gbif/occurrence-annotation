@@ -44,11 +44,17 @@ export const getGbifApiUrl = (endpoint: string): string => {
   return `${baseUrl}${path}`;
 };
 
+// OpenAI API Configuration (for AI-powered location quality checks)
+export const getOpenAIApiKey = (): string | undefined => {
+  return import.meta.env.VITE_OPENAI_API_KEY;
+};
+
 // Debug logging
 if (import.meta.env.DEV) {
   console.log('🔧 API Configuration:', {
     mode: apiConfig.mode,
     annotationApiBaseUrl: apiConfig.annotationApiBaseUrl,
     gbifApiBaseUrl: apiConfig.gbifApiBaseUrl,
+    hasOpenAIKey: !!getOpenAIApiKey(),
   });
 }
