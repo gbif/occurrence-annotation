@@ -162,10 +162,10 @@ export function WKTForm({
                 variant={selectedCountries.length > 0 ? 'default' : 'outline'}
                 size="sm"
                 className="h-7"
-                title="Select countries to load polygons"
+                title="Select continents or ocean to load polygons"
               >
                 <Globe className="w-3 h-3 mr-1" />
-                Countries
+                Geography
                 {selectedCountries.length > 0 && (
                   <span className="ml-1 text-xs">({selectedCountries.length})</span>
                 )}
@@ -246,9 +246,9 @@ export function WKTForm({
         <Dialog open={showCountryDialog} onOpenChange={setShowCountryDialog}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Select Countries</DialogTitle>
+              <DialogTitle>Select Geography</DialogTitle>
               <DialogDescription>
-                Choose one or more countries to load their boundary polygons on the map.
+                Choose one or more continents or ocean to load boundary polygons on the map.
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">

@@ -6,11 +6,11 @@ import { toast } from 'sonner';
 import { Badge } from './ui/badge';
 
 interface CountrySelectorProps {
-  selectedCountries: string[]; // Array of identifiers (ISO2 for Political, title for others)
+  selectedCountries: string[]; // Array of identifiers (title for Continent/IHO)
   onCountriesChange: (identifiers: string[]) => void;
   maxSelections?: number; // Optional limit on number of boundaries
   onClose?: () => void; // Optional callback to close dialog after selection
-  allowedTypes?: BoundaryType[]; // Types of boundaries to show (default: ['Political'])
+  allowedTypes?: BoundaryType[]; // Types of boundaries to show (default: ['Continent', 'IHO'])
 }
 
 export function CountrySelector({
@@ -18,7 +18,7 @@ export function CountrySelector({
   onCountriesChange,
   maxSelections,
   onClose,
-  allowedTypes = ['Political'], // Default to Political only for backward compatibility
+  allowedTypes = ['Continent', 'IHO'], // Default to Continent + Ocean only (no countries)
 }: CountrySelectorProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [allCountries, setAllCountries] = useState<Country[]>([]);

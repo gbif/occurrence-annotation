@@ -8,10 +8,11 @@ import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown } from 'lucide-react';
+import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown, Waves } from 'lucide-react';
 import { AnnotationRule } from './AnnotationRules';
 import { toast } from 'sonner';
 import { parseWKTGeometry } from '../utils/wktParser';
+import { subtractOceanFromPolygon } from '../utils/spatialOperations';
 
 interface VocabularyTerm {
   term: string;
@@ -133,6 +134,10 @@ export function MapComponent({
     return localStorage.getItem('gbifBaseMapStyle') || 'gbif-middle';
   });
   const [isBaseMapDialogOpen, setIsBaseMapDialogOpen] = useState(false);
+  
+  // Ocean subtraction state
+  const [isSubtractingOcean, setIsSubtractingOcean] = useState(false);
+  const [polygonBeforeSubtract, setPolygonBeforeSubtract] = useState<[number, number][] | null>(null);
   
   // ArcGIS API Key from environment
   const arcgisApiKey = import.meta.env.VITE_ARCGIS_API_KEY || '';
@@ -978,6 +983,76 @@ export function MapComponent({
     onPolygonChange(null);
     setIsEditingCurrent(false);
     setShowLatBandControls(false);
+    setPolygonBeforeSubtract(null);
+  };
+
+  // Handle ocean subtraction
+  const handleSubtractOcean = async () => {
+    if (!currentPolygon || currentPolygon.length < 3) {
+      toast.error('No polygon to process');
+      return;
+    }
+
+    try {
+      setIsSubtractingOcean(true);
+      
+      // Store original polygon for undo
+      setPolygonBeforeSubtract([...currentPolygon]);
+      
+      const result = await subtractOceanFromPolygon(currentPolygon);
+      
+      if (!result) {
+        toast.error('Polygon is entirely over ocean', {
+          description: 'Try drawing a polygon that includes land areas'
+        });
+        setIsSubtractingOcean(false);
+        return;
+      }
+      
+      // Check if result is MultiPolygon (array of arrays)
+      if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
+        // MultiPolygon result - take the largest polygon
+        const polygons = result as [number, number][][];
+        const largestPolygon = polygons.reduce((largest, current) => 
+          current.length > largest.length ? current : largest
+        , polygons[0]);
+        
+        onPolygonChange(largestPolygon);
+        
+        if (polygons.length > 1) {
+          toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`, {
+            description: `${largestPolygon.length} vertices in result`
+          });
+        } else {
+          toast.success('Ocean subtracted successfully', {
+            description: `${largestPolygon.length} vertices in result`
+          });
+        }
+      } else {
+        // Single polygon result
+        const polygon = result as [number, number][];
+        onPolygonChange(polygon);
+        toast.success('Ocean subtracted successfully', {
+          description: `${polygon.length} vertices in result`
+        });
+      }
+    } catch (error) {
+      console.error('Failed to subtract ocean:', error);
+      toast.error('Failed to subtract ocean', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsSubtractingOcean(false);
+    }
+  };
+
+  // Undo ocean subtraction
+  const handleUndoSubtractOcean = () => {
+    if (polygonBeforeSubtract) {
+      onPolygonChange(polygonBeforeSubtract);
+      setPolygonBeforeSubtract(null);
+      toast.info('Ocean subtraction undone');
+    }
   };
 
   // Function to automatically add midpoint vertices to make editing easier
@@ -2590,6 +2665,9 @@ export function MapComponent({
             {/* Current polygon controls */}
             {currentPolygon && (
               <>
+                {/* Debug logging */}
+                {console.log('🔍 Current polygon exists:', currentPolygon?.length, 'vertices')}
+                
                 {/* Latitude Band Controls - separate upper/lower when band is active */}
                 {showLatBandControls && (
                   <div className="flex flex-col gap-1 bg-blue-50 border border-blue-200 rounded px-2 py-1">
@@ -2659,6 +2737,39 @@ export function MapComponent({
                       </Button>
                     </div>
                   </div>
+                )}
+                
+                {/* Ocean Subtraction Tools - Subtract ocean from polygon to create land-only areas */}
+                <div className="w-full h-px bg-gray-200 my-1" />
+                
+                <Button 
+                  onClick={handleSubtractOcean}
+                  disabled={isSubtractingOcean}
+                  variant="outline"
+                  size="icon"
+                  title="Subtract Ocean - Create land-only polygon"
+                  className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                >
+                  {isSubtractingOcean ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Waves className="w-4 h-4" />
+                  )}
+                </Button>
+                
+                {polygonBeforeSubtract && !isSubtractingOcean && (
+                  <Button 
+                    onClick={handleUndoSubtractOcean}
+                    variant="outline"
+                    size="icon"
+                    title="Undo Ocean Subtraction"
+                    className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 7v6h6M21 17v-6h-6"/>
+                      <path d="M20.49 9A9 9 0 0 0 5.64 5.64L3 7m18 10l-2.64 1.36A9 9 0 0 1 3.51 15"/>
+                    </svg>
+                  </Button>
                 )}
                 
                 <Button 
@@ -2739,6 +2850,78 @@ export function MapComponent({
                 >
                   <Scissors className="w-5 h-5" />
                 </Button>
+                
+                {/* Ocean Subtraction in Edit Mode */}
+                <Button 
+                  onClick={async () => {
+                    if (!editingPolygonId) return;
+                    const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                    if (!polygon) return;
+                    
+                    // Get the coordinates from the polygon
+                    let coords: [number, number][] | null = null;
+                    if (Array.isArray(polygon.coordinates) && polygon.coordinates.length > 0) {
+                      if (Array.isArray(polygon.coordinates[0]) && typeof polygon.coordinates[0][0] === 'number') {
+                        coords = polygon.coordinates as [number, number][];
+                      }
+                    }
+                    
+                    if (!coords || coords.length < 3) {
+                      toast.error('Invalid polygon coordinates');
+                      return;
+                    }
+                    
+                    try {
+                      setIsSubtractingOcean(true);
+                      setPolygonBeforeSubtract([...coords]);
+                      
+                      const result = await subtractOceanFromPolygon(coords);
+                      
+                      if (!result) {
+                        toast.error('Polygon is entirely over ocean');
+                        setIsSubtractingOcean(false);
+                        return;
+                      }
+                      
+                      // Handle result
+                      if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
+                        const polygons = result as [number, number][][];
+                        const largestPolygon = polygons.reduce((largest, current) => 
+                          current.length > largest.length ? current : largest
+                        , polygons[0]);
+                        
+                        onUpdatePolygon(editingPolygonId, largestPolygon);
+                        
+                        if (polygons.length > 1) {
+                          toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`);
+                        } else {
+                          toast.success('Ocean subtracted successfully');
+                        }
+                      } else {
+                        const polygon = result as [number, number][];
+                        onUpdatePolygon(editingPolygonId, polygon);
+                        toast.success('Ocean subtracted successfully');
+                      }
+                    } catch (error) {
+                      console.error('Failed to subtract ocean:', error);
+                      toast.error('Failed to subtract ocean');
+                    } finally {
+                      setIsSubtractingOcean(false);
+                    }
+                  }}
+                  disabled={isSubtractingOcean}
+                  size="icon" 
+                  variant="outline"
+                  title="Subtract Ocean - Create land-only polygon"
+                  className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                >
+                  {isSubtractingOcean ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Waves className="w-5 h-5" />
+                  )}
+                </Button>
+                
                 {onToggleInvert && (
                   <Button 
                     onClick={() => onToggleInvert(editingPolygonId)}
@@ -3476,4 +3659,5 @@ export function MapComponent({
     </div>
   );
 }
+
 
