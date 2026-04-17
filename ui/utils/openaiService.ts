@@ -15,6 +15,7 @@ export interface GBIFOccurrenceData {
   decimalLatitude?: number;
   decimalLongitude?: number;
   coordinateUncertaintyInMeters?: number;
+  locality?: string;
   country?: string;
   countryCode?: string;
   stateProvince?: string;
@@ -56,17 +57,21 @@ async function callOpenAI(occurrence: GBIFOccurrenceData): Promise<string> {
 
   const systemPrompt = `You are a GBIF data quality expert specializing in identifying location-related issues in biodiversity occurrence records. Your task is to analyze occurrence data and identify potential location quality problems.
 
-Focus on these common location issues:
-1. **Coordinate swapping**: Latitude and longitude may be reversed
-2. **Invalid coordinates**: Values outside valid ranges (lat: -90 to 90, lng: -180 to 180)
-3. **Zero coordinates**: Records at 0,0 (often data entry errors)
-4. **Country/coordinate mismatch**: Coordinates don't match the stated country
-5. **High uncertainty**: coordinateUncertaintyInMeters is very large
+**Primary Focus Areas:**
+1. **Species-locality fit**: Does the location make sense for this species or taxonomic group? Consider known ranges, habitat requirements, and biogeographic patterns.
+2. **Coordinate-locality consistency**: Do the lat/lon coordinates match the stated locality, state/province, and country? Look for mismatches between text descriptions and numeric coordinates.
+
+**Secondary Issues to Check:**
+3. **Coordinate swapping**: Latitude and longitude may be reversed
+4. **Invalid coordinates**: Values outside valid ranges (lat: -90 to 90, lng: -180 to 180)
+5. **Zero coordinates**: Records at 0,0 (often data entry errors)
 6. **Institutional coordinates**: Location matches museum/herbarium address rather than collection site
 7. **Impossible locations**: Terrestrial species in ocean, marine species on land
 8. **Centroid bias**: Coordinates appear to be country/province centroids rather than actual locations
 9. **Precision issues**: Coordinates with suspicious precision patterns (e.g., exactly 0.0000)
 10. **Geographic outliers**: Location far outside known species range
+
+**De-emphasize:** Existing GBIF quality flags are often not very informative. Focus on biological and geographic plausibility instead.
 
 Respond in JSON format with this structure:
 {
@@ -82,14 +87,21 @@ Respond in JSON format with this structure:
 ${JSON.stringify(occurrence, null, 2)}
 
 Key fields to examine:
+- scientificName: ${occurrence.scientificName ?? 'not specified'}
 - decimalLatitude: ${occurrence.decimalLatitude ?? 'missing'}
 - decimalLongitude: ${occurrence.decimalLongitude ?? 'missing'}
-- coordinateUncertaintyInMeters: ${occurrence.coordinateUncertaintyInMeters ?? 'not specified'}
+- locality: ${occurrence.locality ?? 'not specified'}
+- stateProvince: ${occurrence.stateProvince ?? 'not specified'}
 - country: ${occurrence.country ?? 'not specified'} (${occurrence.countryCode ?? 'no code'})
 - continent: ${occurrence.continent ?? 'not specified'}
-- scientificName: ${occurrence.scientificName ?? 'not specified'}
+- coordinateUncertaintyInMeters: ${occurrence.coordinateUncertaintyInMeters ?? 'not specified'}
 - basisOfRecord: ${occurrence.basisOfRecord ?? 'not specified'}
-- issues (GBIF-flagged): ${occurrence.issues?.join(', ') ?? 'none'}
+
+Focus primarily on:
+1. Is this location plausible for this species/taxon?
+2. Do the coordinates match the locality description?
+
+GBIF quality flags (for reference only, don't over-emphasize): ${occurrence.issues?.join(', ') ?? 'none'}
 
 Provide your assessment in JSON format.`;
 
