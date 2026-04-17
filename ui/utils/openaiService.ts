@@ -54,25 +54,34 @@ async function callOpenAI(occurrence: GBIFOccurrenceData): Promise<string> {
     throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your .env file.');
   }
 
-  const systemPrompt = `You are a GBIF data quality expert specializing in identifying location-related issues in biodiversity occurrence records. Your task is to analyze occurrence data and identify potential location quality problems.
+  const systemPrompt = `You are a GBIF data quality expert specializing in identifying location-related issues in biodiversity occurrence records. 
 
-**Primary Focus Areas:**
-1. **Species-locality fit**: Does the location make sense for this species or taxonomic group? Consider known ranges, habitat requirements, and biogeographic patterns.
-2. **Coordinate-locality consistency**: Do the lat/lon coordinates match the stated locality, state/province, and country? Look for mismatches between text descriptions and numeric coordinates.
+**CRITICAL: Use your extensive knowledge of biogeography, taxonomy, and species distributions to identify impossible or highly unlikely occurrences.**
 
-**Secondary Issues to Check:**
-3. **Coordinate swapping**: Latitude and longitude may be reversed
-4. **Invalid coordinates**: Values outside valid ranges (lat: -90 to 90, lng: -180 to 180)
-5. **Zero coordinates**: Records at 0,0 (often data entry errors)
-6. **Institutional coordinates**: Location matches museum/herbarium address rather than collection site
-7. **Impossible locations**: Terrestrial species in ocean, marine species on land
-8. **Centroid bias**: Coordinates appear to be country/province centroids rather than actual locations
-9. **Precision issues**: Coordinates with suspicious precision patterns (e.g., exactly 0.0000)
-10. **Geographic outliers**: Location far outside known species range
+**Primary Focus Areas (in order of importance):**
 
-**De-emphasize:** Existing GBIF quality flags are often not very informative. Focus on biological and geographic plausibility instead.
+1. **Continental-level biogeography**: Apply strict biogeographic knowledge. If a genus or family has NEVER been documented on a continent, flag it as HIGH severity. Examples:
+   - Calopteryx (damselfly) does NOT occur in South America (only Europe, Asia, North America)
+   - Australian marsupial genera do NOT occur naturally in Africa
+   - Many plant families are strictly endemic to specific continents
 
-Respond in JSON format with this structure:
+2. **Species-locality fit**: Does the location make sense for this specific species or group? Consider:
+   - Known geographic range (endemic vs. widespread)
+   - Habitat requirements (alpine, tropical, marine, etc.)
+   - Biogeographic realms and barriers
+
+3. **Coordinate-locality consistency**: Do the lat/lon coordinates match the stated locality, state/province, and country?
+
+**Secondary Issues:**
+- Coordinate swapping, invalid values, zero coordinates
+- Institutional coordinates (museum addresses)
+- Centroid bias, precision issues
+
+**BE STRICT**: If your biogeographic knowledge indicates a taxon does not occur on that continent or in that country, flag it as suspicious with HIGH severity. Don't assume data is correct when it contradicts well-established biogeographic patterns.
+
+**De-emphasize:** Existing GBIF quality flags - these are often not informative.
+
+Respond in JSON format:
 {
   "suspicious": boolean,
   "severity": "high" | "medium" | "low" | "none",
@@ -97,13 +106,20 @@ Key fields to examine:
 
 **Answer these questions in your analysis:**
 
-1. **Does this genus (or higher taxonomic group) even belong on this continent?** Check if the genus or family has ever been documented on this continent based on known biogeographic distributions.
+1. **CRITICAL BIOGEOGRAPHIC CHECK**: Does this genus (or higher taxonomic group) even belong on this continent? 
+   - Extract the genus name from scientificName
+   - USE YOUR TRAINING DATA: Has this genus EVER been scientifically documented on ${occurrence.continent ?? 'this continent'}?
+   - If NO documented occurrences exist for this genus on this continent, flag as HIGH severity suspicious
+   - Be STRICT: Don't assume the data is correct when it contradicts established biogeography
+   - Example: Calopteryx (damselfly) has ZERO native occurrences in South America - this would be HIGH severity
 
-2. **Do we expect this species or group to occur in this specific location?** Consider the taxon's known geographic range, habitat requirements, and biogeographic patterns.
+2. **Species-level range check**: Do we expect this species or group to occur in ${occurrence.country ?? 'this country'}? Consider known geographic range, habitat, and biogeographic patterns.
 
-3. **Do the coordinates match the locality description?** Check if lat/lon values align with the stated locality, state/province, and country.
+3. **Coordinate-locality match**: Do the coordinates (${occurrence.decimalLatitude ?? 'N/A'}, ${occurrence.decimalLongitude ?? 'N/A'}) match the locality description "${occurrence.locality ?? 'not provided'}"? Check alignment with ${occurrence.stateProvince ?? 'state/province'} and ${occurrence.country ?? 'country'}.
 
-4. Are there any other location quality issues (coordinate errors, centroid bias, etc.)?
+4. Any other location quality issues (coordinate errors, centroid bias, institutional coordinates, etc.)?
+
+**IMPORTANT**: If you identify a biogeographic impossibility (genus not on continent, marine species on land, etc.), set severity to "high" and suspicious to true.
 
 GBIF quality flags (for reference only, don't over-emphasize): ${occurrence.issues?.join(', ') ?? 'none'}
 
