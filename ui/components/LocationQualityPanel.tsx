@@ -200,28 +200,6 @@ export function LocationQualityPanel({ gbifid, onClose }: LocationQualityPanelPr
                 </Card>
               )}
 
-              {/* Recommendations */}
-              {report.recommendations.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-blue-500" />
-                      Recommendations
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2 select-text">
-                      {report.recommendations.map((rec, index) => (
-                        <li key={index} className="flex items-start gap-2 text-sm">
-                          <span className="text-blue-500 mt-0.5">•</span>
-                          <span>{rec}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              )}
-
               {/* View on GBIF */}
               <Card>
                 <CardContent className="pt-6">

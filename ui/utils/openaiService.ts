@@ -6,7 +6,6 @@ export interface LocationQualityReport {
   severity: 'high' | 'medium' | 'low' | 'none';
   summary: string;
   issues: string[];
-  recommendations: string[];
 }
 
 export interface GBIFOccurrenceData {
@@ -78,8 +77,7 @@ Respond in JSON format with this structure:
   "suspicious": boolean,
   "severity": "high" | "medium" | "low" | "none",
   "summary": "Brief one-sentence assessment",
-  "issues": ["issue 1", "issue 2", ...],
-  "recommendations": ["recommendation 1", "recommendation 2", ...]
+  "issues": ["issue 1", "issue 2", ...]
 }`;
 
   const userPrompt = `Analyze this GBIF occurrence record for location quality issues:
