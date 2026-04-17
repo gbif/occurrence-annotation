@@ -330,8 +330,8 @@ export function InvestigateArea({
                   {investigationPoint.lat.toFixed(4)}, {investigationPoint.lng.toFixed(4)} 
                   ({(searchRadius/1000)}km radius)
                   {totalCount > 0 && (
-                    <span className="block text-sm text-gray-600 mt-1">
-                      Showing {occurrences.length} of {totalCount} total occurrences
+                    <span className="text-sm text-gray-600 ml-2">
+                      • Showing {occurrences.length} of {totalCount} total occurrences
                     </span>
                   )}
                 </>
