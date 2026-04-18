@@ -20,9 +20,13 @@ import {
   AlertCircle, 
   ExternalLink,
   Bot,
-  RefreshCw
+  RefreshCw,
+  Settings,
+  Key
 } from 'lucide-react';
 import { evaluateLocationQuality, LocationQualityReport, isOpenAIConfigured } from '../utils/openaiService';
+import { OpenAISettings } from './OpenAISettings';
+import { isUsingUserProvidedKey } from '../utils/apiConfig';
 
 interface LocationQualityPanelProps {
   gbifid: number | null;
@@ -54,7 +58,7 @@ export function LocationQualityPanel({ gbifid, onClose }: LocationQualityPanelPr
     try {
       // Check if OpenAI is configured
       if (!isOpenAIConfigured()) {
-        setError('OpenAI API key is not configured. Please set VITE_OPENAI_API_KEY in your .env file.');
+        setError('NO_API_KEY');
         setIsLoading(false);
         return;
       }
@@ -111,7 +115,14 @@ export function LocationQualityPanel({ gbifid, onClose }: LocationQualityPanelPr
             <div className="flex items-center gap-2">
               <Bot className="w-6 h-6 text-blue-600" />
               <div>
-                <DrawerTitle>AI Location Quality Check</DrawerTitle>
+                <div className="flex items-center gap-2">
+                  <DrawerTitle>AI Location Quality Check</DrawerTitle>
+                  {isUsingUserProvidedKey() && (
+                    <Badge variant="secondary" className="text-xs">
+                      Your API Key
+                    </Badge>
+                  )}
+                </div>
                 <DrawerDescription>
                   GBIF Occurrence ID: {gbifid}
                 </DrawerDescription>
@@ -140,20 +151,48 @@ export function LocationQualityPanel({ gbifid, onClose }: LocationQualityPanelPr
           )}
 
           {error && (
-            <Alert variant="destructive">
+            <Alert variant={error === 'NO_API_KEY' ? 'default' : 'destructive'}>
               <AlertTriangle className="w-4 h-4" />
               <AlertDescription className="select-text">
-                <div className="font-medium mb-2">Error loading report</div>
-                <div className="text-sm">{error}</div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleRetry}
-                  className="mt-3"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Retry
-                </Button>
+                {error === 'NO_API_KEY' ? (
+                  <div className="space-y-3">
+                    <div className="font-medium">OpenAI API Key Required</div>
+                    <div className="text-sm">
+                      AI-powered location quality analysis requires an OpenAI API key.
+                    </div>
+                    <div className="flex gap-2">
+                      <OpenAISettings 
+                        trigger={
+                          <Button variant="default" size="sm">
+                            <Key className="w-4 h-4 mr-2" />
+                            Configure API Key
+                          </Button>
+                        }
+                      />
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-2">
+                      {isUsingUserProvidedKey() ? (
+                        'You can update your OpenAI API key in settings.'
+                      ) : (
+                        'Provide your own OpenAI API key or contact your administrator for access.'
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="font-medium mb-2">Error loading report</div>
+                    <div className="text-sm">{error}</div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleRetry}
+                      className="mt-3"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Retry
+                    </Button>
+                  </div>
+                )}
               </AlertDescription>
             </Alert>
           )}

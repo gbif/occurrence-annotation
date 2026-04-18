@@ -45,8 +45,60 @@ export const getGbifApiUrl = (endpoint: string): string => {
 };
 
 // OpenAI API Configuration (for AI-powered location quality checks)
+const OPENAI_KEY_STORAGE_KEY = 'gbif_openai_api_key';
+
+/**
+ * Get OpenAI API key - checks localStorage first, then falls back to env variable
+ */
 export const getOpenAIApiKey = (): string | undefined => {
+  // First check if user has provided their own key
+  const userKey = localStorage.getItem(OPENAI_KEY_STORAGE_KEY);
+  if (userKey && userKey.trim()) {
+    return userKey.trim();
+  }
+  
+  // Fall back to environment variable (admin/shared key)
   return import.meta.env.VITE_OPENAI_API_KEY;
+};
+
+/**
+ * Save user's OpenAI API key to localStorage
+ */
+export const setUserOpenAIApiKey = (key: string): void => {
+  if (key && key.trim()) {
+    localStorage.setItem(OPENAI_KEY_STORAGE_KEY, key.trim());
+  } else {
+    localStorage.removeItem(OPENAI_KEY_STORAGE_KEY);
+  }
+};
+
+/**
+ * Get user's OpenAI API key from localStorage (not the fallback)
+ */
+export const getUserOpenAIApiKey = (): string | null => {
+  return localStorage.getItem(OPENAI_KEY_STORAGE_KEY);
+};
+
+/**
+ * Remove user's OpenAI API key from localStorage
+ */
+export const clearUserOpenAIApiKey = (): void => {
+  localStorage.removeItem(OPENAI_KEY_STORAGE_KEY);
+};
+
+/**
+ * Check if user is using their own API key
+ */
+export const isUsingUserProvidedKey = (): boolean => {
+  const userKey = localStorage.getItem(OPENAI_KEY_STORAGE_KEY);
+  return !!(userKey && userKey.trim());
+};
+
+/**
+ * Check if admin/shared key is available
+ */
+export const hasSharedOpenAIKey = (): boolean => {
+  return !!(import.meta.env.VITE_OPENAI_API_KEY);
 };
 
 // Debug logging
