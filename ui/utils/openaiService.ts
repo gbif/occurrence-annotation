@@ -149,7 +149,15 @@ Provide your assessment in JSON format.`;
   }
 
   const data = await response.json();
-  return data.choices[0].message.content;
+  
+  // Validate OpenAI response structure
+  const content = data?.choices?.[0]?.message?.content;
+  
+  if (!Array.isArray(data?.choices) || data.choices.length === 0 || typeof content !== 'string') {
+    throw new Error('Unexpected OpenAI response schema: missing choices[0].message.content');
+  }
+  
+  return content;
 }
 
 /**
@@ -164,12 +172,18 @@ function parseOpenAIResponse(responseText: string): LocationQualityReport {
       throw new Error('Invalid response: missing or invalid "suspicious" field');
     }
     
+    // Normalize severity to allowed values
+    const severity: LocationQualityReport['severity'] =
+      typeof parsed.severity === 'string' &&
+      ['high', 'medium', 'low', 'none'].includes(parsed.severity)
+        ? (parsed.severity as LocationQualityReport['severity'])
+        : 'none';
+    
     return {
       suspicious: parsed.suspicious,
-      severity: parsed.severity || 'none',
+      severity,
       summary: parsed.summary || 'No assessment provided',
       issues: Array.isArray(parsed.issues) ? parsed.issues : [],
-      recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
     };
   } catch (error) {
     console.error('Failed to parse OpenAI response:', error);
@@ -195,7 +209,7 @@ export async function evaluateLocationQuality(gbifid: number): Promise<LocationQ
         severity: 'high',
         summary: 'This record has no coordinates and cannot be evaluated for location quality.',
         issues: ['Missing coordinates (decimalLatitude and/or decimalLongitude)'],
-        recommendations: ['Add coordinate data to enable location quality assessment'],
+
       };
     }
     
@@ -219,11 +233,8 @@ export async function evaluateLocationQuality(gbifid: number): Promise<LocationQ
       issues: [
         'Error occurred during evaluation',
         error instanceof Error ? error.message : 'Unknown error',
-      ],
-      recommendations: [
         'Check your OpenAI API key configuration',
         'Verify the GBIF occurrence ID is valid',
-        'Try again later if this is a temporary issue',
       ],
     };
   }

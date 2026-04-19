@@ -62,12 +62,14 @@ export function InvestigateArea({
   // Check if user is admin
   const userIsAdmin = isAdmin();
   
-  // Debug logging
+  // Debug logging (dev only)
   useEffect(() => {
-    console.log('🔍 InvestigateArea: Admin check:', {
-      userIsAdmin,
-      userFromStorage: localStorage.getItem('gbifUser'),
-    });
+    if (import.meta.env.DEV) {
+      console.log('🔍 InvestigateArea: Admin check:', {
+        userIsAdmin,
+        userFromStorage: localStorage.getItem('gbifUser'),
+      });
+    }
   }, [userIsAdmin]);
 
   // Notify parent of radius changes
@@ -486,11 +488,6 @@ export function InvestigateArea({
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
-                          )}
-                          {!userIsAdmin && (
-                            <span className="text-xs text-gray-400 italic" style={{display: 'none'}}>
-                              (Admin only: AI Check hidden)
-                            </span>
                           )}
                         </div>
                       </div>
