@@ -97,7 +97,7 @@ The ocean polygon is used client-side to subtract ocean areas from user-drawn po
 ## Directory Structure
 
 ```
-country-polygons/
+boundary-polygons/
 ├── generate_ocean_polygon.R     # Main generation script (supports --mode=ocean)
 ├── natural-earth-data/           # Natural Earth ocean shapefiles (downloaded on first run)
 ├── output/                       # Generated JSON output
