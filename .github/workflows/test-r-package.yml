@@ -71,9 +71,9 @@ jobs:
           list.files()
           setwd("r-package/gbifrules")
           install.packages("remotes")
-          remotes::install_deps(dependencies = TRUE)
-          # Install suggested packages explicitly
-          install.packages(c("testthat", "pkgdown", "knitr", "rmarkdown"))
+          remotes::install_deps(dependencies = NA)  # Install all deps including Suggests
+          # Install additional suggested packages explicitly if needed
+          install.packages(c("pkgdown", "knitr", "rmarkdown"))
         shell: Rscript {0}
 
       - name: Test R package
