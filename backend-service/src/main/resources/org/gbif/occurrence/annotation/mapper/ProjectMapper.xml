@@ -46,7 +46,7 @@
         UPDATE project SET 
             custom_vocabulary=NULL,
             modified=now(), 
-            modified_by=#{username}
+            modified_by=#{modifiedBy}
         WHERE id = #{id} AND DELETED IS NULL
     </update>
 
