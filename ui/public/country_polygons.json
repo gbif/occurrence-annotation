@@ -1,4 +1,4 @@
-{
+[{
     "identifier":  "OCEAN",
     "type":  "IHO",
     "name":  "Ocean",
@@ -6,3 +6,4 @@
     "vertexCount":  5013,
     "iso2":  ""
 }
+]
