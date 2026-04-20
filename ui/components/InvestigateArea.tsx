@@ -5,9 +5,12 @@ import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { Search, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Plus, Minus } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { Search, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Plus, Minus, Bot } from 'lucide-react';
 import { toast } from 'sonner';
 import { SelectedSpecies } from './SpeciesSelector';
+import { LocationQualityPanel } from './LocationQualityPanel';
+import { isAdmin } from '../utils/authHelpers';
 
 interface GBIFOccurrence {
   key: number;
@@ -54,6 +57,20 @@ export function InvestigateArea({
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [selectedOccurrenceForQualityCheck, setSelectedOccurrenceForQualityCheck] = useState<number | null>(null);
+  
+  // Check if user is admin
+  const userIsAdmin = isAdmin();
+  
+  // Debug logging (dev only)
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('🔍 InvestigateArea: Admin check:', {
+        userIsAdmin,
+        userFromStorage: localStorage.getItem('gbifUser'),
+      });
+    }
+  }, [userIsAdmin]);
 
   // Notify parent of radius changes
   useEffect(() => {
@@ -315,8 +332,8 @@ export function InvestigateArea({
                   {investigationPoint.lat.toFixed(4)}, {investigationPoint.lng.toFixed(4)} 
                   ({(searchRadius/1000)}km radius)
                   {totalCount > 0 && (
-                    <span className="block text-sm text-gray-600 mt-1">
-                      Showing {occurrences.length} of {totalCount} total occurrences
+                    <span className="text-sm text-gray-600 ml-2">
+                      • Showing {occurrences.length} of {totalCount} total occurrences
                     </span>
                   )}
                 </>
@@ -449,6 +466,29 @@ export function InvestigateArea({
                               Dataset
                             </Button>
                           )}
+                          {userIsAdmin && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs"
+                                    onClick={() => {
+                                      console.log('🤖 AI Check clicked for occurrence:', occurrence.key);
+                                      setSelectedOccurrenceForQualityCheck(occurrence.key);
+                                    }}
+                                  >
+                                    <Bot className="w-3 h-3 mr-1" />
+                                    AI Check
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>AI-powered location quality check</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -482,6 +522,12 @@ export function InvestigateArea({
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      {/* AI Location Quality Check Panel */}
+      <LocationQualityPanel
+        gbifid={selectedOccurrenceForQualityCheck}
+        onClose={() => setSelectedOccurrenceForQualityCheck(null)}
+      />
     </>
   );
 }

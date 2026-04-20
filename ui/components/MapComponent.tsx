@@ -8,8 +8,11 @@ import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown } from 'lucide-react';
+import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown, Bot } from 'lucide-react';
 import { AnnotationRule } from './AnnotationRules';
+import { LocationQualityPanel } from './LocationQualityPanel';
+import { isAdmin } from '../utils/authHelpers';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
 
 interface VocabularyTerm {
@@ -183,6 +186,10 @@ export function MapComponent({
   const [isInvestigateDialogOpen, setIsInvestigateDialogOpen] = useState(false);
   const [investigationPoint, setInvestigationPoint] = useState<{ lat: number; lng: number } | null>(null);
   const [investigationBounds, setInvestigationBounds] = useState<{ north: number; south: number; east: number; west: number } | null>(null);
+  const [selectedOccurrenceForQualityCheck, setSelectedOccurrenceForQualityCheck] = useState<number | null>(null);
+  
+  // Check if current user is admin
+  const userIsAdmin = isAdmin();
   
   // Get current user from localStorage
   const getCurrentUser = () => {
@@ -2395,16 +2402,6 @@ export function MapComponent({
             // Adjust stroke width based on size for better visibility
             const strokeWidth = constrainedPixelRadius < 10 ? 1 : constrainedPixelRadius < 50 ? 2 : 3;
             
-            console.log('🎯 Cursor Geographic Accuracy:', { 
-              investigateRadius: `${investigateRadius}m`, 
-              zoom, 
-              mouseLat: mouseLat.toFixed(4),
-              metersPerPixel: metersPerPixel.toFixed(1), 
-              truePixelRadius: pixelRadius.toFixed(1),
-              displayPixelRadius: constrainedPixelRadius.toFixed(1),
-              crosshairSize: crosshairSize.toFixed(1)
-            });
-            
             return (
               <g className="pointer-events-none">
                 {/* Outer circle representing true geographic search radius */}
@@ -2816,29 +2813,28 @@ export function MapComponent({
                   {investigationPoint.lat.toFixed(4)}, {investigationPoint.lng.toFixed(4)} 
                   ({(investigateRadius/1000)}km radius)
                   {!isInvestigateLoading && investigateResults.length > 0 && (
-                    <>
-                      <span className="block mt-1 text-green-600">
-                        Found {investigateResults.length} occurrence{investigateResults.length !== 1 ? 's' : ''}
-                      </span>
-                      {investigationBounds && (
-                        <div className="flex justify-center mt-1">
-                          <Button
-                            onClick={createPolygonFromInvestigation}
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 text-xs text-blue-600 hover:text-blue-800"
-                            title="Create polygon from investigation area"
-                          >
-                            Create rule from search
-                          </Button>
-                        </div>
-                      )}
-                    </>
+                    <span className="ml-2 text-green-600">
+                      • Found {investigateResults.length} occurrence{investigateResults.length !== 1 ? 's' : ''}
+                    </span>
                   )}
                 </>
               )}
             </DialogDescription>
           </DialogHeader>
+          
+          {!isInvestigateLoading && investigateResults.length > 0 && investigationBounds && (
+            <div className="flex justify-center -mt-2 mb-2">
+              <Button
+                onClick={createPolygonFromInvestigation}
+                size="sm"
+                variant="ghost"
+                className="h-6 text-xs text-blue-600 hover:text-blue-800"
+                title="Create polygon from investigation area"
+              >
+                Create rule from search
+              </Button>
+            </div>
+          )}
 
           <ScrollArea className="flex-1 overflow-y-auto">
             <div className="pr-4 space-y-4">
@@ -3013,7 +3009,7 @@ export function MapComponent({
                         </div>
 
                         {/* Links */}
-                        <div className="flex gap-2 pt-2">
+                        <div className="flex flex-wrap gap-2 pt-2">
                           <Button
                             size="sm"
                             variant="outline"
@@ -3033,6 +3029,26 @@ export function MapComponent({
                               <Database className="w-3 h-3 mr-1" />
                               Dataset
                             </Button>
+                          )}
+                          {userIsAdmin && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs"
+                                    onClick={() => setSelectedOccurrenceForQualityCheck(occurrence.key)}
+                                  >
+                                    <Bot className="w-3 h-3 mr-1" />
+                                    AI Check
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Evaluate location quality using AI</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           )}
                         </div>
                       </div>
@@ -3470,6 +3486,12 @@ export function MapComponent({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* AI Location Quality Check Panel */}
+      <LocationQualityPanel 
+        gbifid={selectedOccurrenceForQualityCheck} 
+        onClose={() => setSelectedOccurrenceForQualityCheck(null)} 
+      />
 
     </div>
   );
