@@ -211,6 +211,16 @@ export function bufferPolygon(
 
     console.log(`Buffering polygon by ${distanceMeters}m (${userPolygon.length} vertices)`);
 
+    // Validate input coordinates
+    const hasInvalidCoords = userPolygon.some(([lat, lng]) => 
+      lat < -90 || lat > 90 || lng < -180 || lng > 180 || isNaN(lat) || isNaN(lng)
+    );
+    
+    if (hasInvalidCoords) {
+      console.error('Input polygon contains invalid coordinates (lat must be -90 to 90, lng must be -180 to 180)');
+      return null;
+    }
+
     // Convert [lat, lng][] to GeoJSON polygon format [lng, lat][]
     const coordinates = userPolygon.map(([lat, lng]) => [lng, lat]);
     
@@ -245,9 +255,28 @@ export function bufferPolygon(
       const coords = buffered.geometry.coordinates[0]; // Outer ring
       
       // Convert back to [lat, lng][] and remove closing point
+      // Also clamp coordinates to valid geographic bounds
+      let clampedCount = 0;
       const result: [number, number][] = coords
         .slice(0, -1)
-        .map(([lng, lat]): [number, number] => [lat, lng]);
+        .map(([lng, lat]): [number, number] => {
+          // Clamp latitude to -90..90
+          const clampedLat = Math.max(-90, Math.min(90, lat));
+          // Wrap longitude to -180..180
+          let clampedLng = lng;
+          while (clampedLng > 180) clampedLng -= 360;
+          while (clampedLng < -180) clampedLng += 360;
+          
+          if (clampedLat !== lat || clampedLng !== lng) {
+            clampedCount++;
+          }
+          
+          return [clampedLat, clampedLng];
+        });
+      
+      if (clampedCount > 0) {
+        console.warn(`⚠️ ${clampedCount} coordinates were clamped to valid geographic bounds. Buffer may be too large for this polygon.`);
+      }
       
       console.log(`Buffer succeeded: ${result.length} vertices`);
       console.timeEnd('buffer-polygon');
@@ -255,12 +284,30 @@ export function bufferPolygon(
       
     } else if (geomType === 'MultiPolygon') {
       // Multiple polygons (can happen with self-intersecting results)
+      let totalClampedCount = 0;
       const polygons: [number, number][][] = buffered.geometry.coordinates.map(poly => {
         const outerRing = poly[0]; // First ring is outer ring
         return outerRing
           .slice(0, -1)
-          .map(([lng, lat]): [number, number] => [lat, lng]);
+          .map(([lng, lat]): [number, number] => {
+            // Clamp latitude to -90..90
+            const clampedLat = Math.max(-90, Math.min(90, lat));
+            // Wrap longitude to -180..180
+            let clampedLng = lng;
+            while (clampedLng > 180) clampedLng -= 360;
+            while (clampedLng < -180) clampedLng += 360;
+            
+            if (clampedLat !== lat || clampedLng !== lng) {
+              totalClampedCount++;
+            }
+            
+            return [clampedLat, clampedLng];
+          });
       });
+      
+      if (totalClampedCount > 0) {
+        console.warn(`⚠️ ${totalClampedCount} coordinates were clamped to valid geographic bounds. Buffer may be too large for this polygon.`);
+      }
       
       console.log(`Buffer succeeded: ${polygons.length} polygon pieces`);
       console.timeEnd('buffer-polygon');
