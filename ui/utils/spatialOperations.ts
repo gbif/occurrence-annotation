@@ -325,3 +325,63 @@ export function bufferPolygon(
     return null;
   }
 }
+
+/**
+ * Buffer a multi-polygon (array of polygons) by a specified distance
+ * 
+ * @param multiPolygon - Array of polygons in [lat, lng][][] format
+ * @param distanceMeters - Distance to buffer in meters (positive = expand, negative = shrink)
+ * @returns Buffered multi-polygon or null if operation fails
+ */
+export function bufferMultiPolygon(
+  multiPolygon: [number, number][][],
+  distanceMeters: number
+): [number, number][][] | null {
+  console.time('buffer-multipolygon');
+  
+  try {
+    if (!multiPolygon || multiPolygon.length === 0) {
+      console.error('Invalid multi-polygon for buffering');
+      return null;
+    }
+
+    console.log(`Buffering multi-polygon with ${multiPolygon.length} parts`);
+
+    // Buffer each polygon part separately
+    const bufferedParts: [number, number][][] = [];
+    
+    for (let i = 0; i < multiPolygon.length; i++) {
+      const part = multiPolygon[i];
+      const result = bufferPolygon(part, distanceMeters);
+      
+      if (!result) {
+        console.warn(`Failed to buffer polygon part ${i + 1}/${multiPolygon.length}`);
+        continue;
+      }
+      
+      // Handle both single and multi-polygon results from buffer
+      if (Array.isArray(result[0]) && Array.isArray(result[0][0])) {
+        // Result is multi-polygon, add all parts
+        bufferedParts.push(...(result as [number, number][][]));
+      } else {
+        // Result is single polygon, add as one part
+        bufferedParts.push(result as [number, number][]);
+      }
+    }
+
+    if (bufferedParts.length === 0) {
+      console.error('All polygon parts failed to buffer');
+      console.timeEnd('buffer-multipolygon');
+      return null;
+    }
+
+    console.log(`Multi-polygon buffer succeeded: ${bufferedParts.length} polygon parts`);
+    console.timeEnd('buffer-multipolygon');
+    return bufferedParts;
+
+  } catch (error) {
+    console.error('Error during multi-polygon buffer operation:', error);
+    console.timeEnd('buffer-multipolygon');
+    return null;
+  }
+}

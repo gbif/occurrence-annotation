@@ -15,7 +15,7 @@ import { isAdmin } from '../utils/authHelpers';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
 import { parseWKTGeometry } from '../utils/wktParser';
-import { subtractOceanFromPolygon, bufferPolygon } from '../utils/spatialOperations';
+import { subtractOceanFromPolygon, bufferPolygon, bufferMultiPolygon } from '../utils/spatialOperations';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Input } from './ui/input';
 
@@ -1146,24 +1146,33 @@ export function MapComponent({
       return;
     }
 
-    // Get coordinates from polygon
-    let coords: [number, number][] | null = null;
-    if (Array.isArray(polygon.coordinates) && polygon.coordinates.length > 0) {
-      if (Array.isArray(polygon.coordinates[0]) && typeof polygon.coordinates[0][0] === 'number') {
-        coords = polygon.coordinates as [number, number][];
-      }
-    }
-
-    if (!coords || coords.length < 3) {
-      toast.error('Invalid polygon coordinates');
-      return;
-    }
-
     try {
       setIsBuffering(true);
       setIsBufferPopoverOpen(false);
       
-      const result = bufferPolygon(coords, distance);
+      let result: [number, number][] | [number, number][][] | null = null;
+      
+      // Check if this is a multi-polygon
+      if (polygon.isMultiPolygon) {
+        const multiCoords = polygon.coordinates as [number, number][][];
+        if (!multiCoords || multiCoords.length === 0) {
+          toast.error('Invalid multi-polygon coordinates');
+          return;
+        }
+        
+        console.log(`Buffering multi-polygon with ${multiCoords.length} parts`);
+        result = bufferMultiPolygon(multiCoords, distance);
+        
+      } else {
+        // Single polygon
+        const coords = polygon.coordinates as [number, number][];
+        if (!coords || coords.length < 3) {
+          toast.error('Invalid polygon coordinates');
+          return;
+        }
+        
+        result = bufferPolygon(coords, distance);
+      }
       
       if (!result) {
         toast.error('Buffer operation failed', {
@@ -1176,26 +1185,13 @@ export function MapComponent({
       if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
         const polygons = result as [number, number][][];
         
-        if (onSaveMultiplePolygons && onDeletePolygon && polygons.length > 1) {
-          // Delete original and save all buffer pieces as separate polygons
-          onDeletePolygon(polygonId);
-          onSaveMultiplePolygons(polygons);
-          
-          toast.success(`Buffer created ${polygons.length} polygon pieces`, {
-            description: 'Self-intersecting buffer split into separate polygons'
-          });
-        } else {
-          // Keep largest polygon
-          const largestPolygon = polygons.reduce((largest, current) => 
-            current.length > largest.length ? current : largest
-          , polygons[0]);
-          
-          onUpdatePolygon(polygonId, largestPolygon);
-          
-          toast.success(`Buffer applied - kept largest of ${polygons.length} pieces`, {
-            description: `${largestPolygon.length} vertices`
-          });
-        }
+        // Always update as multi-polygon if result is multi-polygon
+        onUpdatePolygon(polygonId, polygons);
+        
+        const direction = distance > 0 ? 'expanded' : 'shrunk';
+        toast.success(`Multi-polygon ${direction} by ${Math.abs(distance)}m`, {
+          description: `${polygons.length} polygon parts`
+        });
       } else {
         // Single polygon result
         const bufferedPolygon = result as [number, number][];
