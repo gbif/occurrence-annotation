@@ -39,6 +39,7 @@
     "@radix-ui/react-toggle-group": "^1.0.4",
     "@radix-ui/react-tooltip": "^1.0.6",
     "@turf/boolean-point-in-polygon": "^7.0.0",
+    "@turf/buffer": "^7.3.5",
     "@turf/difference": "^7.3.4",
     "@turf/helpers": "^7.0.0",
     "@turf/union": "^7.3.4",

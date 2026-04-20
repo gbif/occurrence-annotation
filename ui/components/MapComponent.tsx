@@ -8,14 +8,16 @@ import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown, Waves, Bot, Combine, Split } from 'lucide-react';
+import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown, Waves, Bot, Combine, Split, Maximize2 } from 'lucide-react';
 import { AnnotationRule } from './AnnotationRules';
 import { LocationQualityPanel } from './LocationQualityPanel';
 import { isAdmin } from '../utils/authHelpers';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
 import { parseWKTGeometry } from '../utils/wktParser';
-import { subtractOceanFromPolygon } from '../utils/spatialOperations';
+import { subtractOceanFromPolygon, bufferPolygon } from '../utils/spatialOperations';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Input } from './ui/input';
 
 interface VocabularyTerm {
   term: string;
@@ -147,6 +149,11 @@ export function MapComponent({
   // Ocean subtraction state
   const [isSubtractingOcean, setIsSubtractingOcean] = useState(false);
   const [polygonBeforeSubtract, setPolygonBeforeSubtract] = useState<[number, number][] | null>(null);
+  
+  // Buffer polygon state
+  const [isBufferPopoverOpen, setIsBufferPopoverOpen] = useState(false);
+  const [bufferDistance, setBufferDistance] = useState(100); // meters
+  const [isBuffering, setIsBuffering] = useState(false);
   
   // ArcGIS API Key from environment
   const arcgisApiKey = import.meta.env.VITE_ARCGIS_API_KEY || '';
@@ -1071,6 +1078,76 @@ export function MapComponent({
       onPolygonChange(polygonBeforeSubtract);
       setPolygonBeforeSubtract(null);
       toast.info('Ocean subtraction undone');
+    }
+  };
+
+  // Handle buffer polygon operation
+  const handleBufferPolygon = async (distance: number) => {
+    if (!currentPolygon || currentPolygon.length < 3) {
+      toast.error('No polygon to buffer');
+      return;
+    }
+
+    if (distance === 0) {
+      toast.error('Buffer distance cannot be zero');
+      return;
+    }
+
+    try {
+      setIsBuffering(true);
+      setIsBufferPopoverOpen(false);
+      
+      const result = bufferPolygon(currentPolygon, distance);
+      
+      if (!result) {
+        toast.error('Buffer operation failed', {
+          description: distance < 0 ? 'Negative buffer may be too large for polygon size' : 'Invalid result from buffer operation'
+        });
+        return;
+      }
+      
+      // Check if result is MultiPolygon (array of arrays)
+      if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
+        // MultiPolygon result from self-intersection
+        const polygons = result as [number, number][][];
+        
+        if (onSaveMultiplePolygons && polygons.length > 1) {
+          // Save all buffer pieces as separate polygon items
+          onSaveMultiplePolygons(polygons);
+          onPolygonChange(null); // Clear current polygon since we saved them all
+          
+          toast.success(`Buffer created ${polygons.length} polygon pieces`, {
+            description: 'Self-intersecting buffer split into separate polygons'
+          });
+        } else {
+          // Keep largest polygon
+          const largestPolygon = polygons.reduce((largest, current) => 
+            current.length > largest.length ? current : largest
+          , polygons[0]);
+          
+          onPolygonChange(largestPolygon);
+          
+          toast.success(`Buffer applied - kept largest of ${polygons.length} pieces`, {
+            description: `${largestPolygon.length} vertices`
+          });
+        }
+      } else {
+        // Single polygon result
+        const polygon = result as [number, number][];
+        onPolygonChange(polygon);
+        
+        const direction = distance > 0 ? 'expanded' : 'shrunk';
+        toast.success(`Polygon ${direction} by ${Math.abs(distance)}m`, {
+          description: `${polygon.length} vertices in result`
+        });
+      }
+    } catch (error) {
+      console.error('Failed to buffer polygon:', error);
+      toast.error('Failed to buffer polygon', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsBuffering(false);
     }
   };
 
@@ -2780,6 +2857,110 @@ export function MapComponent({
                     </svg>
                   </Button>
                 )}
+                
+                {/* Buffer Polygon Tool - Expand or shrink polygon by distance */}
+                <Popover open={isBufferPopoverOpen} onOpenChange={setIsBufferPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button 
+                      variant="outline"
+                      size="icon"
+                      title="Buffer Polygon - Expand or shrink by distance"
+                      className="border-purple-300 text-purple-600 hover:bg-purple-50"
+                      disabled={isBuffering}
+                    >
+                      {isBuffering ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Maximize2 className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64" side="right" align="start">
+                    <div className="space-y-3">
+                      <div>
+                        <h4 className="font-medium text-sm mb-1">Buffer Distance</h4>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Positive expands, negative shrinks
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={-10000}
+                            max={10000}
+                            step={10}
+                            value={bufferDistance}
+                            onChange={(e) => setBufferDistance(Number(e.target.value))}
+                            className="h-8"
+                          />
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">meters</span>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-2">Quick presets:</p>
+                        <div className="grid grid-cols-3 gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => handleBufferPolygon(10)}
+                          >
+                            +10m
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => handleBufferPolygon(50)}
+                          >
+                            +50m
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => handleBufferPolygon(100)}
+                          >
+                            +100m
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => handleBufferPolygon(500)}
+                          >
+                            +500m
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs text-orange-600 border-orange-300"
+                            onClick={() => handleBufferPolygon(-50)}
+                          >
+                            -50m
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs text-orange-600 border-orange-300"
+                            onClick={() => handleBufferPolygon(-100)}
+                          >
+                            -100m
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <Button
+                        className="w-full"
+                        size="sm"
+                        onClick={() => handleBufferPolygon(bufferDistance)}
+                        disabled={bufferDistance === 0}
+                      >
+                        Apply Buffer
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
                 
                 <Button 
                   onClick={onSaveAndEdit} 

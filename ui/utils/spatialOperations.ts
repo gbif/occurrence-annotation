@@ -1,5 +1,7 @@
 import polygonClipping from 'polygon-clipping';
 import { parseWKTGeometry, PolygonWithHoles } from './wktParser';
+import buffer from '@turf/buffer';
+import { polygon as turfPolygon } from '@turf/helpers';
 
 // Type definitions for polygon-clipping
 type Position = [number, number];
@@ -176,5 +178,103 @@ export async function subtractOceanFromPolygon(
     console.error('Error during ocean subtraction:', error);
     console.timeEnd('subtract-ocean');
     throw error;
+  }
+}
+
+/**
+ * Buffer (expand or shrink) a polygon by a specified distance
+ * 
+ * @param userPolygon - User's polygon in [lat, lng][] format
+ * @param distanceMeters - Distance to buffer in meters (positive = expand, negative = shrink)
+ * @returns Buffered polygon(s), or null if operation fails
+ *          - Single polygon: [lat, lng][]
+ *          - Multiple polygons (from self-intersection): [lat, lng][][]
+ *          - Failed operation: null
+ */
+export function bufferPolygon(
+  userPolygon: [number, number][],
+  distanceMeters: number
+): [number, number][] | [number, number][][] | null {
+  console.time('buffer-polygon');
+  
+  try {
+    if (!userPolygon || userPolygon.length < 3) {
+      console.error('Invalid polygon for buffering');
+      return null;
+    }
+
+    if (distanceMeters === 0) {
+      console.warn('Buffer distance is 0, returning original polygon');
+      console.timeEnd('buffer-polygon');
+      return userPolygon;
+    }
+
+    console.log(`Buffering polygon by ${distanceMeters}m (${userPolygon.length} vertices)`);
+
+    // Convert [lat, lng][] to GeoJSON polygon format [lng, lat][]
+    const coordinates = userPolygon.map(([lat, lng]) => [lng, lat]);
+    
+    // Ensure polygon is closed for Turf
+    const first = coordinates[0];
+    const last = coordinates[coordinates.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      coordinates.push([first[0], first[1]]);
+    }
+
+    // Create Turf polygon
+    const turfPoly = turfPolygon([coordinates]);
+
+    // Convert meters to kilometers for Turf
+    const distanceKm = distanceMeters / 1000;
+
+    // Perform buffer operation
+    // steps=8 controls smoothness of curved corners (default is 8)
+    const buffered = buffer(turfPoly, distanceKm, { units: 'kilometers', steps: 8 });
+
+    if (!buffered || !buffered.geometry) {
+      console.error('Buffer operation returned null or invalid geometry');
+      console.timeEnd('buffer-polygon');
+      return null;
+    }
+
+    // Handle different geometry types
+    const geomType = buffered.geometry.type;
+    
+    if (geomType === 'Polygon') {
+      // Single polygon result
+      const coords = buffered.geometry.coordinates[0]; // Outer ring
+      
+      // Convert back to [lat, lng][] and remove closing point
+      const result: [number, number][] = coords
+        .slice(0, -1)
+        .map(([lng, lat]): [number, number] => [lat, lng]);
+      
+      console.log(`Buffer succeeded: ${result.length} vertices`);
+      console.timeEnd('buffer-polygon');
+      return result;
+      
+    } else if (geomType === 'MultiPolygon') {
+      // Multiple polygons (can happen with self-intersecting results)
+      const polygons: [number, number][][] = buffered.geometry.coordinates.map(poly => {
+        const outerRing = poly[0]; // First ring is outer ring
+        return outerRing
+          .slice(0, -1)
+          .map(([lng, lat]): [number, number] => [lat, lng]);
+      });
+      
+      console.log(`Buffer succeeded: ${polygons.length} polygon pieces`);
+      console.timeEnd('buffer-polygon');
+      return polygons;
+      
+    } else {
+      console.error(`Unexpected geometry type from buffer: ${geomType}`);
+      console.timeEnd('buffer-polygon');
+      return null;
+    }
+
+  } catch (error) {
+    console.error('Error during buffer operation:', error);
+    console.timeEnd('buffer-polygon');
+    return null;
   }
 }
