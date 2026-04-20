@@ -2,32 +2,26 @@ import { useState, useEffect, useMemo } from 'react';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
-import { Copy, Check, RefreshCw, Repeat, Globe } from 'lucide-react';
+import { Copy, Check, RefreshCw, Repeat } from 'lucide-react';
 import { Card } from './ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { toast } from 'sonner';
-import { CountrySelector } from './CountrySelector';
 
 interface WKTFormProps {
   currentPolygon: [number, number][] | null;
   onPolygonChange: (polygon: [number, number][] | null) => void;
   isInverted?: boolean;
   onInvertedChange?: (inverted: boolean) => void;
-  selectedCountries?: string[];
-  onCountriesChange?: (iso2Codes: string[]) => void;
+
 }
 
 export function WKTForm({ 
   currentPolygon, 
   onPolygonChange, 
   isInverted = false, 
-  onInvertedChange,
-  selectedCountries = [],
-  onCountriesChange
+  onInvertedChange
 }: WKTFormProps) {
   const [copied, setCopied] = useState(false);
   const [wktInput, setWktInput] = useState('');
-  const [showCountryDialog, setShowCountryDialog] = useState(false);
 
   // Convert polygon coordinates to WKT format - memoized
   const wktString = useMemo(() => {
@@ -156,21 +150,6 @@ export function WKTForm({
         <div className="flex items-center justify-between">
           <Label>Polygon (WKT)</Label>
           <div className="flex gap-1">
-            {onCountriesChange && (
-              <Button
-                onClick={() => setShowCountryDialog(true)}
-                variant={selectedCountries.length > 0 ? 'default' : 'outline'}
-                size="sm"
-                className="h-7"
-                title="Select continents or ocean to load polygons"
-              >
-                <Globe className="w-3 h-3 mr-1" />
-                Geography
-                {selectedCountries.length > 0 && (
-                  <span className="ml-1 text-xs">({selectedCountries.length})</span>
-                )}
-              </Button>
-            )}
             {currentPolygon && currentPolygon.length >= 3 && (
               <>
                 <Button
@@ -241,34 +220,6 @@ export function WKTForm({
         </div>
       </div>
 
-      {/* Country Selection Dialog */}
-      {onCountriesChange && (
-        <Dialog open={showCountryDialog} onOpenChange={setShowCountryDialog}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Select Geography</DialogTitle>
-              <DialogDescription>
-                Choose one or more continents or ocean to load boundary polygons on the map.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <CountrySelector
-                selectedCountries={selectedCountries}
-                onCountriesChange={onCountriesChange}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                onClick={() => setShowCountryDialog(false)}
-                variant="outline"
-                size="sm"
-              >
-                Done
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </Card>
   );
 }

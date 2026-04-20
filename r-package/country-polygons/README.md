@@ -1,34 +1,43 @@
-# Country Polygon Generator
+# Ocean Polygon Generator
 
-This directory contains scripts to generate country boundary polygons from the ISEA3H hexagonal grid (resolution-7) using GBIF's reverse geocoding API.
+This directory contains scripts to generate the ocean boundary polygon used by the **Subtract Ocean** feature in the occurrence annotation UI.
 
 ## Overview
 
-The pipeline:
-1. Downloads ISEA3H resolution-7 hexagonal grid (~16,000 hexagons)
-2. Generates 3×3 sample point grid within each hexagon (~80-144k points)
-3. Geocodes each point using GBIF API to determine country
-4. Assigns each hexagon to a country (majority vote for border hexagons)
-5. Dissolves hexagons into country-level multipolygons
-6. Simplifies polygons and exports as WKT/JSON
+The script uses Natural Earth 1:110m ocean data to create a simple, clean global ocean polygon that is subtracted from user-drawn polygons to extract only land areas.
+
+**Current Usage**: Ocean polygon generation only (for the Subtract Ocean feature).
+
+**Legacy Capability**: The script also contains country/continent polygon generation code using ISEA3H hexagonal grids and GBIF geocoding, but this is not currently used by the application.
 
 ## Requirements
 
 R packages:
 - `sf` - Spatial data handling
 - `dplyr` - Data manipulation
-- `httr` - HTTP requests
 - `jsonlite` - JSON export
-- `stringr` - String operations
 
 The script will automatically install missing packages.
 
 ## Usage
 
-### Running the Script
+### Regenerate Ocean Polygon Only (Recommended)
+
+```bash
+# From command line (fast, <1 minute)
+Rscript generate_country_polygons.R --mode=ocean
+```
+
+This will:
+1. Download Natural Earth ocean data (if not cached)
+2. Process it into a simplified multipolygon
+3. Export to JSON format
+4. Copy to UI public directory
+
+### Alternative: Full Generation
 
 ```r
-# From R console
+# From R console (slower, includes continents)
 source("generate_country_polygons.R")
 main()
 
@@ -36,68 +45,75 @@ main()
 Rscript generate_country_polygons.R
 ```
 
-### First Run
-
-Expected runtime: **30-120 minutes** (depends on network speed and GBIF API response time)
-
-The script includes:
-- **Rate limiting**: ~20 requests/second to respect GBIF API
-- **Caching**: Geocode results saved to `cache/geocode_results.rds`
-- **Checkpoints**: Progress saved every 10,000 points
-- **Resume capability**: Re-running continues from last checkpoint
-
-### Subsequent Runs
-
-If the cache file exists, the script will skip already-geocoded points and only process new ones. To completely regenerate:
-
-```bash
-# Delete cache to force re-geocoding
-rm -r cache/
-```
+**Note**: Full generation (continents + ocean) takes 30-120 minutes due to GBIF API geocoding. For the Subtract Ocean feature, only the ocean polygon is needed.
 
 ## Output
 
 ### Primary Output
-- `output/country_polygons.json` - Generated country polygons (working copy)
+- `output/country_polygons.json` - Generated ocean polygon (working copy)
 - `../../ui/public/country_polygons.json` - Auto-copied to frontend (served as static asset)
 
-**File size**: ~180 KB (suitable for frontend serving)
+**File size**: ~50-180 KB (depending on whether continents are included)
 
-**Architecture note**: Country polygons are served as a static JSON file from the frontend's public directory, eliminating the need for backend API endpoints.
+**Architecture note**: The ocean polygon is served as a static JSON file from the frontend's public directory, eliminating the need for backend API endpoints.
 
 ### Format
 
 ```json
 [
   {
-    "iso2": "US",
-    "name": "United States",
-    "wkt": "MULTIPOLYGON(((-179.9 51.2, -179.8 51.3, ...)))",
-    "vertexCount": 2543
-  },
-  ...
+    "identifier": "OCEAN",
+    "type": "IHO",
+    "name": "Ocean",
+    "wkt": "MULTIPOLYGON(((-180 -90, 180 -90, ...)))",
+    "vertexCount": 1234
+  }
 ]
 ```
 
-### Cache Files
-
-- `cache/geocode_results.rds` - Geocoded point results (lat, lon, iso2_code)
-- `isea3h-data/resolution-7.*` - Downloaded ISEA3H shapefiles
-
 ## Technical Details
 
-### Geocoding Strategy
+### Data Source
 
-For hexagons spanning multiple countries (typically at borders):
-- **Majority vote**: Country with most sample points wins the hexagon
-- Ensures cleaner, more predictable boundaries
-- Reduces polygon complexity
+- **Ocean**: Natural Earth 1:110m ocean polygons (ne_110m_land.zip)
+- Global coverage with simplified coastlines
+- Suitable for frontend rendering performance
 
 ### Polygon Simplification
 
 Vertices reduced using `sf::st_simplify()` with tolerance of **0.01°** (~1.1 km at equator):
 - Balances accuracy vs. frontend rendering performance
-- Preserves general shape while reducing file size
+- Preserves general coastline shape while reducing file size
+
+### Subtract Ocean Feature
+
+The ocean polygon is used client-side to subtract ocean areas from user-drawn polygons:
+1. User draws a polygon on the map
+2. Click "Subtract Ocean" button
+3. JavaScript uses polygon-clipping library to perform difference operation
+4. Result contains only land areas within the original polygon
+5. For regions with multiple land masses (e.g., archipelagos), all islands are preserved as separate polygons
+
+## Directory Structure
+
+```
+country-polygons/
+├── generate_country_polygons.R  # Main generation script (supports --mode=ocean)
+├── natural-earth-data/           # Natural Earth ocean shapefiles (downloaded on first run)
+├── output/                       # Generated JSON output
+└── README.md                     # This file
+```
+
+## Maintenance
+
+To update the ocean polygon (e.g., if Natural Earth releases updated data):
+
+```bash
+# Delete cached Natural Earth data
+rm -r natural-earth-data/
+
+# Regenerate ocean polygon
+Rscript generate_country_polygons.R --mode=ocean
 - Typical result: 100-5000 vertices per country
 
 ### Coordinate System

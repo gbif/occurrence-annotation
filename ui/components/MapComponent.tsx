@@ -8,7 +8,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown, Waves, Bot } from 'lucide-react';
+import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown, Waves, Bot, Combine, Split } from 'lucide-react';
 import { AnnotationRule } from './AnnotationRules';
 import { LocationQualityPanel } from './LocationQualityPanel';
 import { isAdmin } from '../utils/authHelpers';
@@ -51,6 +51,9 @@ interface MapComponentProps {
   occurrenceFilters?: OccurrenceFilterOptions;
   onFiltersChange?: (filters: OccurrenceFilterOptions) => void;
   onCreateRuleFromSearch?: (coords: [number, number][], metadata?: { basisOfRecord?: string[]; datasetKey?: string }) => void;
+  onSaveMultiplePolygons?: (polygons: [number, number][][]) => void;
+  onMergeAllPolygons?: () => void;
+  onSplitMultiPolygon?: (id: string) => void;
   vocabulary?: VocabularyTerm[];
 }
 
@@ -94,6 +97,9 @@ export function MapComponent({
   occurrenceFilters = {},
   onFiltersChange,
   onCreateRuleFromSearch,
+  onSaveMultiplePolygons,
+  onMergeAllPolygons,
+  onSplitMultiPolygon,
   vocabulary = [
     { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
     { term: 'NATIVE', description: 'Native species', color: '#10b981', locked: false },
@@ -1018,25 +1024,31 @@ export function MapComponent({
       
       // Check if result is MultiPolygon (array of arrays)
       if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
-        // MultiPolygon result - take the largest polygon
+        // MultiPolygon result - save all land polygons as separate items
         const polygons = result as [number, number][][];
-        const largestPolygon = polygons.reduce((largest, current) => 
-          current.length > largest.length ? current : largest
-        , polygons[0]);
         
-        onPolygonChange(largestPolygon);
-        
-        if (polygons.length > 1) {
-          toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`, {
-            description: `${largestPolygon.length} vertices in result`
+        if (onSaveMultiplePolygons) {
+          // Save all land polygons as separate polygon items
+          onSaveMultiplePolygons(polygons);
+          onPolygonChange(null); // Clear current polygon since we saved them all
+          
+          toast.success(`Ocean subtracted - created ${polygons.length} land polygon${polygons.length > 1 ? 's' : ''}`, {
+            description: polygons.length > 1 ? 'Each land area saved as a separate polygon' : `${polygons[0].length} vertices`
           });
         } else {
-          toast.success('Ocean subtracted successfully', {
+          // Fallback: keep largest polygon (old behavior)
+          const largestPolygon = polygons.reduce((largest, current) => 
+            current.length > largest.length ? current : largest
+          , polygons[0]);
+          
+          onPolygonChange(largestPolygon);
+          
+          toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`, {
             description: `${largestPolygon.length} vertices in result`
           });
         }
       } else {
-        // Single polygon result
+        // Single polygon result - keep as current polygon
         const polygon = result as [number, number][];
         onPolygonChange(polygon);
         toast.success('Ocean subtracted successfully', {
@@ -2794,6 +2806,20 @@ export function MapComponent({
             {savedPolygons.length > 0 && !editingPolygonId && (
               <>
                 <div className="w-full h-px bg-gray-200 my-1" />
+                
+                {/* Merge All button - only show if there are 2+ polygons */}
+                {savedPolygons.length > 1 && onMergeAllPolygons && (
+                  <Button
+                    onClick={onMergeAllPolygons}
+                    size="icon"
+                    variant="outline"
+                    title={`Merge all ${savedPolygons.length} polygons into a single multi-polygon`}
+                    className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                  >
+                    <Combine className="w-4 h-4" />
+                  </Button>
+                )}
+                
                 {savedPolygons.map((polygon) => (
                   <Button
                     key={polygon.id}
@@ -2813,133 +2839,172 @@ export function MapComponent({
             {editingPolygonId && (
               <>
                 <div className="w-full h-px bg-gray-200 my-1" />
-                <Button 
-                  onClick={() => onEditPolygon && onEditPolygon(editingPolygonId)}
-                  size="icon" 
-                  variant="default"
-                  title="Done editing"
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Check className="w-4 h-4" />
-                </Button>
-                <Button 
-                  onClick={() => setIsMoveToolActive(!isMoveToolActive)}
-                  size="icon" 
-                  variant={isMoveToolActive ? "default" : "outline"}
-                  title={isMoveToolActive ? "Disable move tool" : "Enable move tool - drag polygon to move"}
-                  className={isMoveToolActive ? "bg-blue-600 hover:bg-blue-700" : ""}
-                >
-                  <Hand className="w-5 h-5" />
-                </Button>
-                <Button 
-                  onClick={addMidpointVertices} 
-                  size="icon" 
-                  variant="outline"
-                  title="Add midpoint vertices to all edges"
-                >
-                  <GitBranch className="w-5 h-5" />
-                </Button>
-                <Button 
-                  onClick={removeMidpointVertices} 
-                  size="icon" 
-                  variant="outline"
-                  title="Remove alternating vertices"
-                >
-                  <Scissors className="w-5 h-5" />
-                </Button>
                 
-                {/* Ocean Subtraction in Edit Mode */}
-                <Button 
-                  onClick={async () => {
-                    if (!editingPolygonId) return;
-                    const polygon = savedPolygons.find(p => p.id === editingPolygonId);
-                    if (!polygon) return;
-                    
-                    // Get the coordinates from the polygon
-                    let coords: [number, number][] | null = null;
-                    if (Array.isArray(polygon.coordinates) && polygon.coordinates.length > 0) {
-                      if (Array.isArray(polygon.coordinates[0]) && typeof polygon.coordinates[0][0] === 'number') {
-                        coords = polygon.coordinates as [number, number][];
-                      }
-                    }
-                    
-                    if (!coords || coords.length < 3) {
-                      toast.error('Invalid polygon coordinates');
-                      return;
-                    }
-                    
-                    try {
-                      setIsSubtractingOcean(true);
-                      setPolygonBeforeSubtract([...coords]);
-                      
-                      const result = await subtractOceanFromPolygon(coords);
-                      
-                      if (!result) {
-                        toast.error('Polygon is entirely over ocean');
-                        setIsSubtractingOcean(false);
-                        return;
-                      }
-                      
-                      // Handle result
-                      if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
-                        const polygons = result as [number, number][][];
-                        const largestPolygon = polygons.reduce((largest, current) => 
-                          current.length > largest.length ? current : largest
-                        , polygons[0]);
+                {/* Two-column grid layout for editing tools */}
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Column 1 */}
+                  <div className="flex flex-col gap-2">
+                    <Button 
+                      onClick={() => onEditPolygon && onEditPolygon(editingPolygonId)}
+                      size="icon" 
+                      variant="default"
+                      title="Done editing"
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Check className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      onClick={() => setIsMoveToolActive(!isMoveToolActive)}
+                      size="icon" 
+                      variant={isMoveToolActive ? "default" : "outline"}
+                      title={isMoveToolActive ? "Disable move tool" : "Enable move tool - drag polygon to move"}
+                      className={isMoveToolActive ? "bg-blue-600 hover:bg-blue-700" : ""}
+                    >
+                      <Hand className="w-5 h-5" />
+                    </Button>
+                    <Button 
+                      onClick={addMidpointVertices} 
+                      size="icon" 
+                      variant="outline"
+                      title="Add midpoint vertices to all edges"
+                    >
+                      <GitBranch className="w-5 h-5" />
+                    </Button>
+                    <Button 
+                      onClick={removeMidpointVertices} 
+                      size="icon" 
+                      variant="outline"
+                      title="Remove alternating vertices"
+                    >
+                      <Scissors className="w-5 h-5" />
+                    </Button>
+                  </div>
+                  
+                  {/* Column 2 */}
+                  <div className="flex flex-col gap-2">
+                    {/* Ocean Subtraction in Edit Mode */}
+                    <Button 
+                      onClick={async () => {
+                        if (!editingPolygonId) return;
+                        const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                        if (!polygon) return;
                         
-                        onUpdatePolygon(editingPolygonId, largestPolygon);
-                        
-                        if (polygons.length > 1) {
-                          toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`);
-                        } else {
-                          toast.success('Ocean subtracted successfully');
+                        // Get the coordinates from the polygon
+                        let coords: [number, number][] | null = null;
+                        if (Array.isArray(polygon.coordinates) && polygon.coordinates.length > 0) {
+                          if (Array.isArray(polygon.coordinates[0]) && typeof polygon.coordinates[0][0] === 'number') {
+                            coords = polygon.coordinates as [number, number][];
+                          }
                         }
-                      } else {
-                        const polygon = result as [number, number][];
-                        onUpdatePolygon(editingPolygonId, polygon);
-                        toast.success('Ocean subtracted successfully');
-                      }
-                    } catch (error) {
-                      console.error('Failed to subtract ocean:', error);
-                      toast.error('Failed to subtract ocean');
-                    } finally {
-                      setIsSubtractingOcean(false);
-                    }
-                  }}
-                  disabled={isSubtractingOcean}
-                  size="icon" 
-                  variant="outline"
-                  title="Subtract Ocean - Create land-only polygon"
-                  className="border-blue-300 text-blue-600 hover:bg-blue-50"
-                >
-                  {isSubtractingOcean ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Waves className="w-5 h-5" />
-                  )}
-                </Button>
-                
-                {onToggleInvert && (
-                  <Button 
-                    onClick={() => onToggleInvert(editingPolygonId)}
-                    size="icon" 
-                    variant="outline"
-                    title="Invert polygon (toggle inside/outside)"
-                  >
-                    <Repeat className="w-5 h-5" />
-                  </Button>
-                )}
-                {onDeletePolygon && (
-                  <Button 
-                    onClick={() => onDeletePolygon(editingPolygonId)}
-                    size="icon" 
-                    variant="outline"
-                    title="Delete polygon"
-                    className="hover:bg-red-50 hover:border-red-300 hover:text-red-600"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </Button>
-                )}
+                        
+                        if (!coords || coords.length < 3) {
+                          toast.error('Invalid polygon coordinates');
+                          return;
+                        }
+                        
+                        try {
+                          setIsSubtractingOcean(true);
+                          setPolygonBeforeSubtract([...coords]);
+                          
+                          const result = await subtractOceanFromPolygon(coords);
+                          
+                          if (!result) {
+                            toast.error('Polygon is entirely over ocean');
+                            setIsSubtractingOcean(false);
+                            return;
+                          }
+                          
+                          // Handle result - replace with all land polygons
+                          if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
+                            const polygons = result as [number, number][][];
+                            
+                            if (onSaveMultiplePolygons && onDeletePolygon) {
+                              // Delete the original polygon and save all land polygons as separate items
+                              onDeletePolygon(editingPolygonId);
+                              onSaveMultiplePolygons(polygons);
+                              
+                              toast.success(`Ocean subtracted - created ${polygons.length} land polygon${polygons.length > 1 ? 's' : ''}`, {
+                                description: polygons.length > 1 ? 'Each land area saved as a separate polygon' : `${polygons[0].length} vertices`
+                              });
+                            } else {
+                              // Fallback: keep largest polygon (old behavior)
+                              const largestPolygon = polygons.reduce((largest, current) => 
+                                current.length > largest.length ? current : largest
+                              , polygons[0]);
+                              
+                              onUpdatePolygon(editingPolygonId, largestPolygon);
+                              
+                              if (polygons.length > 1) {
+                                toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`);
+                              } else {
+                                toast.success('Ocean subtracted successfully');
+                              }
+                            }
+                          } else {
+                            const polygon = result as [number, number][];
+                            onUpdatePolygon(editingPolygonId, polygon);
+                            toast.success('Ocean subtracted successfully');
+                          }
+                        } catch (error) {
+                          console.error('Failed to subtract ocean:', error);
+                          toast.error('Failed to subtract ocean');
+                        } finally {
+                          setIsSubtractingOcean(false);
+                        }
+                      }}
+                      disabled={isSubtractingOcean}
+                      size="icon" 
+                      variant="outline"
+                      title="Subtract Ocean - Create land-only polygon"
+                      className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                    >
+                      {isSubtractingOcean ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Waves className="w-5 h-5" />
+                      )}
+                    </Button>
+                    
+                    {onToggleInvert && (
+                      <Button 
+                        onClick={() => onToggleInvert(editingPolygonId)}
+                        size="icon" 
+                        variant="outline"
+                        title="Invert polygon (toggle inside/outside)"
+                      >
+                        <Repeat className="w-5 h-5" />
+                      </Button>
+                    )}
+                    
+                    {/* Split Multi-Polygon button - only show for multi-polygons */}
+                    {onSplitMultiPolygon && (() => {
+                      const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                      return polygon?.isMultiPolygon && (
+                        <Button 
+                          onClick={() => onSplitMultiPolygon(editingPolygonId)}
+                          size="icon" 
+                          variant="outline"
+                          title="Split multi-polygon into separate polygons"
+                          className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                        >
+                          <Split className="w-5 h-5" />
+                        </Button>
+                      );
+                    })()}
+                    
+                    {onDeletePolygon && (
+                      <Button 
+                        onClick={() => onDeletePolygon(editingPolygonId)}
+                        size="icon" 
+                        variant="outline"
+                        title="Delete polygon"
+                        className="hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </>
             )}
           </>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { PolygonData } from '../App';
 import { Button } from './ui/button';
-import { Upload, Loader2, Trash2, MessageSquare, Globe } from 'lucide-react';
+import { Upload, Loader2, Trash2, MessageSquare } from 'lucide-react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
@@ -15,7 +15,6 @@ import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
 import { getSelectedProjectName } from '../utils/projectSelection';
 import { Checkbox } from './ui/checkbox';
-import { CountrySelector } from './CountrySelector';
 
 // Vocabulary term interface
 interface VocabularyTerm {
@@ -328,7 +327,6 @@ interface SavedPolygonsProps {
   currentAnnotation?: string;
   onNavigateToPolygon?: (lat: number, lng: number) => void;
   onRuleSavedToGBIF?: (polygonId?: string) => void;
-  onCountriesChange?: (iso2Codes: string[]) => void;
 }
 
 interface SaveToGBIFDialogProps {
@@ -1885,7 +1883,6 @@ export function SavedPolygons({
   currentAnnotation = 'SUSPICIOUS',
   onNavigateToPolygon,
   onRuleSavedToGBIF,
-  onCountriesChange,
 }: SavedPolygonsProps) {
   // Vocabulary state for polygon colors
   const [vocabulary, setVocabulary] = useState<VocabularyTerm[]>([
@@ -1896,9 +1893,6 @@ export function SavedPolygons({
     { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
     { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
   ]);
-  
-  // Country selector dialog state
-  const [showCountryDialog, setShowCountryDialog] = useState(false);
 
   // Fetch vocabulary based on selected project
   useEffect(() => {
@@ -1934,37 +1928,7 @@ export function SavedPolygons({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-gray-700 text-sm">Active Rules (0)</h3>
-          <div className="flex items-center gap-2">
-            {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
-            {onCountriesChange && (
-              <Dialog open={showCountryDialog} onOpenChange={setShowCountryDialog}>
-                <DialogTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="h-6 px-2 text-xs gap-1.5"
-                  >
-                    <Globe className="h-3.5 w-3.5" />
-                    Geography
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Select Geographic Regions</DialogTitle>
-                    <DialogDescription>
-                      These are low-resolution polygons for convenience only, including political boundaries (with EEZ), continents, and ocean regions. They may not accurately reflect actual borders and may overlap with neighboring areas. Custom polygons generally produce better annotation rules.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <CountrySelector
-                    selectedCountries={[]}
-                    onCountriesChange={onCountriesChange || (() => {})}
-                    onClose={() => setShowCountryDialog(false)}
-                    allowedTypes={['Political', 'Continent', 'IHO']}
-                  />
-                </DialogContent>
-              </Dialog>
-            )}
-          </div>
+          {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
         </div>
         <div className="text-center py-8">
           <p className="text-gray-500">No active rules yet</p>
@@ -1981,37 +1945,7 @@ export function SavedPolygons({
       <div className="border-2 rounded-lg p-4" style={{ borderColor: '#4C9C2E', backgroundColor: '#4C9C2E08' }}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-sm" style={{ color: '#4C9C2E' }}>Active Rules ({polygons.length})</h3>
-          <div className="flex items-center gap-2">
-            {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
-            {onCountriesChange && (
-              <Dialog open={showCountryDialog} onOpenChange={setShowCountryDialog}>
-                <DialogTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="h-6 px-2 text-xs gap-1.5"
-                  >
-                    <Globe className="h-3.5 w-3.5" />
-                    Geography
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Select Geographic Regions</DialogTitle>
-                    <DialogDescription>
-                      These are low-resolution polygons for convenience only, including political boundaries (with EEZ), continents, and ocean regions. They may not accurately reflect actual borders and may overlap with neighboring areas. Custom polygons generally produce better annotation rules.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <CountrySelector
-                    selectedCountries={[]}
-                    onCountriesChange={onCountriesChange || (() => {})}
-                    onClose={() => setShowCountryDialog(false)}
-                    allowedTypes={['Political', 'Continent', 'IHO']}
-                  />
-                </DialogContent>
-              </Dialog>
-            )}
-          </div>
+          {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
         </div>
         <div className="space-y-3">
           {polygons.map((polygon) => (
