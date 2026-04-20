@@ -73,7 +73,7 @@ jobs:
           install.packages("remotes")
           remotes::install_deps(dependencies = TRUE)
           # Install suggested packages explicitly
-          install.packages(c("pkgdown", "knitr", "rmarkdown"))
+          install.packages(c("testthat", "pkgdown", "knitr", "rmarkdown"))
         shell: Rscript {0}
 
       - name: Test R package
