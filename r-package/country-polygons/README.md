@@ -25,7 +25,7 @@ The script will automatically install missing packages.
 
 ```bash
 # From command line (fast, <1 minute)
-Rscript generate_country_polygons.R --mode=ocean
+Rscript generate_ocean_polygon.R --mode=ocean
 ```
 
 This will:
@@ -38,11 +38,11 @@ This will:
 
 ```r
 # From R console (slower, includes continents)
-source("generate_country_polygons.R")
+source("generate_ocean_polygon.R")
 main()
 
 # Or from command line
-Rscript generate_country_polygons.R
+Rscript generate_ocean_polygon.R
 ```
 
 **Note**: Full generation (continents + ocean) takes 30-120 minutes due to GBIF API geocoding. For the Subtract Ocean feature, only the ocean polygon is needed.
@@ -98,7 +98,7 @@ The ocean polygon is used client-side to subtract ocean areas from user-drawn po
 
 ```
 country-polygons/
-├── generate_country_polygons.R  # Main generation script (supports --mode=ocean)
+├── generate_ocean_polygon.R     # Main generation script (supports --mode=ocean)
 ├── natural-earth-data/           # Natural Earth ocean shapefiles (downloaded on first run)
 ├── output/                       # Generated JSON output
 └── README.md                     # This file
@@ -113,7 +113,7 @@ To update the ocean polygon (e.g., if Natural Earth releases updated data):
 rm -r natural-earth-data/
 
 # Regenerate ocean polygon
-Rscript generate_country_polygons.R --mode=ocean
+Rscript generate_ocean_polygon.R --mode=ocean
 - Typical result: 100-5000 vertices per country
 
 ### Coordinate System

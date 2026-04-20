@@ -1,29 +1,27 @@
-# Generate Geographic Boundary Polygons from ISEA3H Grid with GBIF Geocoding
+# Generate Ocean Boundary Polygon for Occurrence Annotation UI
 # 
-# This script processes ISEA3H resolution-6 hexagonal grid (~3,120 hexagons)
-# by geocoding sample points within each hexagon using GBIF's reverse geocode API.
-# The result is a set of boundary polygons (Continent/Ocean - MultiPolygon WKT)
-# for use in the occurrence annotation UI, with 0.1-degree buffer (~11 km at equator).
+# This script generates the ocean boundary polygon used by the "Subtract Ocean" feature.
+# It uses Natural Earth 1:110m ocean data to create a simplified global ocean polygon.
 #
-# Boundary types captured:
-# - Continent: Continental boundaries from GBIF continents dataset (7 continents)
-# - Ocean: Natural Earth 1:110m ocean (single clean global ocean polygon)
+# **Current Usage**: Ocean polygon generation (--mode=ocean, default)
+# **Legacy Capability**: Also supports continent polygon generation via ISEA3H grid + GBIF geocoding
 #
-# Output: 8 total boundaries (7 continents + 1 ocean)
-# File format: country_polygons.json (~50-100 KB)
+# Primary output: Ocean boundary as MULTIPOLYGON WKT in country_polygons.json
+# File size: ~50-180 KB depending on mode
 #
-# Sampling: 5x5 grid per hexagon (25 sample points) for improved boundary accuracy
-# Runtime: ~5-30 minutes for initial geocoding (with caching for subsequent runs)
+# Runtime: 
+# - Ocean only: <1 minute (recommended)
+# - Full generation: 30-120 minutes (includes GBIF API geocoding for continents)
 #
 # Usage:
-#   Rscript generate_country_polygons.R                      # Generate both continents and ocean
-#   Rscript generate_country_polygons.R --mode=both          # Same as above (explicit)
-#   Rscript generate_country_polygons.R --mode=continents    # Only regenerate continents (keeps existing ocean)
-#   Rscript generate_country_polygons.R --mode=ocean         # Only regenerate ocean (keeps existing continents, fast <1 min)
+#   Rscript generate_ocean_polygon.R                      # Generate ocean only (fast, recommended)
+#   Rscript generate_ocean_polygon.R --mode=ocean         # Same as above (explicit)
+#   Rscript generate_ocean_polygon.R --mode=both          # Generate both continents and ocean
+#   Rscript generate_ocean_polygon.R --mode=continents    # Only regenerate continents (keeps existing ocean)
 #
 # Output JSON format:
-# [{"identifier": "US", "type": "Political", "name": "United States", 
-#   "wkt": "MULTIPOLYGON(...)", "vertexCount": 1234, "iso2": "US"}, ...]
+# [{"identifier": "OCEAN", "type": "IHO", "name": "Ocean", 
+#   "wkt": "MULTIPOLYGON(...)", "vertexCount": 1234}, ...]
 
 # Required packages
 required_packages <- c("sf", "dplyr", "httr", "jsonlite", "stringr")
@@ -45,7 +43,7 @@ sf::sf_use_s2(FALSE)
 
 # Parse command-line arguments
 args <- commandArgs(trailingOnly = TRUE)
-RUN_MODE <- "both"  # Default: run both continents and ocean
+RUN_MODE <- "ocean"  # Default: ocean only (fast, recommended for Subtract Ocean feature)
 
 if (length(args) > 0) {
   for (arg in args) {
