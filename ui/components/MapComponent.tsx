@@ -1137,6 +1137,85 @@ export function MapComponent({
     }
   };
 
+  // Handle buffer polygon operation in edit mode
+  const handleBufferEditMode = async (polygonId: string, polygon: PolygonData, distance: number) => {
+    if (!onUpdatePolygon) return;
+    
+    if (distance === 0) {
+      toast.error('Buffer distance cannot be zero');
+      return;
+    }
+
+    // Get coordinates from polygon
+    let coords: [number, number][] | null = null;
+    if (Array.isArray(polygon.coordinates) && polygon.coordinates.length > 0) {
+      if (Array.isArray(polygon.coordinates[0]) && typeof polygon.coordinates[0][0] === 'number') {
+        coords = polygon.coordinates as [number, number][];
+      }
+    }
+
+    if (!coords || coords.length < 3) {
+      toast.error('Invalid polygon coordinates');
+      return;
+    }
+
+    try {
+      setIsBuffering(true);
+      setIsBufferPopoverOpen(false);
+      
+      const result = bufferPolygon(coords, distance);
+      
+      if (!result) {
+        toast.error('Buffer operation failed', {
+          description: distance < 0 ? 'Negative buffer may be too large for polygon size' : 'Invalid result from buffer operation'
+        });
+        return;
+      }
+      
+      // Check if result is MultiPolygon
+      if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
+        const polygons = result as [number, number][][];
+        
+        if (onSaveMultiplePolygons && onDeletePolygon && polygons.length > 1) {
+          // Delete original and save all buffer pieces as separate polygons
+          onDeletePolygon(polygonId);
+          onSaveMultiplePolygons(polygons);
+          
+          toast.success(`Buffer created ${polygons.length} polygon pieces`, {
+            description: 'Self-intersecting buffer split into separate polygons'
+          });
+        } else {
+          // Keep largest polygon
+          const largestPolygon = polygons.reduce((largest, current) => 
+            current.length > largest.length ? current : largest
+          , polygons[0]);
+          
+          onUpdatePolygon(polygonId, largestPolygon);
+          
+          toast.success(`Buffer applied - kept largest of ${polygons.length} pieces`, {
+            description: `${largestPolygon.length} vertices`
+          });
+        }
+      } else {
+        // Single polygon result
+        const bufferedPolygon = result as [number, number][];
+        onUpdatePolygon(polygonId, bufferedPolygon);
+        
+        const direction = distance > 0 ? 'expanded' : 'shrunk';
+        toast.success(`Polygon ${direction} by ${Math.abs(distance)}m`, {
+          description: `${bufferedPolygon.length} vertices in result`
+        });
+      }
+    } catch (error) {
+      console.error('Failed to buffer polygon in edit mode:', error);
+      toast.error('Failed to buffer polygon', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsBuffering(false);
+    }
+  };
+
   // Function to automatically add midpoint vertices to make editing easier
   const densifyPolygon = (coordinates: [number, number][]): [number, number][] => {
     if (coordinates.length < 3) return coordinates;
@@ -3119,6 +3198,145 @@ export function MapComponent({
                         <Waves className="w-5 h-5" />
                       )}
                     </Button>
+                    
+                    {/* Buffer Polygon in Edit Mode */}
+                    <Popover open={isBufferPopoverOpen} onOpenChange={setIsBufferPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button 
+                          size="icon" 
+                          variant="outline"
+                          title="Buffer Polygon - Expand or shrink by distance"
+                          className="border-purple-300 text-purple-600 hover:bg-purple-50"
+                          disabled={isBuffering}
+                        >
+                          {isBuffering ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            <Maximize2 className="w-5 h-5" />
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64" side="right" align="start">
+                        <div className="space-y-3">
+                          <div>
+                            <h4 className="font-medium text-sm mb-1">Buffer Distance</h4>
+                            <p className="text-xs text-muted-foreground mb-2">
+                              Positive expands, negative shrinks
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                min={-10000}
+                                max={10000}
+                                step={10}
+                                value={bufferDistance}
+                                onChange={(e) => setBufferDistance(Number(e.target.value))}
+                                className="h-8"
+                              />
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">meters</span>
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-2">Quick presets:</p>
+                            <div className="grid grid-cols-3 gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => {
+                                  const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                  if (polygon && onUpdatePolygon) {
+                                    handleBufferEditMode(editingPolygonId, polygon, 10);
+                                  }
+                                }}
+                              >
+                                +10m
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => {
+                                  const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                  if (polygon && onUpdatePolygon) {
+                                    handleBufferEditMode(editingPolygonId, polygon, 50);
+                                  }
+                                }}
+                              >
+                                +50m
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => {
+                                  const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                  if (polygon && onUpdatePolygon) {
+                                    handleBufferEditMode(editingPolygonId, polygon, 100);
+                                  }
+                                }}
+                              >
+                                +100m
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => {
+                                  const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                  if (polygon && onUpdatePolygon) {
+                                    handleBufferEditMode(editingPolygonId, polygon, 500);
+                                  }
+                                }}
+                              >
+                                +500m
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs text-orange-600 border-orange-300"
+                                onClick={() => {
+                                  const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                  if (polygon && onUpdatePolygon) {
+                                    handleBufferEditMode(editingPolygonId, polygon, -50);
+                                  }
+                                }}
+                              >
+                                -50m
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs text-orange-600 border-orange-300"
+                                onClick={() => {
+                                  const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                  if (polygon && onUpdatePolygon) {
+                                    handleBufferEditMode(editingPolygonId, polygon, -100);
+                                  }
+                                }}
+                              >
+                                -100m
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          <Button
+                            className="w-full"
+                            size="sm"
+                            onClick={() => {
+                              const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                              if (polygon && onUpdatePolygon) {
+                                handleBufferEditMode(editingPolygonId, polygon, bufferDistance);
+                              }
+                            }}
+                            disabled={bufferDistance === 0}
+                          >
+                            Apply Buffer
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                     
                     {onToggleInvert && (
                       <Button 
