@@ -152,7 +152,7 @@ export function MapComponent({
   
   // Buffer polygon state
   const [isBufferPopoverOpen, setIsBufferPopoverOpen] = useState(false);
-  const [bufferDistance, setBufferDistance] = useState(100); // meters
+  const [bufferDistance, setBufferDistance] = useState(100000); // meters (default: 100 km)
   const [isBuffering, setIsBuffering] = useState(false);
   
   // ArcGIS API Key from environment
@@ -2938,9 +2938,9 @@ export function MapComponent({
                         <div className="flex items-center gap-2">
                           <Input
                             type="number"
-                            min={-10000}
-                            max={10000}
-                            step={10}
+                            min={-1000000}
+                            max={1000000}
+                            step={1000}
                             value={bufferDistance}
                             onChange={(e) => setBufferDistance(Number(e.target.value))}
                             className="h-8"
@@ -2956,49 +2956,49 @@ export function MapComponent({
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs"
-                            onClick={() => handleBufferPolygon(10)}
+                            onClick={() => handleBufferPolygon(10000)}
                           >
-                            +10m
+                            +10km
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs"
-                            onClick={() => handleBufferPolygon(50)}
+                            onClick={() => handleBufferPolygon(50000)}
                           >
-                            +50m
+                            +50km
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs"
-                            onClick={() => handleBufferPolygon(100)}
+                            onClick={() => handleBufferPolygon(100000)}
                           >
-                            +100m
+                            +100km
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs"
-                            onClick={() => handleBufferPolygon(500)}
+                            onClick={() => handleBufferPolygon(500000)}
                           >
-                            +500m
+                            +500km
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs text-orange-600 border-orange-300"
-                            onClick={() => handleBufferPolygon(-50)}
+                            onClick={() => handleBufferPolygon(-50000)}
                           >
-                            -50m
+                            -50km
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs text-orange-600 border-orange-300"
-                            onClick={() => handleBufferPolygon(-100)}
+                            onClick={() => handleBufferPolygon(-100000)}
                           >
-                            -100m
+                            -100km
                           </Button>
                         </div>
                       </div>
@@ -3226,9 +3226,9 @@ export function MapComponent({
                             <div className="flex items-center gap-2">
                               <Input
                                 type="number"
-                                min={-10000}
-                                max={10000}
-                                step={10}
+                                min={-1000000}
+                                max={1000000}
+                                step={1000}
                                 value={bufferDistance}
                                 onChange={(e) => setBufferDistance(Number(e.target.value))}
                                 className="h-8"
@@ -3247,11 +3247,11 @@ export function MapComponent({
                                 onClick={() => {
                                   const polygon = savedPolygons.find(p => p.id === editingPolygonId);
                                   if (polygon && onUpdatePolygon) {
-                                    handleBufferEditMode(editingPolygonId, polygon, 10);
+                                    handleBufferEditMode(editingPolygonId, polygon, 10000);
                                   }
                                 }}
                               >
-                                +10m
+                                +10km
                               </Button>
                               <Button
                                 size="sm"
@@ -3260,11 +3260,11 @@ export function MapComponent({
                                 onClick={() => {
                                   const polygon = savedPolygons.find(p => p.id === editingPolygonId);
                                   if (polygon && onUpdatePolygon) {
-                                    handleBufferEditMode(editingPolygonId, polygon, 50);
+                                    handleBufferEditMode(editingPolygonId, polygon, 50000);
                                   }
                                 }}
                               >
-                                +50m
+                                +50km
                               </Button>
                               <Button
                                 size="sm"
@@ -3273,11 +3273,11 @@ export function MapComponent({
                                 onClick={() => {
                                   const polygon = savedPolygons.find(p => p.id === editingPolygonId);
                                   if (polygon && onUpdatePolygon) {
-                                    handleBufferEditMode(editingPolygonId, polygon, 100);
+                                    handleBufferEditMode(editingPolygonId, polygon, 100000);
                                   }
                                 }}
                               >
-                                +100m
+                                +100km
                               </Button>
                               <Button
                                 size="sm"
@@ -3286,11 +3286,11 @@ export function MapComponent({
                                 onClick={() => {
                                   const polygon = savedPolygons.find(p => p.id === editingPolygonId);
                                   if (polygon && onUpdatePolygon) {
-                                    handleBufferEditMode(editingPolygonId, polygon, 500);
+                                    handleBufferEditMode(editingPolygonId, polygon, 500000);
                                   }
                                 }}
                               >
-                                +500m
+                                +500km
                               </Button>
                               <Button
                                 size="sm"
@@ -3299,11 +3299,11 @@ export function MapComponent({
                                 onClick={() => {
                                   const polygon = savedPolygons.find(p => p.id === editingPolygonId);
                                   if (polygon && onUpdatePolygon) {
-                                    handleBufferEditMode(editingPolygonId, polygon, -50);
+                                    handleBufferEditMode(editingPolygonId, polygon, -50000);
                                   }
                                 }}
                               >
-                                -50m
+                                -50km
                               </Button>
                               <Button
                                 size="sm"
@@ -3312,11 +3312,11 @@ export function MapComponent({
                                 onClick={() => {
                                   const polygon = savedPolygons.find(p => p.id === editingPolygonId);
                                   if (polygon && onUpdatePolygon) {
-                                    handleBufferEditMode(editingPolygonId, polygon, -100);
+                                    handleBufferEditMode(editingPolygonId, polygon, -100000);
                                   }
                                 }}
                               >
-                                -100m
+                                -100km
                               </Button>
                             </div>
                           </div>
