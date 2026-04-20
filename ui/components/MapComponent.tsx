@@ -292,20 +292,6 @@ export function MapComponent({
   const zoomTimeoutRef = useRef<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Debug logging for current annotation
-  useEffect(() => {
-    if (currentPolygon && currentPolygon.length > 0) {
-      const color = getColorFromVocabulary(currentAnnotation);
-      console.log('🎨 ACTIVE POLYGON DEBUG:', {
-        annotationType: currentAnnotation,
-        fillColor: color.fill,
-        strokeColor: color.stroke,
-        isInverted: isCurrentInverted,
-        polygonPoints: currentPolygon.length
-      });
-    }
-  }, [currentPolygon, currentAnnotation, isCurrentInverted]);
-
   useEffect(() => {
     if (mapContainerRef.current) {
       const updateSize = () => {
@@ -1769,15 +1755,6 @@ export function MapComponent({
             center[1] // Longitude can wrap around
           ];
           
-          // Debug logging for synchronized movement
-          console.log('🗺️ BOUNDS CHANGED - Polygons will update after zoom completes:', {
-            newCenter: `${JSON.stringify(clampedCenter)}`,
-            newZoom: newZoom,
-            isZooming: Math.abs(newZoom - zoom) > 0.1,
-            testPolygonLocation: 'NYC [40.7589, -73.9851]',
-            status: 'Polygons frozen during zoom, will update after 500ms delay'
-          });
-          
           // Log if clamping occurred
           if (Math.abs(center[0] - clampedCenter[0]) > 0.001) {
             console.log('🗺️ Map center clamped:', { 
@@ -2751,9 +2728,6 @@ export function MapComponent({
             {/* Current polygon controls */}
             {currentPolygon && (
               <>
-                {/* Debug logging */}
-                {console.log('🔍 Current polygon exists:', currentPolygon?.length, 'vertices')}
-                
                 {/* Latitude Band Controls - separate upper/lower when band is active */}
                 {showLatBandControls && (
                   <div className="flex flex-col gap-1 bg-blue-50 border border-blue-200 rounded px-2 py-1">
