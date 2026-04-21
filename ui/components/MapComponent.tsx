@@ -2881,7 +2881,7 @@ export function MapComponent({
                   disabled={isSubtractingOcean}
                   variant="outline"
                   size="icon"
-                  title="Subtract Ocean - Create land-only polygon"
+                  title="Subtract Ocean - Create land-only polygon (may ignore smaller land features)"
                   className="border-blue-300 text-blue-600 hover:bg-blue-50"
                 >
                   {isSubtractingOcean ? (
@@ -3158,7 +3158,7 @@ export function MapComponent({
                       disabled={isSubtractingOcean}
                       size="icon" 
                       variant="outline"
-                      title="Subtract Ocean - Create land-only polygon"
+                      title="Subtract Ocean - Create land-only polygon (may ignore smaller land features)"
                       className="border-blue-300 text-blue-600 hover:bg-blue-50"
                     >
                       {isSubtractingOcean ? (
