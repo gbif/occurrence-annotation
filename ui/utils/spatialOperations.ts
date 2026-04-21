@@ -1,6 +1,7 @@
 import polygonClipping from 'polygon-clipping';
 import { parseWKTGeometry, PolygonWithHoles } from './wktParser';
 import buffer from '@turf/buffer';
+import simplify from '@turf/simplify';
 import { polygon as turfPolygon } from '@turf/helpers';
 
 // Type definitions for polygon-clipping
@@ -247,6 +248,19 @@ export function bufferPolygon(
       return null;
     }
 
+    // Simplify the buffered geometry to reduce vertex count
+    // tolerance: 0.0001 degrees (~11m at equator) - balances accuracy vs vertex count
+    // highQuality: true uses more accurate Douglas-Peucker algorithm
+    const simplified = simplify(buffered, { tolerance: 0.0001, highQuality: true });
+    
+    if (!simplified || !simplified.geometry) {
+      console.warn('Simplification failed, using unsimplified buffer result');
+      // Continue with buffered result
+    } else {
+      // Use simplified result
+      buffered.geometry = simplified.geometry;
+    }
+
     // Handle different geometry types
     const geomType = buffered.geometry.type;
     
@@ -278,7 +292,12 @@ export function bufferPolygon(
         console.warn(`⚠️ ${clampedCount} coordinates were clamped to valid geographic bounds. Buffer may be too large for this polygon.`);
       }
       
-      console.log(`Buffer succeeded: ${result.length} vertices`);
+      const originalVertexCount = buffered.geometry.coordinates[0].length - 1;
+      const reduction = originalVertexCount > result.length 
+        ? ` (simplified from ${originalVertexCount})` 
+        : '';
+      
+      console.log(`Buffer succeeded: ${result.length} vertices${reduction}`);
       console.timeEnd('buffer-polygon');
       return result;
       
@@ -309,7 +328,8 @@ export function bufferPolygon(
         console.warn(`⚠️ ${totalClampedCount} coordinates were clamped to valid geographic bounds. Buffer may be too large for this polygon.`);
       }
       
-      console.log(`Buffer succeeded: ${polygons.length} polygon pieces`);
+      const totalVertices = polygons.reduce((sum, p) => sum + p.length, 0);
+      console.log(`Buffer succeeded: ${polygons.length} polygon pieces, ${totalVertices} total vertices`);
       console.timeEnd('buffer-polygon');
       return polygons;
       
