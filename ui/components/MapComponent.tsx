@@ -1122,7 +1122,8 @@ export function MapComponent({
         onPolygonChange(polygon);
         
         const direction = distance > 0 ? 'expanded' : 'shrunk';
-        toast.success(`Polygon ${direction} by ${Math.abs(distance)}m`, {
+        const distanceKm = Math.abs(distance) / 1000;
+        toast.success(`Polygon ${direction} by ${distanceKm}km`, {
           description: `${polygon.length} vertices in result`
         });
       }
@@ -1188,7 +1189,8 @@ export function MapComponent({
         onUpdatePolygon(polygonId, polygons);
         
         const direction = distance > 0 ? 'expanded' : 'shrunk';
-        toast.success(`Multi-polygon ${direction} by ${Math.abs(distance)}m`, {
+        const distanceKm = Math.abs(distance) / 1000;
+        toast.success(`Multi-polygon ${direction} by ${distanceKm}km`, {
           description: `${polygons.length} polygon parts`
         });
       } else {
@@ -1197,7 +1199,8 @@ export function MapComponent({
         onUpdatePolygon(polygonId, bufferedPolygon);
         
         const direction = distance > 0 ? 'expanded' : 'shrunk';
-        toast.success(`Polygon ${direction} by ${Math.abs(distance)}m`, {
+        const distanceKm = Math.abs(distance) / 1000;
+        toast.success(`Polygon ${direction} by ${distanceKm}km`, {
           description: `${bufferedPolygon.length} vertices in result`
         });
       }
