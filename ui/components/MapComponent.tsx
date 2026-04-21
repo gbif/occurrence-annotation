@@ -154,10 +154,6 @@ export function MapComponent({
   const [isBufferPopoverOpen, setIsBufferPopoverOpen] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   
-  // High vertex count warning state
-  const [isHighVertexWarningOpen, setIsHighVertexWarningOpen] = useState(false);
-  const [pendingPolygonToSave, setPendingPolygonToSave] = useState<[number, number][] | null>(null);
-  
   // ArcGIS API Key from environment
   const arcgisApiKey = import.meta.env.VITE_ARCGIS_API_KEY || '';
   
@@ -963,9 +959,12 @@ export function MapComponent({
       ];
     }
     
-    // Check vertex count before saving (with helper function)
-    const useAutoSave = !!onAutoSave;
-    savePolygonWithVertexCheck(finalPoints, useAutoSave);
+    // Auto-save the polygon immediately
+    if (onAutoSave) {
+      onAutoSave(finalPoints);
+    } else {
+      onPolygonChange(finalPoints);
+    }
     
     setDrawingPoints([]);
     setIsDrawing(false);
@@ -983,43 +982,6 @@ export function MapComponent({
     if (drawingMode === 'latband') {
       onPolygonChange && onPolygonChange(null);
     }
-  };
-
-  // Helper function to save polygon with vertex count check
-  const savePolygonWithVertexCheck = (polygon: [number, number][], useAutoSave: boolean = false) => {
-    if (polygon.length > 500) {
-      // Show warning dialog for high vertex count
-      setPendingPolygonToSave(polygon);
-      setIsHighVertexWarningOpen(true);
-      return false; // Indicates save was delayed pending user confirmation
-    }
-    
-    // Vertex count is acceptable, save immediately
-    if (useAutoSave && onAutoSave) {
-      onAutoSave(polygon);
-    } else {
-      onPolygonChange(polygon);
-    }
-    return true; // Indicates save was completed
-  };
-
-  // Handle high vertex count warning - confirm save
-  const handleConfirmHighVertexSave = () => {
-    if (pendingPolygonToSave) {
-      if (onAutoSave) {
-        onAutoSave(pendingPolygonToSave);
-      } else {
-        onPolygonChange(pendingPolygonToSave);
-      }
-      setPendingPolygonToSave(null);
-    }
-    setIsHighVertexWarningOpen(false);
-  };
-
-  // Handle high vertex count warning - cancel save
-  const handleCancelHighVertexSave = () => {
-    setPendingPolygonToSave(null);
-    setIsHighVertexWarningOpen(false);
   };
 
   const clearCurrentPolygon = () => {
@@ -1071,24 +1033,19 @@ export function MapComponent({
             current.length > largest.length ? current : largest
           , polygons[0]);
           
-          const saved = savePolygonWithVertexCheck(largestPolygon, false);
+          onPolygonChange(largestPolygon);
           
-          if (saved) {
-            toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`, {
-              description: `${largestPolygon.length} vertices in result`
-            });
-          }
+          toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`, {
+            description: `${largestPolygon.length} vertices in result`
+          });
         }
       } else {
         // Single polygon result - keep as current polygon
         const polygon = result as [number, number][];
-        const saved = savePolygonWithVertexCheck(polygon, false);
-        
-        if (saved) {
-          toast.success('Ocean subtracted successfully', {
-            description: `${polygon.length} vertices in result`
-          });
-        }
+        onPolygonChange(polygon);
+        toast.success('Ocean subtracted successfully', {
+          description: `${polygon.length} vertices in result`
+        });
       }
     } catch (error) {
       console.error('Failed to subtract ocean:', error);
@@ -1153,26 +1110,22 @@ export function MapComponent({
             current.length > largest.length ? current : largest
           , polygons[0]);
           
-          const saved = savePolygonWithVertexCheck(largestPolygon, false);
+          onPolygonChange(largestPolygon);
           
-          if (saved) {
-            toast.success(`Buffer applied - kept largest of ${polygons.length} pieces`, {
-              description: `${largestPolygon.length} vertices`
-            });
-          }
+          toast.success(`Buffer applied - kept largest of ${polygons.length} pieces`, {
+            description: `${largestPolygon.length} vertices`
+          });
         }
       } else {
         // Single polygon result
         const polygon = result as [number, number][];
-        const saved = savePolygonWithVertexCheck(polygon, false);
+        onPolygonChange(polygon);
         
-        if (saved) {
-          const direction = distance > 0 ? 'expanded' : 'shrunk';
-          const distanceKm = Math.abs(distance) / 1000;
-          toast.success(`Polygon ${direction} by ${distanceKm}km`, {
-            description: `${polygon.length} vertices in result`
-          });
-        }
+        const direction = distance > 0 ? 'expanded' : 'shrunk';
+        const distanceKm = Math.abs(distance) / 1000;
+        toast.success(`Polygon ${direction} by ${distanceKm}km`, {
+          description: `${polygon.length} vertices in result`
+        });
       }
     } catch (error) {
       console.error('Failed to buffer polygon:', error);
@@ -1344,8 +1297,7 @@ export function MapComponent({
       ...currentPolygon.slice(edgeStartIndex + 1),
     ];
     
-    // Check vertex count before adding (could push over limit)
-    savePolygonWithVertexCheck(newCoordinates, false);
+    onPolygonChange(newCoordinates);
   };
 
   const handleCurrentVertexRightClick = (e: React.MouseEvent, vertexIndex: number) => {
@@ -4095,40 +4047,6 @@ export function MapComponent({
               <div className="font-semibold text-sm">Hillshade Dark</div>
               <div className="text-xs text-gray-500 mt-1">Dark relief</div>
             </button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* High Vertex Count Warning Dialog */}
-      <Dialog open={isHighVertexWarningOpen} onOpenChange={setIsHighVertexWarningOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>High Vertex Count Warning</DialogTitle>
-            <DialogDescription>
-              This polygon has {pendingPolygonToSave?.length || 0} vertices, which exceeds the recommended limit of 500.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 mt-4">
-            <p className="text-sm text-gray-600">
-              Polygons with very high vertex counts may cause performance issues and are harder to manage. 
-              Consider simplifying the polygon or using multiple smaller polygons instead.
-            </p>
-            
-            <div className="flex gap-3 justify-end">
-              <Button
-                onClick={handleCancelHighVertexSave}
-                variant="outline"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleConfirmHighVertexSave}
-                variant="default"
-              >
-                Save Anyway
-              </Button>
-            </div>
           </div>
         </DialogContent>
       </Dialog>
