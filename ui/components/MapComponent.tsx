@@ -154,6 +154,10 @@ export function MapComponent({
   const [isBufferPopoverOpen, setIsBufferPopoverOpen] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   
+  // High vertex count warning state
+  const [isHighVertexWarningOpen, setIsHighVertexWarningOpen] = useState(false);
+  const [pendingPolygonToSave, setPendingPolygonToSave] = useState<[number, number][] | null>(null);
+  
   // ArcGIS API Key from environment
   const arcgisApiKey = import.meta.env.VITE_ARCGIS_API_KEY || '';
   
@@ -959,6 +963,16 @@ export function MapComponent({
       ];
     }
     
+    // Check vertex count before saving
+    if (finalPoints.length > 500) {
+      // Show warning dialog for high vertex count
+      setPendingPolygonToSave(finalPoints);
+      setIsHighVertexWarningOpen(true);
+      setDrawingPoints([]);
+      setIsDrawing(false);
+      return;
+    }
+    
     // Auto-save the polygon immediately
     if (onAutoSave) {
       onAutoSave(finalPoints);
@@ -982,6 +996,25 @@ export function MapComponent({
     if (drawingMode === 'latband') {
       onPolygonChange && onPolygonChange(null);
     }
+  };
+
+  // Handle high vertex count warning - confirm save
+  const handleConfirmHighVertexSave = () => {
+    if (pendingPolygonToSave) {
+      if (onAutoSave) {
+        onAutoSave(pendingPolygonToSave);
+      } else {
+        onPolygonChange(pendingPolygonToSave);
+      }
+      setPendingPolygonToSave(null);
+    }
+    setIsHighVertexWarningOpen(false);
+  };
+
+  // Handle high vertex count warning - cancel save
+  const handleCancelHighVertexSave = () => {
+    setPendingPolygonToSave(null);
+    setIsHighVertexWarningOpen(false);
   };
 
   const clearCurrentPolygon = () => {
@@ -4047,6 +4080,40 @@ export function MapComponent({
               <div className="font-semibold text-sm">Hillshade Dark</div>
               <div className="text-xs text-gray-500 mt-1">Dark relief</div>
             </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* High Vertex Count Warning Dialog */}
+      <Dialog open={isHighVertexWarningOpen} onOpenChange={setIsHighVertexWarningOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>High Vertex Count Warning</DialogTitle>
+            <DialogDescription>
+              This polygon has {pendingPolygonToSave?.length || 0} vertices, which exceeds the recommended limit of 500.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 mt-4">
+            <p className="text-sm text-gray-600">
+              Polygons with very high vertex counts may cause performance issues and are harder to manage. 
+              Consider simplifying the polygon or using multiple smaller polygons instead.
+            </p>
+            
+            <div className="flex gap-3 justify-end">
+              <Button
+                onClick={handleCancelHighVertexSave}
+                variant="outline"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmHighVertexSave}
+                variant="default"
+              >
+                Save Anyway
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
