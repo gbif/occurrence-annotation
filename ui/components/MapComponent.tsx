@@ -963,22 +963,9 @@ export function MapComponent({
       ];
     }
     
-    // Check vertex count before saving
-    if (finalPoints.length > 500) {
-      // Show warning dialog for high vertex count
-      setPendingPolygonToSave(finalPoints);
-      setIsHighVertexWarningOpen(true);
-      setDrawingPoints([]);
-      setIsDrawing(false);
-      return;
-    }
-    
-    // Auto-save the polygon immediately
-    if (onAutoSave) {
-      onAutoSave(finalPoints);
-    } else {
-      onPolygonChange(finalPoints);
-    }
+    // Check vertex count before saving (with helper function)
+    const useAutoSave = !!onAutoSave;
+    savePolygonWithVertexCheck(finalPoints, useAutoSave);
     
     setDrawingPoints([]);
     setIsDrawing(false);
@@ -996,6 +983,24 @@ export function MapComponent({
     if (drawingMode === 'latband') {
       onPolygonChange && onPolygonChange(null);
     }
+  };
+
+  // Helper function to save polygon with vertex count check
+  const savePolygonWithVertexCheck = (polygon: [number, number][], useAutoSave: boolean = false) => {
+    if (polygon.length > 500) {
+      // Show warning dialog for high vertex count
+      setPendingPolygonToSave(polygon);
+      setIsHighVertexWarningOpen(true);
+      return false; // Indicates save was delayed pending user confirmation
+    }
+    
+    // Vertex count is acceptable, save immediately
+    if (useAutoSave && onAutoSave) {
+      onAutoSave(polygon);
+    } else {
+      onPolygonChange(polygon);
+    }
+    return true; // Indicates save was completed
   };
 
   // Handle high vertex count warning - confirm save
@@ -1066,19 +1071,24 @@ export function MapComponent({
             current.length > largest.length ? current : largest
           , polygons[0]);
           
-          onPolygonChange(largestPolygon);
+          const saved = savePolygonWithVertexCheck(largestPolygon, false);
           
-          toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`, {
-            description: `${largestPolygon.length} vertices in result`
-          });
+          if (saved) {
+            toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`, {
+              description: `${largestPolygon.length} vertices in result`
+            });
+          }
         }
       } else {
         // Single polygon result - keep as current polygon
         const polygon = result as [number, number][];
-        onPolygonChange(polygon);
-        toast.success('Ocean subtracted successfully', {
-          description: `${polygon.length} vertices in result`
-        });
+        const saved = savePolygonWithVertexCheck(polygon, false);
+        
+        if (saved) {
+          toast.success('Ocean subtracted successfully', {
+            description: `${polygon.length} vertices in result`
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to subtract ocean:', error);
@@ -1143,22 +1153,26 @@ export function MapComponent({
             current.length > largest.length ? current : largest
           , polygons[0]);
           
-          onPolygonChange(largestPolygon);
+          const saved = savePolygonWithVertexCheck(largestPolygon, false);
           
-          toast.success(`Buffer applied - kept largest of ${polygons.length} pieces`, {
-            description: `${largestPolygon.length} vertices`
-          });
+          if (saved) {
+            toast.success(`Buffer applied - kept largest of ${polygons.length} pieces`, {
+              description: `${largestPolygon.length} vertices`
+            });
+          }
         }
       } else {
         // Single polygon result
         const polygon = result as [number, number][];
-        onPolygonChange(polygon);
+        const saved = savePolygonWithVertexCheck(polygon, false);
         
-        const direction = distance > 0 ? 'expanded' : 'shrunk';
-        const distanceKm = Math.abs(distance) / 1000;
-        toast.success(`Polygon ${direction} by ${distanceKm}km`, {
-          description: `${polygon.length} vertices in result`
-        });
+        if (saved) {
+          const direction = distance > 0 ? 'expanded' : 'shrunk';
+          const distanceKm = Math.abs(distance) / 1000;
+          toast.success(`Polygon ${direction} by ${distanceKm}km`, {
+            description: `${polygon.length} vertices in result`
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to buffer polygon:', error);
@@ -1330,7 +1344,8 @@ export function MapComponent({
       ...currentPolygon.slice(edgeStartIndex + 1),
     ];
     
-    onPolygonChange(newCoordinates);
+    // Check vertex count before adding (could push over limit)
+    savePolygonWithVertexCheck(newCoordinates, false);
   };
 
   const handleCurrentVertexRightClick = (e: React.MouseEvent, vertexIndex: number) => {

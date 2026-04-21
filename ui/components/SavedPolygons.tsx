@@ -400,6 +400,14 @@ function ImportWKTDialog({ onImport }: ImportWKTDialogProps) {
     try {
       const coordinates = parseWKT(wktInput);
       if (coordinates) {
+        // Check vertex count before importing
+        if (coordinates.length > 500) {
+          toast.error('Polygon has too many vertices', {
+            description: `This polygon has ${coordinates.length} vertices, which exceeds the recommended limit of 500. Consider simplifying the polygon first.`
+          });
+          return;
+        }
+        
         onImport(coordinates);
         toast.success(`Polygon imported with ${coordinates.length} points`);
         setIsOpen(false);
