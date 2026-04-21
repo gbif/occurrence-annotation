@@ -8,7 +8,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown, Waves, Bot, Combine, Split, Maximize2 } from 'lucide-react';
+import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown, Waves, Bot, Combine, GitMerge, Split, Maximize2 } from 'lucide-react';
 import { AnnotationRule } from './AnnotationRules';
 import { LocationQualityPanel } from './LocationQualityPanel';
 import { isAdmin } from '../utils/authHelpers';
@@ -55,6 +55,7 @@ interface MapComponentProps {
   onCreateRuleFromSearch?: (coords: [number, number][], metadata?: { basisOfRecord?: string[]; datasetKey?: string }) => void;
   onSaveMultiplePolygons?: (polygons: [number, number][][]) => void;
   onMergeAllPolygons?: () => void;
+  onUnionPolygons?: () => void;
   onSplitMultiPolygon?: (id: string) => void;
   vocabulary?: VocabularyTerm[];
 }
@@ -101,6 +102,7 @@ export function MapComponent({
   onCreateRuleFromSearch,
   onSaveMultiplePolygons,
   onMergeAllPolygons,
+  onUnionPolygons,
   onSplitMultiPolygon,
   vocabulary = [
     { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
@@ -3023,6 +3025,19 @@ export function MapComponent({
                     className="border-purple-300 text-purple-700 hover:bg-purple-50"
                   >
                     <Combine className="w-4 h-4" />
+                  </Button>
+                )}
+                
+                {/* Union button - dissolves overlapping boundaries */}
+                {savedPolygons.length > 1 && onUnionPolygons && (
+                  <Button
+                    onClick={onUnionPolygons}
+                    size="icon"
+                    variant="outline"
+                    title={`Union all ${savedPolygons.length} polygons - overlapping areas are dissolved into one`}
+                    className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                  >
+                    <GitMerge className="w-4 h-4" />
                   </Button>
                 )}
                 

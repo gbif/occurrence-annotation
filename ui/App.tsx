@@ -9,6 +9,7 @@ import { OccurrenceFilterOptions } from './components/OccurrenceFilters';
 import { toast } from 'sonner';
 import { getGbifApiUrl, getAnnotationApiUrl } from './utils/apiConfig';
 import { parseWKTGeometry } from './utils/wktParser';
+import { unionPolygons } from './utils/spatialOperations';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
@@ -737,6 +738,78 @@ export default function App() {
     console.log('[App] Split into', newPolygons.length, 'separate polygons');
   }, [savedPolygons]);
 
+  const handleUnionPolygons = useCallback(async () => {
+    console.log('[App] handleUnionPolygons called with', savedPolygons.length, 'polygons');
+    
+    if (savedPolygons.length < 2) {
+      toast.error('Need at least 2 polygons to union');
+      return;
+    }
+
+    try {
+      // Collect all polygon coordinates
+      const allPolygonParts: [number, number][][] = [];
+      
+      for (const polygon of savedPolygons) {
+        if (polygon.isMultiPolygon) {
+          // Multi-polygon: add all its parts
+          const coords = polygon.coordinates as [number, number][][];
+          allPolygonParts.push(...coords);
+        } else {
+          // Single polygon: add it
+          allPolygonParts.push(polygon.coordinates as [number, number][]);
+        }
+      }
+
+      console.log(`Computing union of ${allPolygonParts.length} total polygon parts...`);
+      
+      // Compute geometric union
+      const result = unionPolygons(allPolygonParts);
+      
+      if (!result) {
+        toast.error('Union operation failed', {
+          description: 'Could not merge the polygons'
+        });
+        return;
+      }
+
+      // Create the unified polygon
+      const isMulti = Array.isArray(result[0]) && Array.isArray(result[0][0]);
+      
+      const unionedPolygon: PolygonData = {
+        id: `union-${Date.now()}`,
+        coordinates: result,
+        species: selectedSpecies,
+        timestamp: new Date().toISOString(),
+        inverted: false,
+        annotation: currentAnnotation,
+        isMultiPolygon: isMulti,
+      };
+
+      // Replace all polygons with the unified one
+      setSavedPolygons([unionedPolygon]);
+      
+      if (isMulti) {
+        const parts = result as [number, number][][];
+        toast.success(`Unioned ${savedPolygons.length} polygons`, {
+          description: `Result has ${parts.length} disconnected piece${parts.length > 1 ? 's' : ''}`
+        });
+      } else {
+        const vertices = (result as [number, number][]).length;
+        toast.success(`Unioned ${savedPolygons.length} polygons into one`, {
+          description: `${vertices} vertices`
+        });
+      }
+      
+      console.log('[App] Union completed, result is', isMulti ? 'multi-polygon' : 'single polygon');
+    } catch (error) {
+      console.error('Union operation error:', error);
+      toast.error('Failed to union polygons', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }, [savedPolygons, selectedSpecies, currentAnnotation]);
+
   const handleRuleSavedToGBIF = useCallback((savedPolygonId?: string) => {
     // Clear the current active polygon
     setCurrentPolygon(null);
@@ -1085,6 +1158,7 @@ export default function App() {
         onCreateRuleFromSearch={handleCreateRuleFromSearch}
         onSaveMultiplePolygons={handleSaveMultiplePolygons}
         onMergeAllPolygons={handleMergeAllPolygons}
+        onUnionPolygons={handleUnionPolygons}
         onSplitMultiPolygon={handleSplitMultiPolygon}
         vocabulary={vocabulary}
       />

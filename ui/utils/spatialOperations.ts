@@ -431,3 +431,71 @@ export function bufferMultiPolygon(
     return null;
   }
 }
+
+/**
+ * Union (merge) multiple polygons into a single polygon
+ * Overlapping areas are dissolved into one continuous polygon
+ * 
+ * @param polygons - Array of polygons in [lat, lng][] format
+ * @returns Unified polygon(s) or null if operation fails
+ *          - Single polygon: [lat, lng][]
+ *          - Multiple disconnected pieces: [lat, lng][][]
+ */
+export function unionPolygons(
+  polygons: [number, number][][]
+): [number, number][] | [number, number][][] | null {
+  console.time('union-polygons');
+  
+  try {
+    if (!polygons || polygons.length === 0) {
+      console.error('No polygons provided for union');
+      return null;
+    }
+
+    if (polygons.length === 1) {
+      console.log('Only one polygon provided, returning as-is');
+      console.timeEnd('union-polygons');
+      return polygons[0];
+    }
+
+    console.log(`Computing union of ${polygons.length} polygons`);
+
+    // Convert all polygons to polygon-clipping format
+    const polyClippingPolygons: Polygon[] = polygons.map(poly => 
+      coordinatesToPolygon(poly)
+    );
+
+    // Compute union using polygon-clipping
+    // union(...polygons) merges all provided polygons
+    const result = polygonClipping.union(...polyClippingPolygons);
+    
+    if (!result || result.length === 0) {
+      console.error('Union operation returned empty result');
+      console.timeEnd('union-polygons');
+      return null;
+    }
+
+    console.log(`Union result: ${result.length} polygon piece(s)`);
+    
+    // Convert result back to app format
+    const unionedPolygon = polygonToCoordinates(result);
+    
+    if (Array.isArray(unionedPolygon) && unionedPolygon.length > 0) {
+      if (Array.isArray(unionedPolygon[0]) && Array.isArray(unionedPolygon[0][0])) {
+        // MultiPolygon result (disconnected pieces)
+        const totalVertices = (unionedPolygon as [number, number][][]).reduce((sum, p) => sum + p.length, 0);
+        console.log(`Union succeeded: ${(unionedPolygon as [number, number][][]).length} disconnected pieces, ${totalVertices} total vertices`);
+      } else {
+        // Single polygon result
+        console.log(`Union succeeded: ${(unionedPolygon as [number, number][]).length} vertices`);
+      }
+    }
+    
+    console.timeEnd('union-polygons');
+    return unionedPolygon;
+  } catch (error) {
+    console.error('Error during polygon union:', error);
+    console.timeEnd('union-polygons');
+    return null;
+  }
+}
