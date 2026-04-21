@@ -152,7 +152,6 @@ export function MapComponent({
   
   // Buffer polygon state
   const [isBufferPopoverOpen, setIsBufferPopoverOpen] = useState(false);
-  const [bufferDistance, setBufferDistance] = useState(100000); // meters (default: 100 km)
   const [isBuffering, setIsBuffering] = useState(false);
   
   // ArcGIS API Key from environment
@@ -2925,41 +2924,21 @@ export function MapComponent({
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-64" side="right" align="start">
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <div>
                         <h4 className="font-medium text-sm mb-1">Buffer Distance</h4>
                         <p className="text-xs text-muted-foreground mb-2">
-                          Positive expands, negative shrinks
+                          Expand or shrink polygon
                         </p>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            min={-1000000}
-                            max={1000000}
-                            step={1000}
-                            value={bufferDistance}
-                            onChange={(e) => setBufferDistance(Number(e.target.value))}
-                            className="h-8"
-                          />
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">meters</span>
-                        </div>
                       </div>
                       
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-2">Quick presets:</p>
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">Expand:</p>
                         <div className="grid grid-cols-3 gap-1">
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs"
-                            onClick={() => handleBufferPolygon(10000)}
-                          >
-                            +10km
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs"
+                            className="h-8 text-xs"
                             onClick={() => handleBufferPolygon(50000)}
                           >
                             +50km
@@ -2967,7 +2946,7 @@ export function MapComponent({
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs"
+                            className="h-8 text-xs"
                             onClick={() => handleBufferPolygon(100000)}
                           >
                             +100km
@@ -2975,15 +2954,19 @@ export function MapComponent({
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs"
+                            className="h-8 text-xs"
                             onClick={() => handleBufferPolygon(500000)}
                           >
                             +500km
                           </Button>
+                        </div>
+                        
+                        <p className="text-xs text-muted-foreground mt-2">Shrink:</p>
+                        <div className="grid grid-cols-3 gap-1">
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs text-orange-600 border-orange-300"
+                            className="h-8 text-xs text-orange-600 border-orange-300"
                             onClick={() => handleBufferPolygon(-50000)}
                           >
                             -50km
@@ -2991,22 +2974,21 @@ export function MapComponent({
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs text-orange-600 border-orange-300"
+                            className="h-8 text-xs text-orange-600 border-orange-300"
                             onClick={() => handleBufferPolygon(-100000)}
                           >
                             -100km
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs text-orange-600 border-orange-300"
+                            onClick={() => handleBufferPolygon(-500000)}
+                          >
+                            -500km
+                          </Button>
                         </div>
                       </div>
-                      
-                      <Button
-                        className="w-full"
-                        size="sm"
-                        onClick={() => handleBufferPolygon(bufferDistance)}
-                        disabled={bufferDistance === 0}
-                      >
-                        Apply Buffer
-                      </Button>
                     </div>
                   </PopoverContent>
                 </Popover>
@@ -3213,46 +3195,21 @@ export function MapComponent({
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-64" side="right" align="start">
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                           <div>
                             <h4 className="font-medium text-sm mb-1">Buffer Distance</h4>
                             <p className="text-xs text-muted-foreground mb-2">
-                              Positive expands, negative shrinks
+                              Expand or shrink polygon
                             </p>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                type="number"
-                                min={-1000000}
-                                max={1000000}
-                                step={1000}
-                                value={bufferDistance}
-                                onChange={(e) => setBufferDistance(Number(e.target.value))}
-                                className="h-8"
-                              />
-                              <span className="text-xs text-muted-foreground whitespace-nowrap">meters</span>
-                            </div>
                           </div>
                           
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-2">Quick presets:</p>
+                          <div className="space-y-2">
+                            <p className="text-xs text-muted-foreground">Expand:</p>
                             <div className="grid grid-cols-3 gap-1">
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 text-xs"
-                                onClick={() => {
-                                  const polygon = savedPolygons.find(p => p.id === editingPolygonId);
-                                  if (polygon && onUpdatePolygon) {
-                                    handleBufferEditMode(editingPolygonId, polygon, 10000);
-                                  }
-                                }}
-                              >
-                                +10km
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
+                                className="h-8 text-xs"
                                 onClick={() => {
                                   const polygon = savedPolygons.find(p => p.id === editingPolygonId);
                                   if (polygon && onUpdatePolygon) {
@@ -3265,7 +3222,7 @@ export function MapComponent({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 text-xs"
+                                className="h-8 text-xs"
                                 onClick={() => {
                                   const polygon = savedPolygons.find(p => p.id === editingPolygonId);
                                   if (polygon && onUpdatePolygon) {
@@ -3278,7 +3235,7 @@ export function MapComponent({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 text-xs"
+                                className="h-8 text-xs"
                                 onClick={() => {
                                   const polygon = savedPolygons.find(p => p.id === editingPolygonId);
                                   if (polygon && onUpdatePolygon) {
@@ -3288,10 +3245,14 @@ export function MapComponent({
                               >
                                 +500km
                               </Button>
+                            </div>
+                            
+                            <p className="text-xs text-muted-foreground mt-2">Shrink:</p>
+                            <div className="grid grid-cols-3 gap-1">
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 text-xs text-orange-600 border-orange-300"
+                                className="h-8 text-xs text-orange-600 border-orange-300"
                                 onClick={() => {
                                   const polygon = savedPolygons.find(p => p.id === editingPolygonId);
                                   if (polygon && onUpdatePolygon) {
@@ -3304,7 +3265,7 @@ export function MapComponent({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 text-xs text-orange-600 border-orange-300"
+                                className="h-8 text-xs text-orange-600 border-orange-300"
                                 onClick={() => {
                                   const polygon = savedPolygons.find(p => p.id === editingPolygonId);
                                   if (polygon && onUpdatePolygon) {
@@ -3314,22 +3275,21 @@ export function MapComponent({
                               >
                                 -100km
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs text-orange-600 border-orange-300"
+                                onClick={() => {
+                                  const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                  if (polygon && onUpdatePolygon) {
+                                    handleBufferEditMode(editingPolygonId, polygon, -500000);
+                                  }
+                                }}
+                              >
+                                -500km
+                              </Button>
                             </div>
                           </div>
-                          
-                          <Button
-                            className="w-full"
-                            size="sm"
-                            onClick={() => {
-                              const polygon = savedPolygons.find(p => p.id === editingPolygonId);
-                              if (polygon && onUpdatePolygon) {
-                                handleBufferEditMode(editingPolygonId, polygon, bufferDistance);
-                              }
-                            }}
-                            disabled={bufferDistance === 0}
-                          >
-                            Apply Buffer
-                          </Button>
                         </div>
                       </PopoverContent>
                     </Popover>
