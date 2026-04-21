@@ -249,9 +249,40 @@ export function bufferPolygon(
     }
 
     // Simplify the buffered geometry to reduce vertex count
-    // tolerance: 0.0001 degrees (~11m at equator) - balances accuracy vs vertex count
-    // highQuality: true uses more accurate Douglas-Peucker algorithm
-    const simplified = simplify(buffered, { tolerance: 0.0001, highQuality: true });
+    // Goal: Keep vertex count similar to or less than original polygon
+    // Start with aggressive tolerance and iterate if needed
+    const originalVertexCount = userPolygon.length;
+    let tolerance = 0.001; // Start with ~111m at equator
+    let simplified = simplify(buffered, { tolerance, highQuality: true });
+    
+    // Try progressively more aggressive simplification if vertex count is still too high
+    if (simplified && simplified.geometry) {
+      let currentVertexCount = 0;
+      
+      if (simplified.geometry.type === 'Polygon') {
+        currentVertexCount = simplified.geometry.coordinates[0].length - 1;
+      } else if (simplified.geometry.type === 'MultiPolygon') {
+        currentVertexCount = simplified.geometry.coordinates.reduce((sum, poly) => sum + poly[0].length - 1, 0);
+      }
+      
+      // Increase tolerance if we have more than 1.5x the original vertices
+      while (currentVertexCount > originalVertexCount * 1.5 && tolerance < 0.01) {
+        tolerance *= 1.5;
+        const newSimplified = simplify(buffered, { tolerance, highQuality: true });
+        if (newSimplified && newSimplified.geometry) {
+          simplified = newSimplified;
+          if (simplified.geometry.type === 'Polygon') {
+            currentVertexCount = simplified.geometry.coordinates[0].length - 1;
+          } else if (simplified.geometry.type === 'MultiPolygon') {
+            currentVertexCount = simplified.geometry.coordinates.reduce((sum, poly) => sum + poly[0].length - 1, 0);
+          }
+        } else {
+          break;
+        }
+      }
+      
+      console.log(`Simplification: ${currentVertexCount} vertices (target: ~${originalVertexCount}, tolerance: ${tolerance.toFixed(4)}°)`);
+    }
     
     if (!simplified || !simplified.geometry) {
       console.warn('Simplification failed, using unsimplified buffer result');
@@ -292,12 +323,7 @@ export function bufferPolygon(
         console.warn(`⚠️ ${clampedCount} coordinates were clamped to valid geographic bounds. Buffer may be too large for this polygon.`);
       }
       
-      const originalVertexCount = buffered.geometry.coordinates[0].length - 1;
-      const reduction = originalVertexCount > result.length 
-        ? ` (simplified from ${originalVertexCount})` 
-        : '';
-      
-      console.log(`Buffer succeeded: ${result.length} vertices${reduction}`);
+      console.log(`Buffer succeeded: ${result.length} vertices (original: ${userPolygon.length})`);
       console.timeEnd('buffer-polygon');
       return result;
       
@@ -329,7 +355,7 @@ export function bufferPolygon(
       }
       
       const totalVertices = polygons.reduce((sum, p) => sum + p.length, 0);
-      console.log(`Buffer succeeded: ${polygons.length} polygon pieces, ${totalVertices} total vertices`);
+      console.log(`Buffer succeeded: ${polygons.length} polygon pieces, ${totalVertices} total vertices (original: ${userPolygon.length})`);
       console.timeEnd('buffer-polygon');
       return polygons;
       
