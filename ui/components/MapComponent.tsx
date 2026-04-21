@@ -2925,69 +2925,60 @@ export function MapComponent({
                   </PopoverTrigger>
                   <PopoverContent className="w-64" side="right" align="start">
                     <div className="space-y-2">
-                      <div>
-                        <h4 className="font-medium text-sm mb-1">Buffer Distance</h4>
-                        <p className="text-xs text-muted-foreground mb-2">
-                          Expand or shrink polygon
-                        </p>
+                      <h4 className="font-medium text-sm mb-2">Buffer Distance</h4>
+                      
+                      <div className="grid grid-cols-3 gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => handleBufferPolygon(50000)}
+                        >
+                          +50km
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => handleBufferPolygon(100000)}
+                        >
+                          +100km
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => handleBufferPolygon(500000)}
+                        >
+                          +500km
+                        </Button>
                       </div>
                       
-                      <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground">Expand:</p>
-                        <div className="grid grid-cols-3 gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs"
-                            onClick={() => handleBufferPolygon(50000)}
-                          >
-                            +50km
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs"
-                            onClick={() => handleBufferPolygon(100000)}
-                          >
-                            +100km
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs"
-                            onClick={() => handleBufferPolygon(500000)}
-                          >
-                            +500km
-                          </Button>
-                        </div>
-                        
-                        <p className="text-xs text-muted-foreground mt-2">Shrink:</p>
-                        <div className="grid grid-cols-3 gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs text-orange-600 border-orange-300"
-                            onClick={() => handleBufferPolygon(-50000)}
-                          >
-                            -50km
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs text-orange-600 border-orange-300"
-                            onClick={() => handleBufferPolygon(-100000)}
-                          >
-                            -100km
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs text-orange-600 border-orange-300"
-                            onClick={() => handleBufferPolygon(-500000)}
-                          >
-                            -500km
-                          </Button>
-                        </div>
+                      <div className="grid grid-cols-3 gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs text-orange-600 border-orange-300"
+                          onClick={() => handleBufferPolygon(-50000)}
+                        >
+                          -50km
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs text-orange-600 border-orange-300"
+                          onClick={() => handleBufferPolygon(-100000)}
+                        >
+                          -100km
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs text-orange-600 border-orange-300"
+                          onClick={() => handleBufferPolygon(-500000)}
+                        >
+                          -500km
+                        </Button>
                       </div>
                     </div>
                   </PopoverContent>
@@ -3196,99 +3187,90 @@ export function MapComponent({
                       </PopoverTrigger>
                       <PopoverContent className="w-64" side="right" align="start">
                         <div className="space-y-2">
-                          <div>
-                            <h4 className="font-medium text-sm mb-1">Buffer Distance</h4>
-                            <p className="text-xs text-muted-foreground mb-2">
-                              Expand or shrink polygon
-                            </p>
+                          <h4 className="font-medium text-sm mb-2">Buffer Distance</h4>
+                          
+                          <div className="grid grid-cols-3 gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, 50000);
+                                }
+                              }}
+                            >
+                              +50km
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, 100000);
+                                }
+                              }}
+                            >
+                              +100km
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, 500000);
+                                }
+                              }}
+                            >
+                              +500km
+                            </Button>
                           </div>
                           
-                          <div className="space-y-2">
-                            <p className="text-xs text-muted-foreground">Expand:</p>
-                            <div className="grid grid-cols-3 gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 text-xs"
-                                onClick={() => {
-                                  const polygon = savedPolygons.find(p => p.id === editingPolygonId);
-                                  if (polygon && onUpdatePolygon) {
-                                    handleBufferEditMode(editingPolygonId, polygon, 50000);
-                                  }
-                                }}
-                              >
-                                +50km
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 text-xs"
-                                onClick={() => {
-                                  const polygon = savedPolygons.find(p => p.id === editingPolygonId);
-                                  if (polygon && onUpdatePolygon) {
-                                    handleBufferEditMode(editingPolygonId, polygon, 100000);
-                                  }
-                                }}
-                              >
-                                +100km
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 text-xs"
-                                onClick={() => {
-                                  const polygon = savedPolygons.find(p => p.id === editingPolygonId);
-                                  if (polygon && onUpdatePolygon) {
-                                    handleBufferEditMode(editingPolygonId, polygon, 500000);
-                                  }
-                                }}
-                              >
-                                +500km
-                              </Button>
-                            </div>
-                            
-                            <p className="text-xs text-muted-foreground mt-2">Shrink:</p>
-                            <div className="grid grid-cols-3 gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 text-xs text-orange-600 border-orange-300"
-                                onClick={() => {
-                                  const polygon = savedPolygons.find(p => p.id === editingPolygonId);
-                                  if (polygon && onUpdatePolygon) {
-                                    handleBufferEditMode(editingPolygonId, polygon, -50000);
-                                  }
-                                }}
-                              >
-                                -50km
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 text-xs text-orange-600 border-orange-300"
-                                onClick={() => {
-                                  const polygon = savedPolygons.find(p => p.id === editingPolygonId);
-                                  if (polygon && onUpdatePolygon) {
-                                    handleBufferEditMode(editingPolygonId, polygon, -100000);
-                                  }
-                                }}
-                              >
-                                -100km
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 text-xs text-orange-600 border-orange-300"
-                                onClick={() => {
-                                  const polygon = savedPolygons.find(p => p.id === editingPolygonId);
-                                  if (polygon && onUpdatePolygon) {
-                                    handleBufferEditMode(editingPolygonId, polygon, -500000);
-                                  }
-                                }}
-                              >
-                                -500km
-                              </Button>
-                            </div>
+                          <div className="grid grid-cols-3 gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs text-orange-600 border-orange-300"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, -50000);
+                                }
+                              }}
+                            >
+                              -50km
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs text-orange-600 border-orange-300"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, -100000);
+                                }
+                              }}
+                            >
+                              -100km
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs text-orange-600 border-orange-300"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, -500000);
+                                }
+                              }}
+                            >
+                              -500km
+                            </Button>
                           </div>
                         </div>
                       </PopoverContent>
