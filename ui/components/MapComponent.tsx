@@ -8,12 +8,16 @@ import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown, Bot } from 'lucide-react';
+import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown, Waves, Bot, Combine, GitMerge, Split, Maximize2, Eraser } from 'lucide-react';
 import { AnnotationRule } from './AnnotationRules';
 import { LocationQualityPanel } from './LocationQualityPanel';
 import { isAdmin } from '../utils/authHelpers';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
+import { parseWKTGeometry } from '../utils/wktParser';
+import { subtractOceanFromPolygon, bufferPolygon, bufferMultiPolygon, eraseFromPolygon } from '../utils/spatialOperations';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Input } from './ui/input';
 
 interface VocabularyTerm {
   term: string;
@@ -49,6 +53,10 @@ interface MapComponentProps {
   occurrenceFilters?: OccurrenceFilterOptions;
   onFiltersChange?: (filters: OccurrenceFilterOptions) => void;
   onCreateRuleFromSearch?: (coords: [number, number][], metadata?: { basisOfRecord?: string[]; datasetKey?: string }) => void;
+  onSaveMultiplePolygons?: (polygons: [number, number][][]) => void;
+  onMergeAllPolygons?: () => void;
+  onUnionPolygons?: () => void;
+  onSplitMultiPolygon?: (id: string) => void;
   vocabulary?: VocabularyTerm[];
 }
 
@@ -92,6 +100,10 @@ export function MapComponent({
   occurrenceFilters = {},
   onFiltersChange,
   onCreateRuleFromSearch,
+  onSaveMultiplePolygons,
+  onMergeAllPolygons,
+  onUnionPolygons,
+  onSplitMultiPolygon,
   vocabulary = [
     { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
     { term: 'NATIVE', description: 'Native species', color: '#10b981', locked: false },
@@ -114,9 +126,6 @@ export function MapComponent({
   
   const [center, setCenter] = useState<[number, number]>([20, 0]);
   const [zoom, setZoom] = useState(2);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [drawingMode, setDrawingMode] = useState<'polygon' | 'rectangle' | 'latband'>('polygon');
-  const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
   const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
   const [gbifTiles, setGbifTiles] = useState<Array<{ x: number; y: number; z: number; anchor: [number, number]; url: string }>>([]);
   const [isZooming, setIsZooming] = useState(false);
@@ -128,12 +137,27 @@ export function MapComponent({
   const [dragCurrent, setDragCurrent] = useState<[number, number] | null>(null);
   const [isEditingCurrent, setIsEditingCurrent] = useState(false);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [drawingMode, setDrawingMode] = useState<'polygon' | 'rectangle' | 'latband' | 'erase'>('polygon');
+  const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
+  const [latBandStart, setLatBandStart] = useState<number | null>(null);
   
   // Base map style state - load from localStorage or use default
   const [baseMapStyle, setBaseMapStyle] = useState<string>(() => {
     return localStorage.getItem('gbifBaseMapStyle') || 'gbif-middle';
   });
   const [isBaseMapDialogOpen, setIsBaseMapDialogOpen] = useState(false);
+  
+  // Ocean subtraction state
+  const [isSubtractingOcean, setIsSubtractingOcean] = useState(false);
+  const [polygonBeforeSubtract, setPolygonBeforeSubtract] = useState<[number, number][] | null>(null);
+  
+  // Buffer polygon state
+  const [isBufferPopoverOpen, setIsBufferPopoverOpen] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
+  
+  // Erase operation state
+  const [isErasing, setIsErasing] = useState(false);
   
   // ArcGIS API Key from environment
   const arcgisApiKey = import.meta.env.VITE_ARCGIS_API_KEY || '';
@@ -271,20 +295,6 @@ export function MapComponent({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const zoomTimeoutRef = useRef<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-
-  // Debug logging for current annotation
-  useEffect(() => {
-    if (currentPolygon && currentPolygon.length > 0) {
-      const color = getColorFromVocabulary(currentAnnotation);
-      console.log('🎨 ACTIVE POLYGON DEBUG:', {
-        annotationType: currentAnnotation,
-        fillColor: color.fill,
-        strokeColor: color.stroke,
-        isInverted: isCurrentInverted,
-        polygonPoints: currentPolygon.length
-      });
-    }
-  }, [currentPolygon, currentAnnotation, isCurrentInverted]);
 
   useEffect(() => {
     if (mapContainerRef.current) {
@@ -536,6 +546,15 @@ export function MapComponent({
     // Clear tiles on significant zoom changes to improve performance
     setGbifTiles([]);
   }, [zoom]);
+
+  // Reset erase mode when exiting edit mode
+  useEffect(() => {
+    if (!editingPolygonId && drawingMode === 'erase') {
+      setDrawingMode('polygon');
+      setIsDrawing(false);
+      setDrawingPoints([]);
+    }
+  }, [editingPolygonId, drawingMode]);
 
   // Investigate area function
   const investigateArea = async (lat: number, lng: number) => {
@@ -928,8 +947,8 @@ export function MapComponent({
       return;
     }
     
-    if (drawingMode === 'rectangle' && pointsToUse.length !== 2) {
-      alert('Please click two opposite corners to create a rectangle');
+    if ((drawingMode === 'rectangle' || drawingMode === 'erase') && pointsToUse.length !== 2) {
+      alert('Please drag to define the area');
       return;
     }
     
@@ -943,8 +962,8 @@ export function MapComponent({
     
     let finalPoints = pointsToUse;
     
-    // Convert rectangle to polygon (4 corners)
-    if (drawingMode === 'rectangle' && pointsToUse.length === 2) {
+    // Convert rectangle/erase area to polygon (4 corners)
+    if ((drawingMode === 'rectangle' || drawingMode === 'erase') && pointsToUse.length === 2) {
       const [p1, p2] = pointsToUse;
       finalPoints = [
         [p1[0], p1[1]], // top-left
@@ -952,6 +971,56 @@ export function MapComponent({
         [p2[0], p2[1]], // bottom-right
         [p2[0], p1[1]], // bottom-left
       ];
+    }
+    
+    // Handle erase mode - subtract drawn area from edited polygon
+    if (drawingMode === 'erase' && editingPolygonId && onUpdatePolygon) {
+      const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+      if (polygon) {
+        try {
+          setIsErasing(true);
+          
+          // Show info toast during operation
+          toast.info('Erasing area from polygon...');
+          
+          const result = eraseFromPolygon(polygon.coordinates, finalPoints);
+          
+          if (!result) {
+            toast.error('Erase resulted in empty polygon', {
+              description: 'The entire polygon was erased'
+            });
+            // Optionally delete the polygon if completely erased
+            if (onDeletePolygon) {
+              onDeletePolygon(editingPolygonId);
+            }
+          } else {
+            onUpdatePolygon(editingPolygonId, result);
+            
+            // Check if result is multi-polygon
+            const isMulti = Array.isArray(result[0]) && Array.isArray(result[0][0]);
+            if (isMulti) {
+              const parts = result as [number, number][][];
+              toast.success(`Erased area from polygon`, {
+                description: `${parts.length} piece${parts.length > 1 ? 's' : ''} remaining`
+              });
+            } else {
+              toast.success('Erased area from polygon');
+            }
+          }
+        } catch (error) {
+          console.error('Erase operation failed:', error);
+          toast.error('Erase operation failed', {
+            description: error instanceof Error ? error.message : 'An error occurred during erase'
+          });
+        } finally {
+          setIsErasing(false);
+        }
+      }
+      
+      setDrawingPoints([]);
+      setIsDrawing(false);
+      setDrawingMode('polygon'); // Reset to polygon mode after erase
+      return;
     }
     
     // Auto-save the polygon immediately
@@ -973,6 +1042,12 @@ export function MapComponent({
     setDragCurrent(null);
     setShowLatBandControls(false);
     
+    // Reset drawing mode if in erase mode
+    if (drawingMode === 'erase') {
+      setDrawingMode('polygon');
+      toast.info('Erase mode cancelled');
+    }
+    
     // Clear current polygon if it was a latitude band
     if (drawingMode === 'latband') {
       onPolygonChange && onPolygonChange(null);
@@ -983,6 +1058,230 @@ export function MapComponent({
     onPolygonChange(null);
     setIsEditingCurrent(false);
     setShowLatBandControls(false);
+    setPolygonBeforeSubtract(null);
+  };
+
+  // Handle ocean subtraction
+  const handleSubtractOcean = async () => {
+    if (!currentPolygon || currentPolygon.length < 3) {
+      toast.error('No polygon to process');
+      return;
+    }
+
+    try {
+      setIsSubtractingOcean(true);
+      
+      // Store original polygon for undo
+      setPolygonBeforeSubtract([...currentPolygon]);
+      
+      const result = await subtractOceanFromPolygon(currentPolygon);
+      
+      if (!result) {
+        toast.error('Polygon is entirely over ocean', {
+          description: 'Try drawing a polygon that includes land areas'
+        });
+        setIsSubtractingOcean(false);
+        return;
+      }
+      
+      // Check if result is MultiPolygon (array of arrays)
+      if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
+        // MultiPolygon result - save all land polygons as separate items
+        const polygons = result as [number, number][][];
+        
+        if (onSaveMultiplePolygons) {
+          // Save all land polygons as separate polygon items
+          onSaveMultiplePolygons(polygons);
+          onPolygonChange(null); // Clear current polygon since we saved them all
+          
+          toast.success(`Ocean subtracted - created ${polygons.length} land polygon${polygons.length > 1 ? 's' : ''}`, {
+            description: polygons.length > 1 ? 'Each land area saved as a separate polygon' : `${polygons[0].length} vertices`
+          });
+        } else {
+          // Fallback: keep largest polygon (old behavior)
+          const largestPolygon = polygons.reduce((largest, current) => 
+            current.length > largest.length ? current : largest
+          , polygons[0]);
+          
+          onPolygonChange(largestPolygon);
+          
+          toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`, {
+            description: `${largestPolygon.length} vertices in result`
+          });
+        }
+      } else {
+        // Single polygon result - keep as current polygon
+        const polygon = result as [number, number][];
+        onPolygonChange(polygon);
+        toast.success('Ocean subtracted successfully', {
+          description: `${polygon.length} vertices in result`
+        });
+      }
+    } catch (error) {
+      console.error('Failed to subtract ocean:', error);
+      toast.error('Failed to subtract ocean', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsSubtractingOcean(false);
+    }
+  };
+
+  // Undo ocean subtraction
+  const handleUndoSubtractOcean = () => {
+    if (polygonBeforeSubtract) {
+      onPolygonChange(polygonBeforeSubtract);
+      setPolygonBeforeSubtract(null);
+      toast.info('Ocean subtraction undone');
+    }
+  };
+
+  // Handle buffer polygon operation
+  const handleBufferPolygon = async (distance: number) => {
+    if (!currentPolygon || currentPolygon.length < 3) {
+      toast.error('No polygon to buffer');
+      return;
+    }
+
+    if (distance === 0) {
+      toast.error('Buffer distance cannot be zero');
+      return;
+    }
+
+    try {
+      setIsBuffering(true);
+      setIsBufferPopoverOpen(false);
+      
+      const result = bufferPolygon(currentPolygon, distance);
+      
+      if (!result) {
+        toast.error('Buffer operation failed', {
+          description: distance < 0 ? 'Negative buffer may be too large for polygon size' : 'Invalid result from buffer operation'
+        });
+        return;
+      }
+      
+      // Check if result is MultiPolygon (array of arrays)
+      if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
+        // MultiPolygon result from self-intersection
+        const polygons = result as [number, number][][];
+        
+        if (onSaveMultiplePolygons && polygons.length > 1) {
+          // Save all buffer pieces as separate polygon items
+          onSaveMultiplePolygons(polygons);
+          onPolygonChange(null); // Clear current polygon since we saved them all
+          
+          toast.success(`Buffer created ${polygons.length} polygon pieces`, {
+            description: 'Self-intersecting buffer split into separate polygons'
+          });
+        } else {
+          // Keep largest polygon
+          const largestPolygon = polygons.reduce((largest, current) => 
+            current.length > largest.length ? current : largest
+          , polygons[0]);
+          
+          onPolygonChange(largestPolygon);
+          
+          toast.success(`Buffer applied - kept largest of ${polygons.length} pieces`, {
+            description: `${largestPolygon.length} vertices`
+          });
+        }
+      } else {
+        // Single polygon result
+        const polygon = result as [number, number][];
+        onPolygonChange(polygon);
+        
+        const direction = distance > 0 ? 'expanded' : 'shrunk';
+        const distanceKm = Math.abs(distance) / 1000;
+        toast.success(`Polygon ${direction} by ${distanceKm}km`, {
+          description: `${polygon.length} vertices in result`
+        });
+      }
+    } catch (error) {
+      console.error('Failed to buffer polygon:', error);
+      toast.error('Failed to buffer polygon', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsBuffering(false);
+    }
+  };
+
+  // Handle buffer polygon operation in edit mode
+  const handleBufferEditMode = async (polygonId: string, polygon: PolygonData, distance: number) => {
+    if (!onUpdatePolygon) return;
+    
+    if (distance === 0) {
+      toast.error('Buffer distance cannot be zero');
+      return;
+    }
+
+    try {
+      setIsBuffering(true);
+      setIsBufferPopoverOpen(false);
+      
+      let result: [number, number][] | [number, number][][] | null = null;
+      
+      // Check if this is a multi-polygon
+      if (polygon.isMultiPolygon) {
+        const multiCoords = polygon.coordinates as [number, number][][];
+        if (!multiCoords || multiCoords.length === 0) {
+          toast.error('Invalid multi-polygon coordinates');
+          return;
+        }
+        
+        console.log(`Buffering multi-polygon with ${multiCoords.length} parts`);
+        result = bufferMultiPolygon(multiCoords, distance);
+        
+      } else {
+        // Single polygon
+        const coords = polygon.coordinates as [number, number][];
+        if (!coords || coords.length < 3) {
+          toast.error('Invalid polygon coordinates');
+          return;
+        }
+        
+        result = bufferPolygon(coords, distance);
+      }
+      
+      if (!result) {
+        toast.error('Buffer operation failed', {
+          description: distance < 0 ? 'Negative buffer may be too large for polygon size' : 'Invalid result from buffer operation'
+        });
+        return;
+      }
+      
+      // Check if result is MultiPolygon
+      if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
+        const polygons = result as [number, number][][];
+        
+        // Always update as multi-polygon if result is multi-polygon
+        onUpdatePolygon(polygonId, polygons);
+        
+        const direction = distance > 0 ? 'expanded' : 'shrunk';
+        const distanceKm = Math.abs(distance) / 1000;
+        toast.success(`Multi-polygon ${direction} by ${distanceKm}km`, {
+          description: `${polygons.length} polygon parts`
+        });
+      } else {
+        // Single polygon result
+        const bufferedPolygon = result as [number, number][];
+        onUpdatePolygon(polygonId, bufferedPolygon);
+        
+        const direction = distance > 0 ? 'expanded' : 'shrunk';
+        const distanceKm = Math.abs(distance) / 1000;
+        toast.success(`Polygon ${direction} by ${distanceKm}km`, {
+          description: `${bufferedPolygon.length} vertices in result`
+        });
+      }
+    } catch (error) {
+      console.error('Failed to buffer polygon in edit mode:', error);
+      toast.error('Failed to buffer polygon', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsBuffering(false);
+    }
   };
 
   // Function to automatically add midpoint vertices to make editing easier
@@ -1173,7 +1472,7 @@ export function MapComponent({
     if (draggingVertex) return;
     
     if (!isDrawing) return;
-    if (drawingMode !== 'rectangle') return; // Only for rectangle mode
+    if (drawingMode !== 'rectangle' && drawingMode !== 'erase') return; // For rectangle and erase modes
     
     const rect = mapContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -1431,9 +1730,9 @@ export function MapComponent({
   };
 
   const handleOverlayMouseUp = () => {
-    // Handle rectangle creation
+    // Handle rectangle/erase area creation
     if (isDraggingShape && dragStart && dragCurrent) {
-      // Only create rectangle if drag was significant (more than 5 pixels)
+      // Only create rectangle/erase if drag was significant (more than 5 pixels)
       const rect = mapContainerRef.current?.getBoundingClientRect();
       if (rect) {
         const [x1, y1] = latLngToPixel(dragStart[0], dragStart[1]);
@@ -1463,7 +1762,7 @@ export function MapComponent({
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (!isDrawing) return;
-    if (drawingMode === 'rectangle') return; // Rectangle uses drag instead
+    if (drawingMode === 'rectangle' || drawingMode === 'erase') return; // Rectangle and erase use drag instead
     
     // Get click position relative to map container
     const rect = mapContainerRef.current?.getBoundingClientRect();
@@ -1602,15 +1901,6 @@ export function MapComponent({
             clampLatitude(center[0]), // Clamp latitude
             center[1] // Longitude can wrap around
           ];
-          
-          // Debug logging for synchronized movement
-          console.log('🗺️ BOUNDS CHANGED - Polygons will update after zoom completes:', {
-            newCenter: `${JSON.stringify(clampedCenter)}`,
-            newZoom: newZoom,
-            isZooming: Math.abs(newZoom - zoom) > 0.1,
-            testPolygonLocation: 'NYC [40.7589, -73.9851]',
-            status: 'Polygons frozen during zoom, will update after 500ms delay'
-          });
           
           // Log if clamping occurred
           if (Math.abs(center[0] - clampedCenter[0]) > 0.001) {
@@ -2298,20 +2588,21 @@ export function MapComponent({
 
           {/* Non-transformed group for current drawing - uses current view coords */}
           <g>
-            {/* Drag preview for rectangle */}
+            {/* Drag preview for rectangle/erase */}
             {isDraggingShape && dragStart && dragCurrent && (
               (() => {
                 const [x1, y1] = latLngToPixel(dragStart[0], dragStart[1]);
                 const [x2, y2] = latLngToPixel(dragCurrent[0], dragCurrent[1]);
+                const isEraseMode = drawingMode === 'erase';
                 return (
                   <rect
                     x={Math.min(x1, x2)}
                     y={Math.min(y1, y2)}
                     width={Math.abs(x2 - x1)}
                     height={Math.abs(y2 - y1)}
-                    fill="#3b82f6"
-                    fillOpacity="0.1"
-                    stroke="#3b82f6"
+                    fill={isEraseMode ? "#ef4444" : "#3b82f6"}
+                    fillOpacity="0.2"
+                    stroke={isEraseMode ? "#ef4444" : "#3b82f6"}
                     strokeWidth="2"
                     strokeDasharray="5,5"
                   />
@@ -2319,10 +2610,10 @@ export function MapComponent({
               })()
             )}
 
-            {/* Drawing preview */}
-            {drawingPoints.length > 0 && (
+            {/* Drawing preview - only for polygon mode */}
+            {drawingPoints.length > 0 && drawingMode === 'polygon' && (
               <>
-                {drawingMode === 'polygon' && drawingPoints.length > 1 && (
+                {drawingPoints.length > 1 && (
                   <polyline
                     points={drawingPoints.map(([lat, lng]) => {
                       const [x, y] = latLngToPixel(lat, lng);
@@ -2334,28 +2625,11 @@ export function MapComponent({
                     strokeDasharray="5,5"
                   />
                 )}
-                {drawingMode === 'rectangle' && drawingPoints.length === 2 && (() => {
-                  const [p1, p2] = drawingPoints;
-                  const [x1, y1] = latLngToPixel(p1[0], p1[1]);
-                  const [x2, y2] = latLngToPixel(p2[0], p2[1]);
-                  return (
-                    <rect
-                      x={Math.min(x1, x2)}
-                      y={Math.min(y1, y2)}
-                      width={Math.abs(x2 - x1)}
-                      height={Math.abs(y2 - y1)}
-                      fill="none"
-                      stroke="#3b82f6"
-                      strokeWidth="2"
-                      strokeDasharray="5,5"
-                    />
-                  );
-                })()}
               </>
             )}
 
-            {/* Drawing Points */}
-            {drawingPoints.map((point, index) => {
+            {/* Drawing Points - only show for polygon mode */}
+            {drawingMode === 'polygon' && drawingPoints.map((point, index) => {
               const [x, y] = latLngToPixel(point[0], point[1]);
               return (
                 <g key={`drawing-${index}`}>
@@ -2656,6 +2930,117 @@ export function MapComponent({
                   </div>
                 )}
                 
+                {/* Ocean Subtraction Tools - Subtract ocean from polygon to create land-only areas */}
+                <div className="w-full h-px bg-gray-200 my-1" />
+                
+                <Button 
+                  onClick={handleSubtractOcean}
+                  disabled={isSubtractingOcean}
+                  variant="outline"
+                  size="icon"
+                  title="Subtract Ocean - Create land-only polygon (may ignore smaller land features)"
+                  className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                >
+                  {isSubtractingOcean ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Waves className="w-4 h-4" />
+                  )}
+                </Button>
+                
+                {polygonBeforeSubtract && !isSubtractingOcean && (
+                  <Button 
+                    onClick={handleUndoSubtractOcean}
+                    variant="outline"
+                    size="icon"
+                    title="Undo Ocean Subtraction"
+                    className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 7v6h6M21 17v-6h-6"/>
+                      <path d="M20.49 9A9 9 0 0 0 5.64 5.64L3 7m18 10l-2.64 1.36A9 9 0 0 1 3.51 15"/>
+                    </svg>
+                  </Button>
+                )}
+                
+                {/* Buffer Polygon Tool - Expand or shrink polygon by distance */}
+                <Popover open={isBufferPopoverOpen} onOpenChange={setIsBufferPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button 
+                      variant="outline"
+                      size="icon"
+                      title="Buffer Polygon - Expand or shrink by distance"
+                      className="border-purple-300 text-purple-600 hover:bg-purple-50"
+                      disabled={isBuffering}
+                    >
+                      {isBuffering ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Maximize2 className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64" side="right" align="start">
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-sm mb-2">Buffer Distance</h4>
+                      
+                      <div className="grid grid-cols-3 gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => handleBufferPolygon(50000)}
+                        >
+                          +50km
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => handleBufferPolygon(100000)}
+                        >
+                          +100km
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => handleBufferPolygon(500000)}
+                        >
+                          +500km
+                        </Button>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs text-orange-600 border-orange-300"
+                          onClick={() => handleBufferPolygon(-50000)}
+                        >
+                          -50km
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs text-orange-600 border-orange-300"
+                          onClick={() => handleBufferPolygon(-100000)}
+                        >
+                          -100km
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs text-orange-600 border-orange-300"
+                          onClick={() => handleBufferPolygon(-500000)}
+                        >
+                          -500km
+                        </Button>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                
                 <Button 
                   onClick={onSaveAndEdit} 
                   variant="outline"
@@ -2681,18 +3066,58 @@ export function MapComponent({
             {savedPolygons.length > 0 && !editingPolygonId && (
               <>
                 <div className="w-full h-px bg-gray-200 my-1" />
-                {savedPolygons.map((polygon) => (
+                
+                {/* Merge All button - only show if there are 2+ polygons */}
+                {savedPolygons.length > 1 && onMergeAllPolygons && (
                   <Button
-                    key={polygon.id}
-                    onClick={() => onEditPolygon && onEditPolygon(polygon.id)}
+                    onClick={onMergeAllPolygons}
                     size="icon"
                     variant="outline"
-                    title={`Edit polygon ${polygon.id.slice(0, 8)}...`}
-                    className="border-green-300 text-green-700 hover:bg-green-50"
+                    title={`Merge all ${savedPolygons.length} polygons into a single multi-polygon`}
+                    className="border-purple-300 text-purple-700 hover:bg-purple-50"
                   >
-                    <Edit2 className="w-4 h-4" />
+                    <Combine className="w-4 h-4" />
                   </Button>
-                ))}
+                )}
+                
+                {/* Union button - dissolves overlapping boundaries */}
+                {(() => {
+                  // Count total polygon parts (including multipolygon parts)
+                  const totalParts = savedPolygons.reduce((sum, p) => {
+                    if (p.isMultiPolygon) {
+                      return sum + (p.coordinates as [number, number][][]).length;
+                    }
+                    return sum + 1;
+                  }, 0);
+                  
+                  return totalParts > 1 && onUnionPolygons && (
+                    <Button
+                      onClick={onUnionPolygons}
+                      size="icon"
+                      variant="outline"
+                      title={`Union all polygons - overlapping areas are dissolved into one`}
+                      className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                    >
+                      <GitMerge className="w-4 h-4" />
+                    </Button>
+                  );
+                })()}
+                
+                {/* Edit polygon buttons - two-column grid to prevent overflow */}
+                <div className="grid grid-cols-2 gap-1 w-full">
+                  {savedPolygons.map((polygon) => (
+                    <Button
+                      key={polygon.id}
+                      onClick={() => onEditPolygon && onEditPolygon(polygon.id)}
+                      size="icon"
+                      variant="outline"
+                      title={`Edit polygon ${polygon.id.slice(0, 8)}...`}
+                      className="border-green-300 text-green-700 hover:bg-green-50"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                  ))}
+                </div>
               </>
             )}
 
@@ -2700,61 +3125,346 @@ export function MapComponent({
             {editingPolygonId && (
               <>
                 <div className="w-full h-px bg-gray-200 my-1" />
-                <Button 
-                  onClick={() => onEditPolygon && onEditPolygon(editingPolygonId)}
-                  size="icon" 
-                  variant="default"
-                  title="Done editing"
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Check className="w-4 h-4" />
-                </Button>
-                <Button 
-                  onClick={() => setIsMoveToolActive(!isMoveToolActive)}
-                  size="icon" 
-                  variant={isMoveToolActive ? "default" : "outline"}
-                  title={isMoveToolActive ? "Disable move tool" : "Enable move tool - drag polygon to move"}
-                  className={isMoveToolActive ? "bg-blue-600 hover:bg-blue-700" : ""}
-                >
-                  <Hand className="w-5 h-5" />
-                </Button>
-                <Button 
-                  onClick={addMidpointVertices} 
-                  size="icon" 
-                  variant="outline"
-                  title="Add midpoint vertices to all edges"
-                >
-                  <GitBranch className="w-5 h-5" />
-                </Button>
-                <Button 
-                  onClick={removeMidpointVertices} 
-                  size="icon" 
-                  variant="outline"
-                  title="Remove alternating vertices"
-                >
-                  <Scissors className="w-5 h-5" />
-                </Button>
-                {onToggleInvert && (
-                  <Button 
-                    onClick={() => onToggleInvert(editingPolygonId)}
-                    size="icon" 
-                    variant="outline"
-                    title="Invert polygon (toggle inside/outside)"
-                  >
-                    <Repeat className="w-5 h-5" />
-                  </Button>
-                )}
-                {onDeletePolygon && (
-                  <Button 
-                    onClick={() => onDeletePolygon(editingPolygonId)}
-                    size="icon" 
-                    variant="outline"
-                    title="Delete polygon"
-                    className="hover:bg-red-50 hover:border-red-300 hover:text-red-600"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </Button>
-                )}
+                
+                {/* Two-column grid layout for editing tools */}
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Column 1 */}
+                  <div className="flex flex-col gap-2">
+                    <Button 
+                      onClick={() => onEditPolygon && onEditPolygon(editingPolygonId)}
+                      size="icon" 
+                      variant="default"
+                      title="Done editing"
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Check className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      onClick={() => setIsMoveToolActive(!isMoveToolActive)}
+                      size="icon" 
+                      variant={isMoveToolActive ? "default" : "outline"}
+                      title={isMoveToolActive ? "Disable move tool" : "Enable move tool - drag polygon to move"}
+                      className={isMoveToolActive ? "bg-blue-600 hover:bg-blue-700" : ""}
+                    >
+                      <Hand className="w-5 h-5" />
+                    </Button>
+                    <Button 
+                      onClick={addMidpointVertices} 
+                      size="icon" 
+                      variant="outline"
+                      title="Add midpoint vertices to all edges"
+                    >
+                      <GitBranch className="w-5 h-5" />
+                    </Button>
+                    <Button 
+                      onClick={removeMidpointVertices} 
+                      size="icon" 
+                      variant="outline"
+                      title="Remove alternating vertices"
+                    >
+                      <Scissors className="w-5 h-5" />
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        if (drawingMode === 'erase') {
+                          // Cancel erase mode if already active
+                          setDrawingMode('polygon');
+                          setIsDrawing(false);
+                          setDrawingPoints([]);
+                          toast.info('Erase mode cancelled');
+                        } else {
+                          // Activate erase mode - user will drag to define area
+                          setDrawingMode('erase');
+                          setIsDrawing(true);
+                          setDrawingPoints([]); // Clear any existing points
+                          toast.info('Erase mode active', {
+                            description: 'Drag on the map to select area to erase'
+                          });
+                        }
+                      }}
+                      size="icon" 
+                      variant={drawingMode === 'erase' && isDrawing ? "default" : "outline"}
+                      title={drawingMode === 'erase' ? "Cancel erase mode" : "Erase area - Drag to remove from polygon"}
+                      className={drawingMode === 'erase' && isDrawing ? "bg-red-600 hover:bg-red-700" : "border-red-300 text-red-600 hover:bg-red-50"}
+                      disabled={isErasing || isSubtractingOcean || isBuffering}
+                    >
+                      {isErasing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eraser className="w-5 h-5" />}
+                    </Button>
+                  </div>
+                  
+                  {/* Column 2 */}
+                  <div className="flex flex-col gap-2">
+                    {/* Ocean Subtraction in Edit Mode - Only for single polygons */}
+                    {!(() => {
+                      const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                      return polygon?.isMultiPolygon;
+                    })() && (
+                    <Button 
+                      onClick={async () => {
+                        if (!editingPolygonId) return;
+                        const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                        if (!polygon) return;
+                        
+                        // Get the coordinates from the polygon
+                        let coords: [number, number][] | null = null;
+                        if (Array.isArray(polygon.coordinates) && polygon.coordinates.length > 0) {
+                          if (Array.isArray(polygon.coordinates[0]) && typeof polygon.coordinates[0][0] === 'number') {
+                            coords = polygon.coordinates as [number, number][];
+                          }
+                        }
+                        
+                        if (!coords || coords.length < 3) {
+                          toast.error('Invalid polygon coordinates');
+                          return;
+                        }
+                        
+                        try {
+                          setIsSubtractingOcean(true);
+                          setPolygonBeforeSubtract([...coords]);
+                          
+                          const result = await subtractOceanFromPolygon(coords);
+                          
+                          if (!result) {
+                            toast.error('Polygon is entirely over ocean');
+                            setIsSubtractingOcean(false);
+                            return;
+                          }
+                          
+                          // Handle result - replace with all land polygons
+                          if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
+                            const polygons = result as [number, number][][];
+                            
+                            if (onSaveMultiplePolygons && onDeletePolygon) {
+                              // Delete the original polygon and save all land polygons as separate items
+                              onDeletePolygon(editingPolygonId);
+                              onSaveMultiplePolygons(polygons);
+                              
+                              // Exit edit mode when multiple polygons are created so user can see all pencils
+                              if (onStopEditing && polygons.length > 1) {
+                                onStopEditing();
+                              }
+                              
+                              toast.success(`Ocean subtracted - created ${polygons.length} land polygon${polygons.length > 1 ? 's' : ''}`, {
+                                description: polygons.length > 1 ? 'Each land area saved as a separate polygon' : `${polygons[0].length} vertices`
+                              });
+                            } else {
+                              // Fallback: keep largest polygon (old behavior)
+                              const largestPolygon = polygons.reduce((largest, current) => 
+                                current.length > largest.length ? current : largest
+                              , polygons[0]);
+                              
+                              onUpdatePolygon(editingPolygonId, largestPolygon);
+                              
+                              if (polygons.length > 1) {
+                                toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`);
+                              } else {
+                                toast.success('Ocean subtracted successfully');
+                              }
+                            }
+                          } else {
+                            const polygon = result as [number, number][];
+                            onUpdatePolygon(editingPolygonId, polygon);
+                            toast.success('Ocean subtracted successfully');
+                          }
+                        } catch (error) {
+                          console.error('Failed to subtract ocean:', error);
+                          toast.error('Failed to subtract ocean');
+                        } finally {
+                          setIsSubtractingOcean(false);
+                        }
+                      }}
+                      disabled={isSubtractingOcean}
+                      size="icon" 
+                      variant="outline"
+                      title="Subtract Ocean - Create land-only polygon (may ignore smaller land features)"
+                      className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                    >
+                      {isSubtractingOcean ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Waves className="w-5 h-5" />
+                      )}
+                    </Button>
+                    )}
+                    
+                    {/* Buffer Polygon in Edit Mode */}
+                    <Popover open={isBufferPopoverOpen} onOpenChange={setIsBufferPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button 
+                          size="icon" 
+                          variant="outline"
+                          title="Buffer Polygon - Expand or shrink by distance"
+                          className="border-purple-300 text-purple-600 hover:bg-purple-50"
+                          disabled={isBuffering}
+                        >
+                          {isBuffering ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            <Maximize2 className="w-5 h-5" />
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64" side="right" align="start">
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-sm mb-2">Buffer Distance</h4>
+                          
+                          <div className="grid grid-cols-3 gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, 50000);
+                                }
+                              }}
+                            >
+                              +50km
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, 100000);
+                                }
+                              }}
+                            >
+                              +100km
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, 500000);
+                                }
+                              }}
+                            >
+                              +500km
+                            </Button>
+                          </div>
+                          
+                          <div className="grid grid-cols-3 gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs text-orange-600 border-orange-300"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, -50000);
+                                }
+                              }}
+                            >
+                              -50km
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs text-orange-600 border-orange-300"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, -100000);
+                                }
+                              }}
+                            >
+                              -100km
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs text-orange-600 border-orange-300"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, -500000);
+                                }
+                              }}
+                            >
+                              -500km
+                            </Button>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    
+                    {/* Union button - exits edit mode and merges all polygons */}
+                    {(() => {
+                      // Count total polygon parts (including multipolygon parts)
+                      const totalParts = savedPolygons.reduce((sum, p) => {
+                        if (p.isMultiPolygon) {
+                          return sum + (p.coordinates as [number, number][][]).length;
+                        }
+                        return sum + 1;
+                      }, 0);
+                      
+                      return onUnionPolygons && totalParts > 1 && (
+                        <Button 
+                          onClick={() => {
+                            // Exit edit mode first
+                            if (onStopEditing) {
+                              onStopEditing();
+                            }
+                            // Then perform union
+                            onUnionPolygons();
+                          }}
+                          size="icon" 
+                          variant="outline"
+                          title="Union all polygons (merges overlapping areas)"
+                          className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                        >
+                          <GitMerge className="w-5 h-5" />
+                        </Button>
+                      );
+                    })()}
+                    
+                    {onToggleInvert && (
+                      <Button 
+                        onClick={() => onToggleInvert(editingPolygonId)}
+                        size="icon" 
+                        variant="outline"
+                        title="Invert polygon (toggle inside/outside)"
+                      >
+                        <Repeat className="w-5 h-5" />
+                      </Button>
+                    )}
+                    
+                    {/* Split Multi-Polygon button - only show for multi-polygons */}
+                    {onSplitMultiPolygon && (() => {
+                      const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                      return polygon?.isMultiPolygon && (
+                        <Button 
+                          onClick={() => onSplitMultiPolygon(editingPolygonId)}
+                          size="icon" 
+                          variant="outline"
+                          title="Split multi-polygon into separate polygons"
+                          className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                        >
+                          <Split className="w-5 h-5" />
+                        </Button>
+                      );
+                    })()}
+                    
+                    {onDeletePolygon && (
+                      <Button 
+                        onClick={() => onDeletePolygon(editingPolygonId)}
+                        size="icon" 
+                        variant="outline"
+                        title="Delete polygon"
+                        className="hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </>
             )}
           </>
@@ -2762,6 +3472,7 @@ export function MapComponent({
           <>
             <div className="px-2 py-1 text-xs text-gray-600 whitespace-nowrap">
               {drawingMode === 'polygon' && `${drawingPoints.length} pts`}
+              {drawingMode === 'erase' && 'Drag to erase area'}
               {drawingMode === 'latband' && 'Latitude band created'}
             </div>
             {drawingMode === 'polygon' && (
@@ -3496,4 +4207,5 @@ export function MapComponent({
     </div>
   );
 }
+
 

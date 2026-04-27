@@ -11,9 +11,15 @@ interface WKTFormProps {
   onPolygonChange: (polygon: [number, number][] | null) => void;
   isInverted?: boolean;
   onInvertedChange?: (inverted: boolean) => void;
+
 }
 
-export function WKTForm({ currentPolygon, onPolygonChange, isInverted = false, onInvertedChange }: WKTFormProps) {
+export function WKTForm({ 
+  currentPolygon, 
+  onPolygonChange, 
+  isInverted = false, 
+  onInvertedChange
+}: WKTFormProps) {
   const [copied, setCopied] = useState(false);
   const [wktInput, setWktInput] = useState('');
 
@@ -143,38 +149,40 @@ export function WKTForm({ currentPolygon, onPolygonChange, isInverted = false, o
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label>Polygon (WKT)</Label>
-          {currentPolygon && currentPolygon.length >= 3 && (
-            <div className="flex gap-1">
-              <Button
-                onClick={handleInvert}
-                variant={isInverted ? 'default' : 'outline'}
-                size="sm"
-                className="h-7"
-                title="Invert polygon (make it a hole in the world)"
-              >
-                <Repeat className="w-3 h-3 mr-1" />
-                Invert
-              </Button>
-              <Button
-                onClick={handleCopy}
-                variant="outline"
-                size="sm"
-                className="h-7"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-3 h-3 mr-1" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3 h-3 mr-1" />
-                    Copy
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
+          <div className="flex gap-1">
+            {currentPolygon && currentPolygon.length >= 3 && (
+              <>
+                <Button
+                  onClick={handleInvert}
+                  variant={isInverted ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-7"
+                  title="Invert polygon (make it a hole in the world)"
+                >
+                  <Repeat className="w-3 h-3 mr-1" />
+                  Invert
+                </Button>
+                <Button
+                  onClick={handleCopy}
+                  variant="outline"
+                  size="sm"
+                  className="h-7"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3 h-3 mr-1" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3 mr-1" />
+                      Copy
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
+          </div>
         </div>
         
         <Textarea
@@ -211,6 +219,7 @@ export function WKTForm({ currentPolygon, onPolygonChange, isInverted = false, o
           </p>
         </div>
       </div>
+
     </Card>
   );
 }

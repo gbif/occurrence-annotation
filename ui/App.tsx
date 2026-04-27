@@ -9,6 +9,7 @@ import { OccurrenceFilterOptions } from './components/OccurrenceFilters';
 import { toast } from 'sonner';
 import { getGbifApiUrl, getAnnotationApiUrl } from './utils/apiConfig';
 import { parseWKTGeometry } from './utils/wktParser';
+import { unionPolygons } from './utils/spatialOperations';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
@@ -92,6 +93,8 @@ export default function App() {
     { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
     { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
   ]);
+  
+  // Note: Countries are now converted to PolygonData when selected (no separate state)
 
   // URL state management functions - uses react-router's searchParams for HashRouter compatibility
   const updateURLWithSpecies = (species: SelectedSpecies | null) => {
@@ -530,9 +533,14 @@ export default function App() {
   }, []);
 
   const handleUpdatePolygon = useCallback((id: string, coordinates: [number, number][] | [number, number][][]) => {
-    setSavedPolygons(prev => prev.map(p => 
-      p.id === id ? { ...p, coordinates } : p
-    ));
+    setSavedPolygons(prev => prev.map(p => {
+      if (p.id === id) {
+        // Detect if coordinates are multipolygon
+        const isMultiPolygon = Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0]);
+        return { ...p, coordinates, isMultiPolygon };
+      }
+      return p;
+    }));
   }, []);
 
   const handleStopEditing = useCallback(() => {
@@ -625,6 +633,188 @@ export default function App() {
 
     setSavedPolygons([...savedPolygons, newPolygon]);
   }, [selectedSpecies, savedPolygons, currentAnnotation]);
+
+  const handleSaveMultiplePolygons = useCallback((polygons: [number, number][][]) => {
+    console.log('[App] handleSaveMultiplePolygons called with', polygons.length, 'polygons');
+    
+    const newPolygons: PolygonData[] = polygons.map((coords, index) => ({
+      id: `${Date.now()}-${index}`,
+      coordinates: coords,
+      species: selectedSpecies,
+      timestamp: new Date().toISOString(),
+      inverted: false,
+      annotation: currentAnnotation,
+      isMultiPolygon: false,
+    }));
+
+    setSavedPolygons(prev => [...prev, ...newPolygons]);
+    console.log('[App] Saved', newPolygons.length, 'land polygons');
+  }, [selectedSpecies, currentAnnotation]);
+
+  const handleMergeAllPolygons = useCallback(() => {
+    console.log('[App] handleMergeAllPolygons called with', savedPolygons.length, 'polygons');
+    
+    if (savedPolygons.length < 2) {
+      toast.error('Need at least 2 polygons to merge');
+      return;
+    }
+
+    // Collect all polygon coordinates
+    const allCoordinates: [number, number][][] = [];
+    
+    for (const polygon of savedPolygons) {
+      if (polygon.isMultiPolygon) {
+        // Already a multi-polygon, add all its parts
+        const coords = polygon.coordinates as [number, number][][];
+        allCoordinates.push(...coords);
+      } else {
+        // Single polygon, add it
+        allCoordinates.push(polygon.coordinates as [number, number][]);
+      }
+    }
+
+    // Create merged multi-polygon
+    const mergedPolygon: PolygonData = {
+      id: `merged-${Date.now()}`,
+      coordinates: allCoordinates,
+      species: selectedSpecies,
+      timestamp: new Date().toISOString(),
+      inverted: false,
+      annotation: currentAnnotation,
+      isMultiPolygon: true,
+    };
+
+    // Replace all polygons with the merged one
+    setSavedPolygons([mergedPolygon]);
+    
+    toast.success(`Merged ${savedPolygons.length} polygons into a single multi-polygon`, {
+      description: `Contains ${allCoordinates.length} polygon part${allCoordinates.length > 1 ? 's' : ''}`
+    });
+    
+    console.log('[App] Merged into multi-polygon with', allCoordinates.length, 'parts');
+  }, [savedPolygons, selectedSpecies, currentAnnotation]);
+
+  const handleSplitMultiPolygon = useCallback((id: string) => {
+    console.log('[App] handleSplitMultiPolygon called for polygon:', id);
+    
+    const polygon = savedPolygons.find(p => p.id === id);
+    
+    if (!polygon) {
+      toast.error('Polygon not found');
+      return;
+    }
+    
+    if (!polygon.isMultiPolygon) {
+      toast.error('This is not a multi-polygon');
+      return;
+    }
+    
+    const coords = polygon.coordinates as [number, number][][];
+    
+    if (coords.length < 2) {
+      toast.error('Multi-polygon only has one part');
+      return;
+    }
+    
+    // Create separate polygons for each part
+    const newPolygons: PolygonData[] = coords.map((partCoords, index) => ({
+      id: `${Date.now()}-split-${index}`,
+      coordinates: partCoords,
+      species: polygon.species,
+      timestamp: new Date().toISOString(),
+      inverted: polygon.inverted || false,
+      annotation: polygon.annotation,
+      isMultiPolygon: false,
+      initialFilters: polygon.initialFilters,
+      fromSearch: polygon.fromSearch,
+    }));
+    
+    // Replace the multi-polygon with separate polygons
+    setSavedPolygons(prev => [
+      ...prev.filter(p => p.id !== id),
+      ...newPolygons
+    ]);
+    
+    // Exit edit mode
+    setEditingPolygonId(null);
+    
+    toast.success(`Split multi-polygon into ${newPolygons.length} separate polygons`);
+    
+    console.log('[App] Split into', newPolygons.length, 'separate polygons');
+  }, [savedPolygons]);
+
+  const handleUnionPolygons = useCallback(async () => {
+    console.log('[App] handleUnionPolygons called with', savedPolygons.length, 'polygons');
+    
+    try {
+      // Collect all polygon coordinates
+      const allPolygonParts: [number, number][][] = [];
+      
+      for (const polygon of savedPolygons) {
+        if (polygon.isMultiPolygon) {
+          // Multi-polygon: add all its parts
+          const coords = polygon.coordinates as [number, number][][];
+          allPolygonParts.push(...coords);
+        } else {
+          // Single polygon: add it
+          allPolygonParts.push(polygon.coordinates as [number, number][]);
+        }
+      }
+
+      // Validate we have enough parts to union
+      if (allPolygonParts.length < 2) {
+        toast.error('Need at least 2 polygon parts to union');
+        return;
+      }
+
+      console.log(`Computing union of ${allPolygonParts.length} total polygon parts...`);
+      
+      // Compute geometric union
+      const result = unionPolygons(allPolygonParts);
+      
+      if (!result) {
+        toast.error('Union operation failed', {
+          description: 'Could not merge the polygons'
+        });
+        return;
+      }
+
+      // Create the unified polygon
+      const isMulti = Array.isArray(result[0]) && Array.isArray(result[0][0]);
+      
+      const unionedPolygon: PolygonData = {
+        id: `union-${Date.now()}`,
+        coordinates: result,
+        species: selectedSpecies,
+        timestamp: new Date().toISOString(),
+        inverted: false,
+        annotation: currentAnnotation,
+        isMultiPolygon: isMulti,
+      };
+
+      // Replace all polygons with the unified one
+      setSavedPolygons([unionedPolygon]);
+      
+      if (isMulti) {
+        const parts = result as [number, number][][];
+        toast.success(`Unioned ${savedPolygons.length} polygons`, {
+          description: `Result has ${parts.length} disconnected piece${parts.length > 1 ? 's' : ''}`
+        });
+      } else {
+        const vertices = (result as [number, number][]).length;
+        toast.success(`Unioned ${savedPolygons.length} polygons into one`, {
+          description: `${vertices} vertices`
+        });
+      }
+      
+      console.log('[App] Union completed, result is', isMulti ? 'multi-polygon' : 'single polygon');
+    } catch (error) {
+      console.error('Union operation error:', error);
+      toast.error('Failed to union polygons', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }, [savedPolygons, selectedSpecies, currentAnnotation]);
 
   const handleRuleSavedToGBIF = useCallback((savedPolygonId?: string) => {
     // Clear the current active polygon
@@ -972,6 +1162,10 @@ export default function App() {
         occurrenceFilters={occurrenceFilters}
         onFiltersChange={setOccurrenceFilters}
         onCreateRuleFromSearch={handleCreateRuleFromSearch}
+        onSaveMultiplePolygons={handleSaveMultiplePolygons}
+        onMergeAllPolygons={handleMergeAllPolygons}
+        onUnionPolygons={handleUnionPolygons}
+        onSplitMultiPolygon={handleSplitMultiPolygon}
         vocabulary={vocabulary}
       />
     </main>

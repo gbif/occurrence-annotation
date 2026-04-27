@@ -33,15 +33,6 @@ export const isAdmin = (): boolean => {
     const user = getUser();
     const hasRole = user?.roles?.includes('REGISTRY_ADMIN') ?? false;
     
-    // Debug logging
-    if (import.meta.env.DEV) {
-      console.log('🔐 Auth check:', {
-        user: user?.userName,
-        roles: user?.roles,
-        isAdmin: hasRole,
-      });
-    }
-    
     return hasRole;
   } catch (error) {
     console.error('Failed to check admin status:', error);

@@ -67,13 +67,28 @@ export function MiniMapPreview({
   const color = annotationColors[annotation.toUpperCase()] || annotationColors.SUSPICIOUS;
   
   // Convert coordinates from [lat, lng] (app format) to [lng, lat] (react-simple-maps format)
-  function toLngLat(coords: [number, number][]) {
-    return coords.map(([lat, lng]) => [lng, lat] as [number, number]);
+  function toLngLat(coords: [number, number][]): [number, number][] {
+    // Validate input
+    if (!Array.isArray(coords)) {
+      console.error('toLngLat: coords is not an array', coords);
+      return [];
+    }
+    
+    return coords
+      .filter(coord => {
+        // Filter out invalid coordinates
+        if (!Array.isArray(coord) || coord.length < 2) {
+          console.error('Invalid coordinate in toLngLat:', coord);
+          return false;
+        }
+        return true;
+      })
+      .map(([lat, lng]) => [lng, lat] as [number, number]);
   }
 
   // Calculate polygon size in projected coordinates to determine if it should be a dot
-  function getPolygonSize(ring: [number, number][]) {
-    if (ring.length === 0) return 0;
+  function getPolygonSize(ring: [number, number][]): number {
+    if (!Array.isArray(ring) || ring.length === 0) return 0;
     
     // Create projection
     const projection = geoMercator()
@@ -102,7 +117,7 @@ export function MiniMapPreview({
   // Calculate polygon centroid for dot placement
   // Note: ring coordinates are in [lng, lat] format (already converted by toLngLat)
   function getPolygonCentroid(ring: [number, number][]): [number, number] | null {
-    if (ring.length === 0) return null;
+    if (!Array.isArray(ring) || ring.length === 0) return null;
     
     // Calculate centroid - ring is already in [lng, lat] format
     const sumLng = ring.reduce((sum, [lng]) => sum + lng, 0);
@@ -113,11 +128,73 @@ export function MiniMapPreview({
     return [centroidLng, centroidLat]; // Return in [lng, lat] format
   }
 
+  // Validate coordinate structure
+  function validateCoordinates(coords: any): boolean {
+    if (!Array.isArray(coords)) return false;
+    
+    if (isMultiPolygon) {
+      // Should be [number, number][][]
+      return coords.every(ring => 
+        Array.isArray(ring) && 
+        ring.length >= 3 && 
+        ring.every(coord => 
+          Array.isArray(coord) && 
+          coord.length >= 2 && 
+          typeof coord[0] === 'number' && 
+          typeof coord[1] === 'number'
+        )
+      );
+    } else {
+      // Should be [number, number][]
+      return coords.length >= 3 && 
+        coords.every(coord => 
+          Array.isArray(coord) && 
+          coord.length >= 2 && 
+          typeof coord[0] === 'number' && 
+          typeof coord[1] === 'number'
+        );
+    }
+  }
+
+  // Validate coordinates before processing
+  if (!validateCoordinates(coordinates)) {
+    console.error('Invalid polygon coordinates in MiniMapPreview:', {
+      isMultiPolygon,
+      coordinates: JSON.stringify(coordinates).substring(0, 200)
+    });
+    return (
+      <div className={`border border-red-300 rounded overflow-hidden flex items-center justify-center ${className}`}
+           style={{ 
+             backgroundColor: '#fee', 
+             width: `${width}px`,
+             height: `${height}px`,
+             flexShrink: 0
+           }}>
+        <span className="text-xs text-red-600 px-2 text-center">Invalid polygon data</span>
+      </div>
+    );
+  }
+
   // Convert coordinates to the format expected by react-simple-maps
   const polygonCoordinates = isMultiPolygon
-    ? (coordinates as [number, number][][]).map(ring => toLngLat(ring))
-    : [toLngLat(coordinates as [number, number][])];
+    ? (coordinates as [number, number][][]).map(ring => toLngLat(ring)).filter(ring => ring.length >= 3)
+    : [toLngLat(coordinates as [number, number][])].filter(ring => ring.length >= 3);
 
+  // If no valid polygons after filtering, show error
+  if (polygonCoordinates.length === 0 || polygonCoordinates.every(ring => ring.length < 3)) {
+    console.error('No valid polygon rings after conversion in MiniMapPreview');
+    return (
+      <div className={`border border-red-300 rounded overflow-hidden flex items-center justify-center ${className}`}
+           style={{ 
+             backgroundColor: '#fee', 
+             width: `${width}px`,
+             height: `${height}px`,
+             flexShrink: 0
+           }}>
+        <span className="text-xs text-red-600 px-2 text-center">Invalid polygon data</span>
+      </div>
+    );
+  }
   return (
     <div className={`border border-gray-200 rounded overflow-hidden ${className}`}
          style={{ 
