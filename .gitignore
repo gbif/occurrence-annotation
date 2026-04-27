@@ -11,6 +11,8 @@ r-package/boundary-polygons/cache/
 r-package/boundary-polygons/isea3h-data/
 r-package/boundary-polygons/natural-earth-data/
 r-package/boundary-polygons/output/
+r-package/boundary-polygons/generate_ocean_polygon.R
+r-package/boundary-polygons/README.md
 
 # R script artifacts (when run from root)
 cache/

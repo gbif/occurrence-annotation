@@ -8,14 +8,14 @@ import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown, Waves, Bot, Combine, GitMerge, Split, Maximize2 } from 'lucide-react';
+import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown, Waves, Bot, Combine, GitMerge, Split, Maximize2, Eraser } from 'lucide-react';
 import { AnnotationRule } from './AnnotationRules';
 import { LocationQualityPanel } from './LocationQualityPanel';
 import { isAdmin } from '../utils/authHelpers';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
 import { parseWKTGeometry } from '../utils/wktParser';
-import { subtractOceanFromPolygon, bufferPolygon, bufferMultiPolygon } from '../utils/spatialOperations';
+import { subtractOceanFromPolygon, bufferPolygon, bufferMultiPolygon, eraseFromPolygon } from '../utils/spatialOperations';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Input } from './ui/input';
 
@@ -138,7 +138,7 @@ export function MapComponent({
   const [isEditingCurrent, setIsEditingCurrent] = useState(false);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [drawingMode, setDrawingMode] = useState<'polygon' | 'rectangle' | 'latband'>('polygon');
+  const [drawingMode, setDrawingMode] = useState<'polygon' | 'rectangle' | 'latband' | 'erase'>('polygon');
   const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
   const [latBandStart, setLatBandStart] = useState<number | null>(null);
   
@@ -155,6 +155,9 @@ export function MapComponent({
   // Buffer polygon state
   const [isBufferPopoverOpen, setIsBufferPopoverOpen] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
+  
+  // Erase operation state
+  const [isErasing, setIsErasing] = useState(false);
   
   // ArcGIS API Key from environment
   const arcgisApiKey = import.meta.env.VITE_ARCGIS_API_KEY || '';
@@ -543,6 +546,15 @@ export function MapComponent({
     // Clear tiles on significant zoom changes to improve performance
     setGbifTiles([]);
   }, [zoom]);
+
+  // Reset erase mode when exiting edit mode
+  useEffect(() => {
+    if (!editingPolygonId && drawingMode === 'erase') {
+      setDrawingMode('polygon');
+      setIsDrawing(false);
+      setDrawingPoints([]);
+    }
+  }, [editingPolygonId, drawingMode]);
 
   // Investigate area function
   const investigateArea = async (lat: number, lng: number) => {
@@ -935,8 +947,8 @@ export function MapComponent({
       return;
     }
     
-    if (drawingMode === 'rectangle' && pointsToUse.length !== 2) {
-      alert('Please click two opposite corners to create a rectangle');
+    if ((drawingMode === 'rectangle' || drawingMode === 'erase') && pointsToUse.length !== 2) {
+      alert('Please drag to define the area');
       return;
     }
     
@@ -950,8 +962,8 @@ export function MapComponent({
     
     let finalPoints = pointsToUse;
     
-    // Convert rectangle to polygon (4 corners)
-    if (drawingMode === 'rectangle' && pointsToUse.length === 2) {
+    // Convert rectangle/erase area to polygon (4 corners)
+    if ((drawingMode === 'rectangle' || drawingMode === 'erase') && pointsToUse.length === 2) {
       const [p1, p2] = pointsToUse;
       finalPoints = [
         [p1[0], p1[1]], // top-left
@@ -959,6 +971,56 @@ export function MapComponent({
         [p2[0], p2[1]], // bottom-right
         [p2[0], p1[1]], // bottom-left
       ];
+    }
+    
+    // Handle erase mode - subtract drawn area from edited polygon
+    if (drawingMode === 'erase' && editingPolygonId && onUpdatePolygon) {
+      const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+      if (polygon) {
+        try {
+          setIsErasing(true);
+          
+          // Show info toast during operation
+          toast.info('Erasing area from polygon...');
+          
+          const result = eraseFromPolygon(polygon.coordinates, finalPoints);
+          
+          if (!result) {
+            toast.error('Erase resulted in empty polygon', {
+              description: 'The entire polygon was erased'
+            });
+            // Optionally delete the polygon if completely erased
+            if (onDeletePolygon) {
+              onDeletePolygon(editingPolygonId);
+            }
+          } else {
+            onUpdatePolygon(editingPolygonId, result);
+            
+            // Check if result is multi-polygon
+            const isMulti = Array.isArray(result[0]) && Array.isArray(result[0][0]);
+            if (isMulti) {
+              const parts = result as [number, number][][];
+              toast.success(`Erased area from polygon`, {
+                description: `${parts.length} piece${parts.length > 1 ? 's' : ''} remaining`
+              });
+            } else {
+              toast.success('Erased area from polygon');
+            }
+          }
+        } catch (error) {
+          console.error('Erase operation failed:', error);
+          toast.error('Erase operation failed', {
+            description: error instanceof Error ? error.message : 'An error occurred during erase'
+          });
+        } finally {
+          setIsErasing(false);
+        }
+      }
+      
+      setDrawingPoints([]);
+      setIsDrawing(false);
+      setDrawingMode('polygon'); // Reset to polygon mode after erase
+      return;
     }
     
     // Auto-save the polygon immediately
@@ -979,6 +1041,12 @@ export function MapComponent({
     setDragStart(null);
     setDragCurrent(null);
     setShowLatBandControls(false);
+    
+    // Reset drawing mode if in erase mode
+    if (drawingMode === 'erase') {
+      setDrawingMode('polygon');
+      toast.info('Erase mode cancelled');
+    }
     
     // Clear current polygon if it was a latitude band
     if (drawingMode === 'latband') {
@@ -1404,7 +1472,7 @@ export function MapComponent({
     if (draggingVertex) return;
     
     if (!isDrawing) return;
-    if (drawingMode !== 'rectangle') return; // Only for rectangle mode
+    if (drawingMode !== 'rectangle' && drawingMode !== 'erase') return; // For rectangle and erase modes
     
     const rect = mapContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -1662,9 +1730,9 @@ export function MapComponent({
   };
 
   const handleOverlayMouseUp = () => {
-    // Handle rectangle creation
+    // Handle rectangle/erase area creation
     if (isDraggingShape && dragStart && dragCurrent) {
-      // Only create rectangle if drag was significant (more than 5 pixels)
+      // Only create rectangle/erase if drag was significant (more than 5 pixels)
       const rect = mapContainerRef.current?.getBoundingClientRect();
       if (rect) {
         const [x1, y1] = latLngToPixel(dragStart[0], dragStart[1]);
@@ -1694,7 +1762,7 @@ export function MapComponent({
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (!isDrawing) return;
-    if (drawingMode === 'rectangle') return; // Rectangle uses drag instead
+    if (drawingMode === 'rectangle' || drawingMode === 'erase') return; // Rectangle and erase use drag instead
     
     // Get click position relative to map container
     const rect = mapContainerRef.current?.getBoundingClientRect();
@@ -2520,20 +2588,21 @@ export function MapComponent({
 
           {/* Non-transformed group for current drawing - uses current view coords */}
           <g>
-            {/* Drag preview for rectangle */}
+            {/* Drag preview for rectangle/erase */}
             {isDraggingShape && dragStart && dragCurrent && (
               (() => {
                 const [x1, y1] = latLngToPixel(dragStart[0], dragStart[1]);
                 const [x2, y2] = latLngToPixel(dragCurrent[0], dragCurrent[1]);
+                const isEraseMode = drawingMode === 'erase';
                 return (
                   <rect
                     x={Math.min(x1, x2)}
                     y={Math.min(y1, y2)}
                     width={Math.abs(x2 - x1)}
                     height={Math.abs(y2 - y1)}
-                    fill="#3b82f6"
-                    fillOpacity="0.1"
-                    stroke="#3b82f6"
+                    fill={isEraseMode ? "#ef4444" : "#3b82f6"}
+                    fillOpacity="0.2"
+                    stroke={isEraseMode ? "#ef4444" : "#3b82f6"}
                     strokeWidth="2"
                     strokeDasharray="5,5"
                   />
@@ -2541,10 +2610,10 @@ export function MapComponent({
               })()
             )}
 
-            {/* Drawing preview */}
-            {drawingPoints.length > 0 && (
+            {/* Drawing preview - only for polygon mode */}
+            {drawingPoints.length > 0 && drawingMode === 'polygon' && (
               <>
-                {drawingMode === 'polygon' && drawingPoints.length > 1 && (
+                {drawingPoints.length > 1 && (
                   <polyline
                     points={drawingPoints.map(([lat, lng]) => {
                       const [x, y] = latLngToPixel(lat, lng);
@@ -2556,28 +2625,11 @@ export function MapComponent({
                     strokeDasharray="5,5"
                   />
                 )}
-                {drawingMode === 'rectangle' && drawingPoints.length === 2 && (() => {
-                  const [p1, p2] = drawingPoints;
-                  const [x1, y1] = latLngToPixel(p1[0], p1[1]);
-                  const [x2, y2] = latLngToPixel(p2[0], p2[1]);
-                  return (
-                    <rect
-                      x={Math.min(x1, x2)}
-                      y={Math.min(y1, y2)}
-                      width={Math.abs(x2 - x1)}
-                      height={Math.abs(y2 - y1)}
-                      fill="none"
-                      stroke="#3b82f6"
-                      strokeWidth="2"
-                      strokeDasharray="5,5"
-                    />
-                  );
-                })()}
               </>
             )}
 
-            {/* Drawing Points */}
-            {drawingPoints.map((point, index) => {
+            {/* Drawing Points - only show for polygon mode */}
+            {drawingMode === 'polygon' && drawingPoints.map((point, index) => {
               const [x, y] = latLngToPixel(point[0], point[1]);
               return (
                 <g key={`drawing-${index}`}>
@@ -3029,30 +3081,43 @@ export function MapComponent({
                 )}
                 
                 {/* Union button - dissolves overlapping boundaries */}
-                {savedPolygons.length > 1 && onUnionPolygons && (
-                  <Button
-                    onClick={onUnionPolygons}
-                    size="icon"
-                    variant="outline"
-                    title={`Union all ${savedPolygons.length} polygons - overlapping areas are dissolved into one`}
-                    className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
-                  >
-                    <GitMerge className="w-4 h-4" />
-                  </Button>
-                )}
+                {(() => {
+                  // Count total polygon parts (including multipolygon parts)
+                  const totalParts = savedPolygons.reduce((sum, p) => {
+                    if (p.isMultiPolygon) {
+                      return sum + (p.coordinates as [number, number][][]).length;
+                    }
+                    return sum + 1;
+                  }, 0);
+                  
+                  return totalParts > 1 && onUnionPolygons && (
+                    <Button
+                      onClick={onUnionPolygons}
+                      size="icon"
+                      variant="outline"
+                      title={`Union all polygons - overlapping areas are dissolved into one`}
+                      className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                    >
+                      <GitMerge className="w-4 h-4" />
+                    </Button>
+                  );
+                })()}
                 
-                {savedPolygons.map((polygon) => (
-                  <Button
-                    key={polygon.id}
-                    onClick={() => onEditPolygon && onEditPolygon(polygon.id)}
-                    size="icon"
-                    variant="outline"
-                    title={`Edit polygon ${polygon.id.slice(0, 8)}...`}
-                    className="border-green-300 text-green-700 hover:bg-green-50"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                ))}
+                {/* Edit polygon buttons - two-column grid to prevent overflow */}
+                <div className="grid grid-cols-2 gap-1 w-full">
+                  {savedPolygons.map((polygon) => (
+                    <Button
+                      key={polygon.id}
+                      onClick={() => onEditPolygon && onEditPolygon(polygon.id)}
+                      size="icon"
+                      variant="outline"
+                      title={`Edit polygon ${polygon.id.slice(0, 8)}...`}
+                      className="border-green-300 text-green-700 hover:bg-green-50"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                  ))}
+                </div>
               </>
             )}
 
@@ -3099,11 +3164,41 @@ export function MapComponent({
                     >
                       <Scissors className="w-5 h-5" />
                     </Button>
+                    <Button 
+                      onClick={() => {
+                        if (drawingMode === 'erase') {
+                          // Cancel erase mode if already active
+                          setDrawingMode('polygon');
+                          setIsDrawing(false);
+                          setDrawingPoints([]);
+                          toast.info('Erase mode cancelled');
+                        } else {
+                          // Activate erase mode - user will drag to define area
+                          setDrawingMode('erase');
+                          setIsDrawing(true);
+                          setDrawingPoints([]); // Clear any existing points
+                          toast.info('Erase mode active', {
+                            description: 'Drag on the map to select area to erase'
+                          });
+                        }
+                      }}
+                      size="icon" 
+                      variant={drawingMode === 'erase' && isDrawing ? "default" : "outline"}
+                      title={drawingMode === 'erase' ? "Cancel erase mode" : "Erase area - Drag to remove from polygon"}
+                      className={drawingMode === 'erase' && isDrawing ? "bg-red-600 hover:bg-red-700" : "border-red-300 text-red-600 hover:bg-red-50"}
+                      disabled={isErasing || isSubtractingOcean || isBuffering}
+                    >
+                      {isErasing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eraser className="w-5 h-5" />}
+                    </Button>
                   </div>
                   
                   {/* Column 2 */}
                   <div className="flex flex-col gap-2">
-                    {/* Ocean Subtraction in Edit Mode */}
+                    {/* Ocean Subtraction in Edit Mode - Only for single polygons */}
+                    {!(() => {
+                      const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                      return polygon?.isMultiPolygon;
+                    })() && (
                     <Button 
                       onClick={async () => {
                         if (!editingPolygonId) return;
@@ -3143,6 +3238,11 @@ export function MapComponent({
                               // Delete the original polygon and save all land polygons as separate items
                               onDeletePolygon(editingPolygonId);
                               onSaveMultiplePolygons(polygons);
+                              
+                              // Exit edit mode when multiple polygons are created so user can see all pencils
+                              if (onStopEditing && polygons.length > 1) {
+                                onStopEditing();
+                              }
                               
                               toast.success(`Ocean subtracted - created ${polygons.length} land polygon${polygons.length > 1 ? 's' : ''}`, {
                                 description: polygons.length > 1 ? 'Each land area saved as a separate polygon' : `${polygons[0].length} vertices`
@@ -3185,6 +3285,7 @@ export function MapComponent({
                         <Waves className="w-5 h-5" />
                       )}
                     </Button>
+                    )}
                     
                     {/* Buffer Polygon in Edit Mode */}
                     <Popover open={isBufferPopoverOpen} onOpenChange={setIsBufferPopoverOpen}>
@@ -3294,6 +3395,36 @@ export function MapComponent({
                       </PopoverContent>
                     </Popover>
                     
+                    {/* Union button - exits edit mode and merges all polygons */}
+                    {(() => {
+                      // Count total polygon parts (including multipolygon parts)
+                      const totalParts = savedPolygons.reduce((sum, p) => {
+                        if (p.isMultiPolygon) {
+                          return sum + (p.coordinates as [number, number][][]).length;
+                        }
+                        return sum + 1;
+                      }, 0);
+                      
+                      return onUnionPolygons && totalParts > 1 && (
+                        <Button 
+                          onClick={() => {
+                            // Exit edit mode first
+                            if (onStopEditing) {
+                              onStopEditing();
+                            }
+                            // Then perform union
+                            onUnionPolygons();
+                          }}
+                          size="icon" 
+                          variant="outline"
+                          title="Union all polygons (merges overlapping areas)"
+                          className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                        >
+                          <GitMerge className="w-5 h-5" />
+                        </Button>
+                      );
+                    })()}
+                    
                     {onToggleInvert && (
                       <Button 
                         onClick={() => onToggleInvert(editingPolygonId)}
@@ -3341,6 +3472,7 @@ export function MapComponent({
           <>
             <div className="px-2 py-1 text-xs text-gray-600 whitespace-nowrap">
               {drawingMode === 'polygon' && `${drawingPoints.length} pts`}
+              {drawingMode === 'erase' && 'Drag to erase area'}
               {drawingMode === 'latband' && 'Latitude band created'}
             </div>
             {drawingMode === 'polygon' && (

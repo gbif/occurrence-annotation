@@ -24,6 +24,12 @@ async function loadOceanPolygon(): Promise<MultiPolygon | null> {
 
   try {
     const response = await fetch('/country_polygons.json');
+    
+    if (!response.ok) {
+      console.error(`Failed to fetch ocean polygon: ${response.status} ${response.statusText} - ${response.url}`);
+      return null;
+    }
+    
     const boundaries = await response.json();
     
     // Find the Ocean boundary
@@ -201,6 +207,7 @@ export function bufferPolygon(
   try {
     if (!userPolygon || userPolygon.length < 3) {
       console.error('Invalid polygon for buffering');
+      console.timeEnd('buffer-polygon');
       return null;
     }
 
@@ -219,6 +226,7 @@ export function bufferPolygon(
     
     if (hasInvalidCoords) {
       console.error('Input polygon contains invalid coordinates (lat must be -90 to 90, lng must be -180 to 180)');
+      console.timeEnd('buffer-polygon');
       return null;
     }
 
@@ -497,5 +505,262 @@ export function unionPolygons(
     console.error('Error during polygon union:', error);
     console.timeEnd('union-polygons');
     return null;
+  }
+}
+
+/**
+ * Erase (subtract) an area from a polygon
+ * The eraseArea is removed from the targetPolygon
+ * 
+ * @param targetPolygon - Polygon to erase from in [lat, lng][] or [lat, lng][][] format
+ * @param eraseArea - Area to erase in [lat, lng][] format
+ * @returns Modified polygon(s) or null if operation fails
+ *          - Single polygon: [lat, lng][]
+ *          - Multiple disconnected pieces: [lat, lng][][]
+ *          - Completely erased: null
+ */
+export function eraseFromPolygon(
+  targetPolygon: [number, number][] | [number, number][][],
+  eraseArea: [number, number][]
+): [number, number][] | [number, number][][] | null {
+  console.time('erase-polygon');
+  
+  try {
+    if (!targetPolygon || !eraseArea || eraseArea.length < 3) {
+      console.error('Invalid input for erase operation');
+      return null;
+    }
+
+    console.log('Computing erase operation...');
+
+    // Check polygon complexity and simplify if necessary
+    const isMulti = Array.isArray(targetPolygon[0]) && Array.isArray(targetPolygon[0][0]);
+    let totalVertices = 0;
+    
+    if (isMulti) {
+      const parts = targetPolygon as [number, number][][];
+      totalVertices = parts.reduce((sum, part) => sum + part.length, 0);
+    } else {
+      totalVertices = (targetPolygon as [number, number][]).length;
+    }
+    
+    console.log(`Target polygon has ${totalVertices} total vertices`);
+    
+    // Safeguard: Reject extremely complex polygons to prevent crashes
+    if (totalVertices > 5000) {
+      console.error(`Polygon too complex for erase operation: ${totalVertices} vertices (max 5000)`);
+      throw new Error('Polygon has too many vertices for erase operation. Try simplifying first.');
+    }
+    
+    // Simplify if polygon is moderately complex (500-5000 vertices)
+    let processedTarget = targetPolygon;
+    if (totalVertices > 500) {
+      console.log('Simplifying polygon before erase operation...');
+      
+      try {
+        if (isMulti) {
+          const parts = targetPolygon as [number, number][][];
+          const simplifiedParts: [number, number][][] = [];
+          
+          for (const part of parts) {
+            // Skip invalid parts
+            if (!Array.isArray(part) || part.length < 3) {
+              console.warn('Skipping invalid polygon part during simplification');
+              continue;
+            }
+            
+            // Convert to GeoJSON for simplification
+            const geoJson = {
+              type: 'Feature' as const,
+              geometry: {
+                type: 'Polygon' as const,
+                coordinates: [part.map(coord => {
+                  if (!Array.isArray(coord) || coord.length < 2) {
+                    throw new Error('Invalid coordinate in polygon part');
+                  }
+                  const [lat, lng] = coord;
+                  return [lng, lat];
+                })]
+              },
+              properties: {}
+            };
+            
+            const simplified = simplify(geoJson, { tolerance: 0.001, highQuality: false, mutate: false });
+            
+            // Validate simplified result
+            if (!simplified?.geometry?.coordinates?.[0] || !Array.isArray(simplified.geometry.coordinates[0])) {
+              console.warn('Simplification returned invalid structure, using original part');
+              simplifiedParts.push(part);
+              continue;
+            }
+            
+            const simplifiedCoords = simplified.geometry.coordinates[0].map(coord => {
+              if (!Array.isArray(coord) || coord.length < 2) {
+                throw new Error('Invalid coordinate in simplified result');
+              }
+              const [lng, lat] = coord;
+              return [lat, lng] as [number, number];
+            });
+            
+            // Ensure we have at least 3 coordinates
+            if (simplifiedCoords.length < 3) {
+              console.warn('Simplified polygon has too few vertices, using original');
+              simplifiedParts.push(part);
+            } else {
+              simplifiedParts.push(simplifiedCoords);
+            }
+          }
+          
+          if (simplifiedParts.length === 0) {
+            console.warn('No valid parts after simplification, using original');
+            processedTarget = targetPolygon;
+          } else {
+            processedTarget = simplifiedParts;
+            const newTotal = simplifiedParts.reduce((sum, part) => sum + part.length, 0);
+            console.log(`Simplified multi-polygon from ${totalVertices} to ${newTotal} vertices`);
+          }
+        } else {
+          const coords = targetPolygon as [number, number][];
+          
+          // Validate input
+          if (!Array.isArray(coords) || coords.length < 3) {
+            throw new Error('Invalid polygon coordinates for simplification');
+          }
+          
+          // Convert to GeoJSON for simplification
+          const geoJson = {
+            type: 'Feature' as const,
+            geometry: {
+              type: 'Polygon' as const,
+              coordinates: [coords.map(coord => {
+                if (!Array.isArray(coord) || coord.length < 2) {
+                  throw new Error('Invalid coordinate in polygon');
+                }
+                const [lat, lng] = coord;
+                return [lng, lat];
+              })]
+            },
+            properties: {}
+          };
+          
+          const simplified = simplify(geoJson, { tolerance: 0.001, highQuality: false, mutate: false });
+          
+          // Validate simplified result
+          if (!simplified?.geometry?.coordinates?.[0] || !Array.isArray(simplified.geometry.coordinates[0])) {
+            throw new Error('Simplification returned invalid structure');
+          }
+          
+          const simplifiedCoords = simplified.geometry.coordinates[0].map(coord => {
+            if (!Array.isArray(coord) || coord.length < 2) {
+              throw new Error('Invalid coordinate in simplified result');
+            }
+            const [lng, lat] = coord;
+            return [lat, lng] as [number, number];
+          });
+          
+          // Ensure we have at least 3 coordinates
+          if (simplifiedCoords.length < 3) {
+            console.warn('Simplified polygon has too few vertices, using original');
+            processedTarget = targetPolygon;
+          } else {
+            processedTarget = simplifiedCoords;
+            console.log(`Simplified polygon from ${totalVertices} to ${simplifiedCoords.length} vertices`);
+          }
+        }
+      } catch (simplifyError) {
+        console.warn('Simplification failed, proceeding with original polygon:', simplifyError);
+        processedTarget = targetPolygon;
+      }
+    }
+
+    // Convert erase area to polygon-clipping format
+    const erasePoly: Polygon = coordinatesToPolygon(eraseArea);
+
+    // Check if target is multipolygon
+    const targetIsMulti = Array.isArray(processedTarget[0]) && Array.isArray(processedTarget[0][0]);
+    
+    let result: MultiPolygon;
+    
+    if (targetIsMulti) {
+      // Target is multi-polygon - erase from all parts
+      const targetParts = processedTarget as [number, number][][];
+      const targetPolys: Polygon[] = targetParts.map(part => coordinatesToPolygon(part));
+      
+      console.log(`Erasing from multi-polygon with ${targetParts.length} parts`);
+      
+      // Compute difference for each part and combine results
+      const results: MultiPolygon = [];
+      for (const targetPoly of targetPolys) {
+        try {
+          const partResult = polygonClipping.difference(targetPoly, erasePoly);
+          if (partResult && partResult.length > 0) {
+            results.push(...partResult);
+          }
+        } catch (partError) {
+          console.warn('Failed to erase from one polygon part, skipping:', partError);
+          // Keep the original part if erase fails
+          results.push([targetPoly[0]]);
+        }
+      }
+      result = results;
+    } else {
+      // Target is single polygon
+      const targetPoly: Polygon = coordinatesToPolygon(processedTarget as [number, number][]);
+      console.log(`Erasing from single polygon with ${(processedTarget as [number, number][]).length} vertices`);
+      
+      // Compute difference using polygon-clipping
+      result = polygonClipping.difference(targetPoly, erasePoly);
+    }
+    
+    if (!result || result.length === 0) {
+      console.log('Erase result: Polygon completely erased');
+      console.timeEnd('erase-polygon');
+      return null;
+    }
+
+    console.log(`Erase result: ${result.length} polygon piece(s)`);
+    
+    // Convert result back to app format
+    const erasedPolygon = polygonToCoordinates(result);
+    
+    // Validate the result structure before returning
+    if (erasedPolygon) {
+      const isResultMulti = Array.isArray(erasedPolygon[0]) && Array.isArray(erasedPolygon[0][0]);
+      
+      if (isResultMulti) {
+        // MultiPolygon result - validate each part
+        const parts = erasedPolygon as [number, number][][];
+        for (const part of parts) {
+          if (!Array.isArray(part) || part.length < 3) {
+            throw new Error('Invalid polygon part in result: insufficient vertices');
+          }
+          for (const coord of part) {
+            if (!Array.isArray(coord) || coord.length < 2 || typeof coord[0] !== 'number' || typeof coord[1] !== 'number') {
+              throw new Error('Invalid coordinate in result polygon');
+            }
+          }
+        }
+        console.log(`Erase succeeded: ${parts.length} disconnected piece${parts.length > 1 ? 's' : ''}`);
+      } else {
+        // Single polygon result - validate coordinates
+        const coords = erasedPolygon as [number, number][];
+        if (!Array.isArray(coords) || coords.length < 3) {
+          throw new Error('Invalid result polygon: insufficient vertices');
+        }
+        for (const coord of coords) {
+          if (!Array.isArray(coord) || coord.length < 2 || typeof coord[0] !== 'number' || typeof coord[1] !== 'number') {
+            throw new Error('Invalid coordinate in result polygon');
+          }
+        }
+        console.log(`Erase succeeded: ${coords.length} vertices`);
+      }
+    }
+    
+    console.timeEnd('erase-polygon');
+    return erasedPolygon;
+  } catch (error) {
+    console.error('Error during erase operation:', error);
+    console.timeEnd('erase-polygon');
+    throw error; // Re-throw to allow caller to handle
   }
 }
