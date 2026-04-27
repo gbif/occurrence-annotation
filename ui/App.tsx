@@ -533,9 +533,14 @@ export default function App() {
   }, []);
 
   const handleUpdatePolygon = useCallback((id: string, coordinates: [number, number][] | [number, number][][]) => {
-    setSavedPolygons(prev => prev.map(p => 
-      p.id === id ? { ...p, coordinates } : p
-    ));
+    setSavedPolygons(prev => prev.map(p => {
+      if (p.id === id) {
+        // Detect if coordinates are multipolygon
+        const isMultiPolygon = Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0]);
+        return { ...p, coordinates, isMultiPolygon };
+      }
+      return p;
+    }));
   }, []);
 
   const handleStopEditing = useCallback(() => {
@@ -741,11 +746,6 @@ export default function App() {
   const handleUnionPolygons = useCallback(async () => {
     console.log('[App] handleUnionPolygons called with', savedPolygons.length, 'polygons');
     
-    if (savedPolygons.length < 2) {
-      toast.error('Need at least 2 polygons to union');
-      return;
-    }
-
     try {
       // Collect all polygon coordinates
       const allPolygonParts: [number, number][][] = [];
@@ -759,6 +759,12 @@ export default function App() {
           // Single polygon: add it
           allPolygonParts.push(polygon.coordinates as [number, number][]);
         }
+      }
+
+      // Validate we have enough parts to union
+      if (allPolygonParts.length < 2) {
+        toast.error('Need at least 2 polygon parts to union');
+        return;
       }
 
       console.log(`Computing union of ${allPolygonParts.length} total polygon parts...`);
