@@ -14,7 +14,7 @@ type MultiPolygon = Polygon[];
 let oceanPolygonCache: MultiPolygon | null = null;
 
 /**
- * Load the Ocean polygon from country_polygons.json
+ * Load the Ocean polygon from ocean_polygon.json
  * Returns MultiPolygon in polygon-clipping format: [[[lng, lat], ...], ...][]
  */
 async function loadOceanPolygon(): Promise<MultiPolygon | null> {
@@ -23,7 +23,7 @@ async function loadOceanPolygon(): Promise<MultiPolygon | null> {
   }
 
   try {
-    const response = await fetch('/country_polygons.json');
+    const response = await fetch('/ocean_polygon.json');
     
     if (!response.ok) {
       console.error(`Failed to fetch ocean polygon: ${response.status} ${response.statusText} - ${response.url}`);
@@ -38,7 +38,7 @@ async function loadOceanPolygon(): Promise<MultiPolygon | null> {
     );
     
     if (!oceanBoundary || !oceanBoundary.wkt) {
-      console.error('Ocean boundary not found in country_polygons.json');
+      console.error('Ocean boundary not found in ocean_polygon.json');
       return null;
     }
 
