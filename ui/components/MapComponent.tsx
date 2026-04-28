@@ -2509,6 +2509,43 @@ export function MapComponent({
 
       </Map>
 
+      {/* Map Attribution */}
+      <div className="absolute bottom-2 right-2 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded shadow-md text-xs text-gray-700 z-[200]">
+        <div className="flex items-center gap-1">
+          <span>Map tiles ©</span>
+          {baseMapStyle.startsWith('arcgis-') ? (
+            <a 
+              href="https://www.esri.com" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-blue-600 hover:underline font-medium"
+            >
+              Esri
+            </a>
+          ) : (
+            <>
+              <a 
+                href="https://www.gbif.org" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-blue-600 hover:underline font-medium"
+              >
+                GBIF
+              </a>
+              <span>|</span>
+              <a 
+                href="https://openmaptiles.org" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-blue-600 hover:underline font-medium"
+              >
+                OpenMapTiles
+              </a>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* Click capture layer for drawing when overlays are present */}
       {isDrawing && (
         <div 
