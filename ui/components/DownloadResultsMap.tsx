@@ -362,6 +362,30 @@ export function DownloadResultsMap({
             </Overlay>
           ))}
         </PigeonMap>
+        
+        {/* Map Attribution */}
+        <div className="absolute bottom-2 right-2 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded shadow-md text-xs text-gray-700 z-[200]">
+          <div className="flex items-center gap-1">
+            <span>Map tiles ©</span>
+            <a 
+              href="https://www.gbif.org" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-blue-600 hover:underline font-medium"
+            >
+              GBIF
+            </a>
+            <span>|</span>
+            <a 
+              href="https://openmaptiles.org" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-blue-600 hover:underline font-medium"
+            >
+              OpenMapTiles
+            </a>
+          </div>
+        </div>
       </div>
 
       {/* Active Rules Panel */}
