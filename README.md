@@ -92,7 +92,7 @@ d <- occ_download_get('0004693-260120142942310') %>%
 clean_download(d)
 ```
 
-[See full R package tutorial](https://gbif.github.io/occurrence-annotation/gbifrules/articles/getting-started.html) | [R Package Documentation](https://gbif.github.io/occurrence-annotation/gbifrules/)
+[Documentation](https://gbif.github.io/occurrence-annotation/gbifrules/) | 
 
 ## Related Resources
 
