@@ -63,6 +63,7 @@ interface MapComponentProps {
   editedRuleGeometry?: [number, number][] | [number, number][][] | null;
   onUpdateRuleGeometry?: (coordinates: [number, number][] | [number, number][][]) => void;
   onCancelRuleGeometryEdit?: () => void;
+  onFinishRuleGeometryEdit?: () => void;
 }
 
 // Tile conversion helpers for Web Mercator (EPSG:3857)
@@ -121,6 +122,7 @@ export function MapComponent({
   editedRuleGeometry = null,
   onUpdateRuleGeometry,
   onCancelRuleGeometryEdit,
+  onFinishRuleGeometryEdit,
 }: MapComponentProps) {
   // Helper function to get colors from vocabulary
   const getColorFromVocabulary = (annotation: string): { fill: string; stroke: string } => {
@@ -3210,9 +3212,9 @@ export function MapComponent({
                   <div className="flex flex-col gap-2">
                     <Button 
                       onClick={() => {
-                        if (editingRuleOnMap && onCancelRuleGeometryEdit) {
-                          // Editing a rule - call cancel callback (AnnotationRules will handle save)
-                          onCancelRuleGeometryEdit();
+                        if (editingRuleOnMap && onFinishRuleGeometryEdit) {
+                          // Editing a rule - finish and return to dialog for saving
+                          onFinishRuleGeometryEdit();
                         } else if (onEditPolygon && editingPolygonId) {
                           // Editing a regular polygon
                           onEditPolygon(editingPolygonId);

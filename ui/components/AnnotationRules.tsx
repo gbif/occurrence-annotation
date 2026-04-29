@@ -323,6 +323,7 @@ interface AnnotationRulesProps {
   editingRuleOnMap?: AnnotationRule | null;
   editedRuleGeometry?: [number, number][] | [number, number][][] | null;
   onFinishRuleGeometryEdit?: () => void;
+  onCancelRuleGeometryEdit?: () => void;
 }
 
 export function AnnotationRules({ 
@@ -344,6 +345,7 @@ export function AnnotationRules({
   editingRuleOnMap,
   editedRuleGeometry,
   onFinishRuleGeometryEdit,
+  onCancelRuleGeometryEdit,
 }: AnnotationRulesProps) {
   const [rules, setRules] = useState<AnnotationRule[]>([]);
   const [loading, setLoading] = useState(false);
@@ -659,6 +661,15 @@ export function AnnotationRules({
   useEffect(() => {
     handlePageReset();
   }, [selectedSpecies, showHigherOrderRules]);
+
+  // Reopen edit dialog when returning from map editing
+  useEffect(() => {
+    // If we have an editingRule but editingRuleOnMap just became null,
+    // it means the user finished editing on the map and we should reopen the dialog
+    if (editingRule && !editingRuleOnMap) {
+      setIsEditDialogOpen(true);
+    }
+  }, [editingRule, editingRuleOnMap]);
 
   const fetchCommentCount = async (ruleId: number) => {
     // Don't fetch if already have count
@@ -1128,9 +1139,9 @@ export function AnnotationRules({
       setIsEditDialogOpen(false);
       setEditingRule(null);
       
-      // If geometry was edited on map, notify parent to clear it
-      if (editedRuleGeometry && onFinishRuleGeometryEdit) {
-        onFinishRuleGeometryEdit();
+      // Clear parent's edited geometry state completely after successful save
+      if (onCancelRuleGeometryEdit) {
+        onCancelRuleGeometryEdit();
       }
       
       toast.success('Rule updated successfully');
@@ -1162,6 +1173,27 @@ export function AnnotationRules({
       // Close the edit dialog and trigger map editing
       setIsEditDialogOpen(false);
       onStartRuleGeometryEdit(editingRule, geometryToEdit);
+    }
+  };
+
+  const handleCloseEditDialog = (open: boolean) => {
+    setIsEditDialogOpen(open);
+    if (!open) {
+      // Dialog is closing - clean up all state
+      setEditingRule(null);
+      // Clear parent's edited geometry state completely
+      if (onCancelRuleGeometryEdit) {
+        onCancelRuleGeometryEdit();
+      }
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditDialogOpen(false);
+    setEditingRule(null);
+    // Clear parent's edited geometry state completely
+    if (onCancelRuleGeometryEdit) {
+      onCancelRuleGeometryEdit();
     }
   };
 
@@ -1899,7 +1931,7 @@ export function AnnotationRules({
       </div>
 
       {/* Edit Rule Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={handleCloseEditDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit Rule #{editingRule?.id}</DialogTitle>
@@ -2060,10 +2092,7 @@ export function AnnotationRules({
           <div className="flex justify-end gap-3 pt-2 border-t">
             <Button
               variant="outline"
-              onClick={() => {
-                setIsEditDialogOpen(false);
-                setEditingRule(null);
-              }}
+              onClick={handleCancelEdit}
               disabled={isUpdating}
             >
               Cancel

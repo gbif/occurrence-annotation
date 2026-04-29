@@ -639,9 +639,10 @@ export default function App() {
   }, []);
 
   const handleFinishRuleGeometryEdit = useCallback(() => {
-    // Just clear the editing state - AnnotationRules will handle saving
+    // Clear map editing state but KEEP editedRuleGeometry so it can be saved
+    // AnnotationRules will reopen the dialog for the user to review and save
     setEditingRuleOnMap(null);
-    setEditedRuleGeometry(null);
+    // Don't clear editedRuleGeometry - it needs to persist for saving
   }, []);
 
   const handleNavigateToPolygon = useCallback((lat: number, lng: number) => {
@@ -1145,6 +1146,7 @@ export default function App() {
             editingRuleOnMap={editingRuleOnMap}
             editedRuleGeometry={editedRuleGeometry}
             onFinishRuleGeometryEdit={handleFinishRuleGeometryEdit}
+            onCancelRuleGeometryEdit={handleCancelRuleGeometryEdit}
           />
         </div>
       </div>
@@ -1197,6 +1199,7 @@ export default function App() {
         editedRuleGeometry={editedRuleGeometry}
         onUpdateRuleGeometry={handleUpdateRuleGeometry}
         onCancelRuleGeometryEdit={handleCancelRuleGeometryEdit}
+        onFinishRuleGeometryEdit={handleFinishRuleGeometryEdit}
         onSaveAndEdit={handleSaveAndEdit}
         onAutoSave={handleAutoSavePolygon}
         onNavigateToLocation={handleNavigateToPolygon}
