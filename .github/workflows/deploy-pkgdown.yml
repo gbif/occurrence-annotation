@@ -56,3 +56,4 @@ jobs:
           publish_dir: ./r-package/gbifrules/docs
           keep_files: false
           destination_dir: gbifrules
+          enable_jekyll: false
