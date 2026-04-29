@@ -13,7 +13,7 @@ import { unionPolygons } from './utils/spatialOperations';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
-import { Eye, EyeOff, Folder, X, Network, User, Loader2, HelpCircle, ThumbsDown } from 'lucide-react';
+import { Eye, EyeOff, Folder, X, Network, User, Loader2, HelpCircle, ThumbsDown, MapIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
 import gbifLogo from './gbif-mark-green-logo.svg';
 import { getSelectedProjectId, getSelectedProjectName } from './utils/projectSelection';
@@ -56,6 +56,10 @@ export default function App() {
   const [showContestedRules, setShowContestedRules] = useState(false);
   const [annotationRulesRefreshTrigger, setAnnotationRulesRefreshTrigger] = useState(0);
   const [filterByActiveProject, setFilterByActiveProject] = useState(false);
+  
+  // Rule geometry editing on main map
+  const [editingRuleOnMap, setEditingRuleOnMap] = useState<AnnotationRule | null>(null);
+  const [editedRuleGeometry, setEditedRuleGeometry] = useState<[number, number][] | [number, number][][] | null>(null);
   
   // Selected project for new rules
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(() => getSelectedProjectId());
@@ -608,6 +612,38 @@ export default function App() {
     setAnnotationRules(rules);
   }, []);
 
+  // Handle rule geometry editing on main map
+  const handleStartRuleGeometryEdit = useCallback((rule: AnnotationRule, initialGeometry: [number, number][] | [number, number][][]) => {
+    setEditingRuleOnMap(rule);
+    setEditedRuleGeometry(initialGeometry);
+    // Exit any polygon editing mode
+    setEditingPolygonId(null);
+    
+    // Navigate to rule's location
+    const parsed = parseWKTGeometry(rule.geometry);
+    if (parsed && parsed.polygons.length > 0) {
+      const firstPolygon = parsed.polygons[0].outer;
+      if (firstPolygon.length > 0) {
+        handleNavigateToPolygon(firstPolygon[0][1], firstPolygon[0][0]);
+      }
+    }
+  }, []);
+
+  const handleCancelRuleGeometryEdit = useCallback(() => {
+    setEditingRuleOnMap(null);
+    setEditedRuleGeometry(null);
+  }, []);
+
+  const handleUpdateRuleGeometry = useCallback((coordinates: [number, number][] | [number, number][][]) => {
+    setEditedRuleGeometry(coordinates);
+  }, []);
+
+  const handleFinishRuleGeometryEdit = useCallback(() => {
+    // Just clear the editing state - AnnotationRules will handle saving
+    setEditingRuleOnMap(null);
+    setEditedRuleGeometry(null);
+  }, []);
+
   const handleNavigateToPolygon = useCallback((lat: number, lng: number) => {
     // Use the global navigation function exposed by MapComponent
     if ((window as any).__navigateToLocation) {
@@ -1105,6 +1141,10 @@ export default function App() {
             refreshTrigger={annotationRulesRefreshTrigger}
             filterProjectId={filterByActiveProject ? selectedProjectId : undefined}
             vocabulary={vocabulary}
+            onStartRuleGeometryEdit={handleStartRuleGeometryEdit}
+            editingRuleOnMap={editingRuleOnMap}
+            editedRuleGeometry={editedRuleGeometry}
+            onFinishRuleGeometryEdit={handleFinishRuleGeometryEdit}
           />
         </div>
       </div>
@@ -1112,6 +1152,29 @@ export default function App() {
 
     {/* Map - Now takes full height with no header */}
     <main className="absolute inset-0 left-80" style={{ contain: 'layout style' }}>
+      {/* Rule Editing Banner */}
+      {editingRuleOnMap && (
+        <div className="absolute top-0 left-0 right-0 z-30 bg-blue-600 text-white px-4 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MapIcon className="w-5 h-5" />
+            <span className="font-medium">
+              Editing Rule #{editingRuleOnMap.id} Geometry
+            </span>
+            <span className="text-blue-100 text-sm">
+              • Use map tools to modify • Click "Update Rule" in sidebar to save
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleCancelRuleGeometryEdit}
+            className="bg-white text-blue-600 hover:bg-blue-50"
+          >
+            Cancel
+          </Button>
+        </div>
+      )}
+      
       {/* Floating species selector - positioned at top but right of polygon tools */}
       <div className="absolute top-4 left-20 z-20" style={{ minWidth: '250px', maxWidth: '350px' }}>
         <div style={{ 
@@ -1153,6 +1216,10 @@ export default function App() {
         editingPolygonId={editingPolygonId}
         onUpdatePolygon={handleUpdatePolygon}
         onStopEditing={handleStopEditing}
+        editingRuleOnMap={editingRuleOnMap}
+        editedRuleGeometry={editedRuleGeometry}
+        onUpdateRuleGeometry={handleUpdateRuleGeometry}
+        onCancelRuleGeometryEdit={handleCancelRuleGeometryEdit}
         onSaveAndEdit={handleSaveAndEdit}
         onAutoSave={handleAutoSavePolygon}
         onNavigateToLocation={handleNavigateToPolygon}

@@ -13,7 +13,6 @@ import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { MiniMapPreview } from './MiniMapPreview';
-import { MapComponent } from './MapComponent';
 import { getAnnotationApiUrl, getGbifApiUrl } from '../utils/apiConfig';
 
 interface VocabularyTerm {
@@ -319,6 +318,11 @@ interface AnnotationRulesProps {
   refreshTrigger?: number; // Add this to force refresh when rules are saved
   filterProjectId?: number | null; // Filter rules by project ID
   vocabulary?: VocabularyTerm[];
+  // Props for editing rule geometry on main map
+  onStartRuleGeometryEdit?: (rule: AnnotationRule, initialGeometry: [number, number][] | [number, number][][]) => void;
+  editingRuleOnMap?: AnnotationRule | null;
+  editedRuleGeometry?: [number, number][] | [number, number][][] | null;
+  onFinishRuleGeometryEdit?: () => void;
 }
 
 export function AnnotationRules({ 
@@ -336,6 +340,10 @@ export function AnnotationRules({
     { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
     { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
   ],
+  onStartRuleGeometryEdit,
+  editingRuleOnMap,
+  editedRuleGeometry,
+  onFinishRuleGeometryEdit,
 }: AnnotationRulesProps) {
   const [rules, setRules] = useState<AnnotationRule[]>([]);
   const [loading, setLoading] = useState(false);
@@ -384,10 +392,6 @@ export function AnnotationRules({
   const [editSelectedDataset, setEditSelectedDataset] = useState<any>(null);
   const [datasetSuggestions, setDatasetSuggestions] = useState<any[]>([]);
   const [showDatasetSuggestions, setShowDatasetSuggestions] = useState(false);
-  
-  // Geometry editing state
-  const [isEditingGeometry, setIsEditingGeometry] = useState(false);
-  const [editedGeometry, setEditedGeometry] = useState<[number, number][] | [number, number][][] | null>(null);
   
   const basisOfRecordOptions = [
     'HUMAN_OBSERVATION',
@@ -1075,9 +1079,9 @@ export function AnnotationRules({
     try {
       const gbifAuth = localStorage.getItem('gbifAuth');
       
-      // Use edited geometry if available, otherwise use original
-      const geometryToSave = editedGeometry 
-        ? coordinatesToWKT(editedGeometry, Array.isArray(editedGeometry[0]) && Array.isArray(editedGeometry[0][0]))
+      // Use edited geometry from map if available, otherwise use original
+      const geometryToSave = editedRuleGeometry 
+        ? coordinatesToWKT(editedRuleGeometry, Array.isArray(editedRuleGeometry[0]) && Array.isArray(editedRuleGeometry[0][0]))
         : editingRule.geometry;
       
       const response = await fetch(getAnnotationApiUrl(`/rule/${editingRule.id}`), {
@@ -1123,8 +1127,11 @@ export function AnnotationRules({
       // Close dialog and reset state
       setIsEditDialogOpen(false);
       setEditingRule(null);
-      setIsEditingGeometry(false);
-      setEditedGeometry(null);
+      
+      // If geometry was edited on map, notify parent to clear it
+      if (editedRuleGeometry && onFinishRuleGeometryEdit) {
+        onFinishRuleGeometryEdit();
+      }
       
       toast.success('Rule updated successfully');
     } catch (err) {
@@ -1137,30 +1144,37 @@ export function AnnotationRules({
 
   // Geometry editing handlers
   const handleEnterGeometryEdit = () => {
-    if (!editingRule) return;
+    if (!editingRule || !onStartRuleGeometryEdit) return;
     
     // Convert WKT to coordinates for editing
     const parsed = parseWKTGeometry(editingRule.geometry);
     if (parsed) {
+      let geometryToEdit: [number, number][] | [number, number][][];
+      
       if (parsed.polygons.length === 1 && parsed.polygons[0].holes.length === 0) {
         // Simple polygon without holes
-        setEditedGeometry(parsed.polygons[0].outer);
+        geometryToEdit = parsed.polygons[0].outer;
       } else {
         // MultiPolygon or polygon with holes - flatten to array of polygons
-        const allPolygons = parsed.polygons.map(p => p.outer);
-        setEditedGeometry(allPolygons);
+        geometryToEdit = parsed.polygons.map(p => p.outer);
       }
+      
+      // Close the edit dialog and trigger map editing
+      setIsEditDialogOpen(false);
+      onStartRuleGeometryEdit(editingRule, geometryToEdit);
     }
-    setIsEditingGeometry(true);
   };
 
   const handleExitGeometryEdit = () => {
-    setIsEditingGeometry(false);
-    setEditedGeometry(null);
+    // This is called when finishing geometry editing
+    if (onFinishRuleGeometryEdit) {
+      onFinishRuleGeometryEdit();
+    }
   };
 
   const handleGeometryUpdate = (coords: [number, number][] | [number, number][][]) => {
-    setEditedGeometry(coords);
+    // This handler is no longer needed - MapComponent will update via parent
+    // Keeping it for compatibility but it does nothing
   };
 
   // Voting handlers
@@ -1885,17 +1899,15 @@ export function AnnotationRules({
 
       {/* Edit Rule Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit Rule #{editingRule?.id}</DialogTitle>
             <DialogDescription>
-              {isEditingGeometry 
-                ? 'Edit the rule\'s geometry using the map tools. Click "Done Editing" when finished.'
-                : 'Update the annotation rule details. Changes will be saved immediately.'}
+              Update the annotation rule details. Click "Edit Geometry on Map" to modify the polygon using the main map.
             </DialogDescription>
           </DialogHeader>
           
-          {editingRule && !isEditingGeometry && (
+          {editingRule && (
             <div className="space-y-4 py-4 overflow-y-auto">
               <div className="space-y-2">
                 <Label htmlFor="edit-annotation">Annotation Type</Label>
@@ -2035,92 +2047,40 @@ export function AnnotationRules({
                   className="w-full"
                 >
                   <MapIcon className="w-4 h-4 mr-2" />
-                  Edit Geometry
+                  Edit Geometry on Map
                 </Button>
                 <p className="text-xs text-gray-500 mt-1">
-                  Use the map to edit the rule's polygon geometry
+                  Opens the geometry for editing on the main map. Use all available map tools to modify the polygon.
                 </p>
               </div>
             </div>
           )}
 
-          {/* Geometry Editing View */}
-          {editingRule && isEditingGeometry && editedGeometry && (
-            <div className="flex-1 overflow-hidden">
-              <div className="h-[600px] border rounded-md overflow-hidden">
-                <MapComponent
-                  selectedSpecies={{
-                    name: editingRule.scientificName || `Taxon ${editingRule.taxonKey}`,
-                    scientificName: editingRule.scientificName || `Taxon ${editingRule.taxonKey}`,
-                    key: editingRule.taxonKey,
-                  }}
-                  savedPolygons={[{
-                    id: 'editing-rule',
-                    coordinates: Array.isArray(editedGeometry[0]) && typeof editedGeometry[0][0] === 'number'
-                      ? editedGeometry as [number, number][]
-                      : (editedGeometry as [number, number][][])[0],
-                    annotation: editingRule.annotation,
-                    inverted: false,
-                  }]}
-                  currentPolygon={null}
-                  onPolygonChange={() => {}}
-                  onSaveAndEdit={() => {}}
-                  editingPolygonId="editing-rule"
-                  onUpdatePolygon={(id, coords) => {
-                    handleGeometryUpdate(coords);
-                  }}
-                  onStopEditing={handleExitGeometryEdit}
-                  showAnnotationRules={false}
-                />
-              </div>
-            </div>
-          )}
-
           <div className="flex justify-end gap-3 pt-2 border-t">
-            {isEditingGeometry ? (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={handleExitGeometryEdit}
-                  disabled={isUpdating}
-                >
-                  Cancel Geometry Edit
-                </Button>
-                <Button
-                  onClick={handleExitGeometryEdit}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <MapIcon className="w-4 h-4 mr-2" />
-                  Done Editing
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsEditDialogOpen(false);
-                    setEditingRule(null);
-                    setEditedGeometry(null);
-                  }}
-                  disabled={isUpdating}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleUpdateRule}
-                  disabled={isUpdating}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  {isUpdating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Updating...
-                    </>
-                  ) : (
-                    'Update Rule'
-                  )}
-                </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditDialogOpen(false);
+                setEditingRule(null);
+              }}
+              disabled={isUpdating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateRule}
+              disabled={isUpdating}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isUpdating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                'Update Rule'
+              )}
+            </Button>
               </>
             )}
           </div>

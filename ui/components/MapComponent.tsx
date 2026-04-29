@@ -58,6 +58,11 @@ interface MapComponentProps {
   onUnionPolygons?: () => void;
   onSplitMultiPolygon?: (id: string) => void;
   vocabulary?: VocabularyTerm[];
+  // Rule geometry editing props
+  editingRuleOnMap?: AnnotationRule | null;
+  editedRuleGeometry?: [number, number][] | [number, number][][] | null;
+  onUpdateRuleGeometry?: (coordinates: [number, number][] | [number, number][][]) => void;
+  onCancelRuleGeometryEdit?: () => void;
 }
 
 // Tile conversion helpers for Web Mercator (EPSG:3857)
@@ -112,6 +117,10 @@ export function MapComponent({
     { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
     { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
   ],
+  editingRuleOnMap = null,
+  editedRuleGeometry = null,
+  onUpdateRuleGeometry,
+  onCancelRuleGeometryEdit,
 }: MapComponentProps) {
   // Helper function to get colors from vocabulary
   const getColorFromVocabulary = (annotation: string): { fill: string; stroke: string } => {
@@ -1810,6 +1819,38 @@ export function MapComponent({
     }
   };
 
+  // Augment saved polygons with rule being edited
+  const polygonsToRender = editingRuleOnMap && editedRuleGeometry
+    ? [
+        ...savedPolygons,
+        {
+          id: 'editing-rule-polygon',
+          coordinates: editedRuleGeometry,
+          species: selectedSpecies || {
+            name: editingRuleOnMap.scientificName || `Taxon ${editingRuleOnMap.taxonKey}`,
+            scientificName: editingRuleOnMap.scientificName || `Taxon ${editingRuleOnMap.taxonKey}`,
+            key: editingRuleOnMap.taxonKey,
+          },
+          timestamp: new Date().toISOString(),
+          annotation: editingRuleOnMap.annotation,
+          inverted: false,
+          isMultiPolygon: Array.isArray(editedRuleGeometry[0]) && Array.isArray(editedRuleGeometry[0][0]),
+        } as PolygonData
+      ]
+    : savedPolygons;
+  
+  // Override editingPolygonId when editing rule
+  const effectiveEditingPolygonId = editingRuleOnMap ? 'editing-rule-polygon' : editingPolygonId;
+  
+  // Wrap onUpdatePolygon to handle rule editing
+  const handlePolygonUpdate = (id: string, coordinates: [number, number][] | [number, number][][]) => {
+    if (id === 'editing-rule-polygon' && onUpdateRuleGeometry) {
+      onUpdateRuleGeometry(coordinates);
+    } else if (onUpdatePolygon) {
+      onUpdatePolygon(id, coordinates);
+    }
+  };
+
   return (
     <div 
       ref={mapContainerRef} 
@@ -2116,7 +2157,7 @@ export function MapComponent({
         })}
 
         {/* PRIORITY 5: Saved polygons - render after annotation rules */}
-        {!isZooming && savedPolygons.map((polygonData) => {
+        {!isZooming && polygonsToRender.map((polygonData) => {
           // Get color based on annotation type
           const annotation = polygonData.annotation || 'SUSPICIOUS';
           const color = getColorFromVocabulary(annotation);
@@ -2131,7 +2172,7 @@ export function MapComponent({
           if (!firstPart || firstPart.length === 0) return null;
           
           const [anchorLat, anchorLng] = firstPart[0];
-          const isEditing = editingPolygonId === polygonData.id;
+          const isEditing = effectiveEditingPolygonId === polygonData.id;
           
           return (
             <Overlay key={`overlay-${polygonData.id}`} anchor={[anchorLat, anchorLng]} offset={[0, 0]}>
@@ -3158,8 +3199,8 @@ export function MapComponent({
               </>
             )}
 
-            {/* Editing Tools - show when in edit mode */}
-            {editingPolygonId && (
+            {/* Editing Tools - show when in edit mode (polygon or rule) */}
+            {effectiveEditingPolygonId && (
               <>
                 <div className="w-full h-px bg-gray-200 my-1" />
                 
@@ -3168,10 +3209,18 @@ export function MapComponent({
                   {/* Column 1 */}
                   <div className="flex flex-col gap-2">
                     <Button 
-                      onClick={() => onEditPolygon && onEditPolygon(editingPolygonId)}
+                      onClick={() => {
+                        if (editingRuleOnMap && onCancelRuleGeometryEdit) {
+                          // Editing a rule - call cancel callback (AnnotationRules will handle save)
+                          onCancelRuleGeometryEdit();
+                        } else if (onEditPolygon && editingPolygonId) {
+                          // Editing a regular polygon
+                          onEditPolygon(editingPolygonId);
+                        }
+                      }}
                       size="icon" 
                       variant="default"
-                      title="Done editing"
+                      title={editingRuleOnMap ? "Done editing rule (click 'Update Rule' in sidebar to save)" : "Done editing"}
                       className="bg-green-600 hover:bg-green-700"
                     >
                       <Check className="w-4 h-4" />
