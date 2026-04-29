@@ -2081,8 +2081,6 @@ export function AnnotationRules({
                 'Update Rule'
               )}
             </Button>
-              </>
-            )}
           </div>
         </DialogContent>
       </Dialog>
