@@ -13,7 +13,7 @@ import { unionPolygons } from './utils/spatialOperations';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
-import { Eye, EyeOff, Folder, X, Network, User, Loader2, HelpCircle, ThumbsDown, MapIcon } from 'lucide-react';
+import { Eye, EyeOff, Folder, X, Network, User, Loader2, HelpCircle, ThumbsDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
 import gbifLogo from './gbif-mark-green-logo.svg';
 import { getSelectedProjectId, getSelectedProjectName } from './utils/projectSelection';
@@ -1152,29 +1152,6 @@ export default function App() {
 
     {/* Map - Now takes full height with no header */}
     <main className="absolute inset-0 left-80" style={{ contain: 'layout style' }}>
-      {/* Rule Editing Banner */}
-      {editingRuleOnMap && (
-        <div className="absolute top-0 left-0 right-0 z-30 bg-blue-600 text-white px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MapIcon className="w-5 h-5" />
-            <span className="font-medium">
-              Editing Rule #{editingRuleOnMap.id} Geometry
-            </span>
-            <span className="text-blue-100 text-sm">
-              • Use map tools to modify • Click "Update Rule" in sidebar to save
-            </span>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleCancelRuleGeometryEdit}
-            className="bg-white text-blue-600 hover:bg-blue-50"
-          >
-            Cancel
-          </Button>
-        </div>
-      )}
-      
       {/* Floating species selector - positioned at top but right of polygon tools */}
       <div className="absolute top-4 left-20 z-20" style={{ minWidth: '250px', maxWidth: '350px' }}>
         <div style={{ 

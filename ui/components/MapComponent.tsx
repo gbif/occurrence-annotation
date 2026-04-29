@@ -983,8 +983,8 @@ export function MapComponent({
     }
     
     // Handle erase mode - subtract drawn area from edited polygon
-    if (drawingMode === 'erase' && editingPolygonId && onUpdatePolygon) {
-      const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+    if (drawingMode === 'erase' && effectiveEditingPolygonId && onUpdatePolygon) {
+      const polygon = polygonsToRender.find(p => p.id === effectiveEditingPolygonId);
       if (polygon) {
         try {
           setIsErasing(true);
@@ -1000,10 +1000,10 @@ export function MapComponent({
             });
             // Optionally delete the polygon if completely erased
             if (onDeletePolygon) {
-              onDeletePolygon(editingPolygonId);
+              onDeletePolygon(effectiveEditingPolygonId);
             }
           } else {
-            onUpdatePolygon(editingPolygonId, result);
+            handlePolygonUpdate(effectiveEditingPolygonId, result);
             
             // Check if result is multi-polygon
             const isMulti = Array.isArray(result[0]) && Array.isArray(result[0][0]);
@@ -1265,7 +1265,7 @@ export function MapComponent({
         const polygons = result as [number, number][][];
         
         // Always update as multi-polygon if result is multi-polygon
-        onUpdatePolygon(polygonId, polygons);
+        handlePolygonUpdate(polygonId, polygons);
         
         const direction = distance > 0 ? 'expanded' : 'shrunk';
         const distanceKm = Math.abs(distance) / 1000;
@@ -1275,7 +1275,7 @@ export function MapComponent({
       } else {
         // Single polygon result
         const bufferedPolygon = result as [number, number][];
-        onUpdatePolygon(polygonId, bufferedPolygon);
+        handlePolygonUpdate(polygonId, bufferedPolygon);
         
         const direction = distance > 0 ? 'expanded' : 'shrunk';
         const distanceKm = Math.abs(distance) / 1000;
@@ -1318,7 +1318,7 @@ export function MapComponent({
   // Auto-densify polygon when editing starts (with safety check to prevent infinite loops)
   useEffect(() => {
     if (editingPolygonId && onUpdatePolygon) {
-      const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+      const polygon = polygonsToRender.find(p => p.id === effectiveEditingPolygonId);
       if (polygon) {
         if (polygon.isMultiPolygon) {
           // Check if any part already has too many vertices
@@ -1327,7 +1327,7 @@ export function MapComponent({
           
           if (shouldDensify) {
             const densifiedCoords = coords.map(part => densifyPolygon(part));
-            onUpdatePolygon(editingPolygonId, densifiedCoords);
+            handlePolygonUpdate(effectiveEditingPolygonId, densifiedCoords);
           }
         } else {
           // Check if polygon already has too many vertices
@@ -1336,7 +1336,7 @@ export function MapComponent({
           
           if (shouldDensify) {
             const densifiedCoords = densifyPolygon(coords);
-            onUpdatePolygon(editingPolygonId, densifiedCoords);
+            handlePolygonUpdate(effectiveEditingPolygonId, densifiedCoords);
           }
         }
       }
@@ -1544,7 +1544,7 @@ export function MapComponent({
                 const newCoords = [...coords];
                 newCoords[partIndex] = [...newCoords[partIndex]];
                 newCoords[partIndex][vertexInPart] = newLatLng;
-                onUpdatePolygon(draggingVertex.polygonId, newCoords);
+                handlePolygonUpdate(draggingVertex.polygonId, newCoords);
                 break;
               }
               totalIndex += coords[partIndex].length;
@@ -1553,7 +1553,7 @@ export function MapComponent({
             const coords = polygon.coordinates as [number, number][];
             const newCoords = [...coords];
             newCoords[draggingVertex.index] = newLatLng;
-            onUpdatePolygon(draggingVertex.polygonId, newCoords);
+            handlePolygonUpdate(draggingVertex.polygonId, newCoords);
           }
         }
       }
@@ -1599,13 +1599,13 @@ export function MapComponent({
         const newCoords = (draggingPolygon.startCoords as [number, number][][]).map(part =>
           part.map(([lat, lng]) => [lat + deltaLat, lng + deltaLng] as [number, number])
         );
-        onUpdatePolygon(draggingPolygon.id, newCoords);
+        handlePolygonUpdate(draggingPolygon.id, newCoords);
       } else {
         // Single polygon
         const newCoords = (draggingPolygon.startCoords as [number, number][]).map(([lat, lng]) => 
           [lat + deltaLat, lng + deltaLng] as [number, number]
         );
-        onUpdatePolygon(draggingPolygon.id, newCoords);
+        handlePolygonUpdate(draggingPolygon.id, newCoords);
       }
       return;
     }
@@ -1651,9 +1651,9 @@ export function MapComponent({
 
   // Bulk vertex operations for editing mode
   const addMidpointVertices = () => {
-    if (!editingPolygonId || !onUpdatePolygon) return;
+    if (!effectiveEditingPolygonId || !onUpdatePolygon) return;
     
-    const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+    const polygon = polygonsToRender.find(p => p.id === effectiveEditingPolygonId);
     if (!polygon) return;
 
     if (polygon.isMultiPolygon) {
@@ -1678,7 +1678,7 @@ export function MapComponent({
         }
         return newPart;
       });
-      onUpdatePolygon(editingPolygonId, newCoords);
+      handlePolygonUpdate(effectiveEditingPolygonId, newCoords);
     } else {
       const coords = polygon.coordinates as [number, number][];
       if (coords.length >= 100) {
@@ -1698,15 +1698,15 @@ export function MapComponent({
         const midLng = (current[1] + next[1]) / 2;
         newCoords.push([midLat, midLng]);
       }
-      onUpdatePolygon(editingPolygonId, newCoords);
+      handlePolygonUpdate(effectiveEditingPolygonId, newCoords);
     }
     toast.success('Added midpoint vertices');
   };
 
   const removeMidpointVertices = () => {
-    if (!editingPolygonId || !onUpdatePolygon) return;
+    if (!effectiveEditingPolygonId || !onUpdatePolygon) return;
     
-    const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+    const polygon = polygonsToRender.find(p => p.id === effectiveEditingPolygonId);
     if (!polygon) return;
 
     if (polygon.isMultiPolygon) {
@@ -1721,7 +1721,7 @@ export function MapComponent({
         const newPart = part.filter((_, index) => index % 2 === 0);
         return newPart.length >= 3 ? newPart : part;
       });
-      onUpdatePolygon(editingPolygonId, newCoords);
+      handlePolygonUpdate(effectiveEditingPolygonId, newCoords);
     } else {
       const coords = polygon.coordinates as [number, number][];
       if (coords.length <= 6) {
@@ -1732,7 +1732,7 @@ export function MapComponent({
       // Keep every other vertex, but ensure we keep at least 3
       const newCoords = coords.filter((_, index) => index % 2 === 0);
       if (newCoords.length >= 3) {
-        onUpdatePolygon(editingPolygonId, newCoords);
+        handlePolygonUpdate(effectiveEditingPolygonId, newCoords);
       }
     }
     toast.success('Removed vertices');
@@ -2326,13 +2326,13 @@ export function MapComponent({
                                 // Remove empty parts
                                 const filteredCoords = newCoords.filter(part => part.length >= 3);
                                 if (filteredCoords.length > 0) {
-                                  onUpdatePolygon(polygonData.id, filteredCoords);
+                                  handlePolygonUpdate(polygonData.id, filteredCoords);
                                 }
                               } else {
                                 const coords = polygonData.coordinates as [number, number][];
                                 const newCoords = coords.filter((_, i) => i !== vertexIndex);
                                 if (newCoords.length >= 3) {
-                                  onUpdatePolygon(polygonData.id, newCoords);
+                                  handlePolygonUpdate(polygonData.id, newCoords);
                                 }
                               }
                             }
@@ -2387,7 +2387,7 @@ export function MapComponent({
                                   [midLat, midLng] as [number, number],
                                   ...newCoords[partIndex].slice(nextIndex)
                                 ];
-                                onUpdatePolygon(polygonData.id, newCoords);
+                                handlePolygonUpdate(polygonData.id, newCoords);
                               } else {
                                 const coords = polygonData.coordinates as [number, number][];
                                 const newCoords = [
@@ -2395,7 +2395,7 @@ export function MapComponent({
                                   [midLat, midLng] as [number, number],
                                   ...coords.slice(nextIndex)
                                 ];
-                                onUpdatePolygon(polygonData.id, newCoords);
+                                handlePolygonUpdate(polygonData.id, newCoords);
                               }
                             }
                           }}
@@ -3282,13 +3282,13 @@ export function MapComponent({
                   <div className="flex flex-col gap-2">
                     {/* Ocean Subtraction in Edit Mode - Only for single polygons */}
                     {!(() => {
-                      const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                      const polygon = polygonsToRender.find(p => p.id === effectiveEditingPolygonId);
                       return polygon?.isMultiPolygon;
                     })() && (
                     <Button 
                       onClick={async () => {
-                        if (!editingPolygonId) return;
-                        const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                        if (!effectiveEditingPolygonId) return;
+                        const polygon = polygonsToRender.find(p => p.id === effectiveEditingPolygonId);
                         if (!polygon) return;
                         
                         // Get the coordinates from the polygon
@@ -3339,7 +3339,7 @@ export function MapComponent({
                                 current.length > largest.length ? current : largest
                               , polygons[0]);
                               
-                              onUpdatePolygon(editingPolygonId, largestPolygon);
+                              handlePolygonUpdate(effectiveEditingPolygonId, largestPolygon);
                               
                               if (polygons.length > 1) {
                                 toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`);
@@ -3349,7 +3349,7 @@ export function MapComponent({
                             }
                           } else {
                             const polygon = result as [number, number][];
-                            onUpdatePolygon(editingPolygonId, polygon);
+                            handlePolygonUpdate(effectiveEditingPolygonId, polygon);
                             toast.success('Ocean subtracted successfully');
                           }
                         } catch (error) {
@@ -3400,9 +3400,9 @@ export function MapComponent({
                               variant="outline"
                               className="h-8 text-xs"
                               onClick={() => {
-                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                const polygon = polygonsToRender.find(p => p.id === effectiveEditingPolygonId);
                                 if (polygon && onUpdatePolygon) {
-                                  handleBufferEditMode(editingPolygonId, polygon, 50000);
+                                  handleBufferEditMode(effectiveEditingPolygonId, polygon, 50000);
                                 }
                               }}
                             >
@@ -3413,9 +3413,9 @@ export function MapComponent({
                               variant="outline"
                               className="h-8 text-xs"
                               onClick={() => {
-                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                const polygon = polygonsToRender.find(p => p.id === effectiveEditingPolygonId);
                                 if (polygon && onUpdatePolygon) {
-                                  handleBufferEditMode(editingPolygonId, polygon, 100000);
+                                  handleBufferEditMode(effectiveEditingPolygonId, polygon, 100000);
                                 }
                               }}
                             >
@@ -3426,9 +3426,9 @@ export function MapComponent({
                               variant="outline"
                               className="h-8 text-xs"
                               onClick={() => {
-                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                const polygon = polygonsToRender.find(p => p.id === effectiveEditingPolygonId);
                                 if (polygon && onUpdatePolygon) {
-                                  handleBufferEditMode(editingPolygonId, polygon, 500000);
+                                  handleBufferEditMode(effectiveEditingPolygonId, polygon, 500000);
                                 }
                               }}
                             >
@@ -3442,9 +3442,9 @@ export function MapComponent({
                               variant="outline"
                               className="h-8 text-xs text-orange-600 border-orange-300"
                               onClick={() => {
-                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                const polygon = polygonsToRender.find(p => p.id === effectiveEditingPolygonId);
                                 if (polygon && onUpdatePolygon) {
-                                  handleBufferEditMode(editingPolygonId, polygon, -50000);
+                                  handleBufferEditMode(effectiveEditingPolygonId, polygon, -50000);
                                 }
                               }}
                             >
@@ -3455,9 +3455,9 @@ export function MapComponent({
                               variant="outline"
                               className="h-8 text-xs text-orange-600 border-orange-300"
                               onClick={() => {
-                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                const polygon = polygonsToRender.find(p => p.id === effectiveEditingPolygonId);
                                 if (polygon && onUpdatePolygon) {
-                                  handleBufferEditMode(editingPolygonId, polygon, -100000);
+                                  handleBufferEditMode(effectiveEditingPolygonId, polygon, -100000);
                                 }
                               }}
                             >
@@ -3468,9 +3468,9 @@ export function MapComponent({
                               variant="outline"
                               className="h-8 text-xs text-orange-600 border-orange-300"
                               onClick={() => {
-                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                const polygon = polygonsToRender.find(p => p.id === effectiveEditingPolygonId);
                                 if (polygon && onUpdatePolygon) {
-                                  handleBufferEditMode(editingPolygonId, polygon, -500000);
+                                  handleBufferEditMode(effectiveEditingPolygonId, polygon, -500000);
                                 }
                               }}
                             >
@@ -3524,10 +3524,10 @@ export function MapComponent({
                     
                     {/* Split Multi-Polygon button - only show for multi-polygons */}
                     {onSplitMultiPolygon && (() => {
-                      const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                      const polygon = polygonsToRender.find(p => p.id === effectiveEditingPolygonId);
                       return polygon?.isMultiPolygon && (
                         <Button 
-                          onClick={() => onSplitMultiPolygon(editingPolygonId)}
+                          onClick={() => onSplitMultiPolygon(effectiveEditingPolygonId)}
                           size="icon" 
                           variant="outline"
                           title="Split multi-polygon into separate polygons"

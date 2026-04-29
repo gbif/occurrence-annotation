@@ -1507,8 +1507,9 @@ export function AnnotationRules({
       
       <div className="space-y-2">
         {rules.map((rule) => {
+          const isBeingEdited = editingRuleOnMap?.id === rule.id;
           return (
-            <Card key={rule.id} className="p-3">
+            <Card key={rule.id} className={`p-3 ${isBeingEdited ? 'border-4 border-blue-500 bg-blue-50/30' : ''}`}>
               <div className="flex gap-3">
                 {/* Polygon preview */}
                 {rule.multiPolygon && (
