@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
@@ -336,21 +336,8 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   const [editProjectName, setEditProjectName] = useState('');
   const [editProjectDescription, setEditProjectDescription] = useState('');
   const [isEditingProject, setIsEditingProject] = useState(false);
-
-  // Edit rule dialog state
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingRule, setEditingRule] = useState<UserRule | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
   
-  // Dataset search state for edit dialog
-  const [datasetQuery, setDatasetQuery] = useState<string>('');
-  const [datasetSuggestions, setDatasetSuggestions] = useState<any[]>([]);
-  const [showDatasetSuggestions, setShowDatasetSuggestions] = useState(false);
-  
-  // Edit dialog form state
-  const [editBasisOfRecord, setEditBasisOfRecord] = useState<string[]>([]);
-  const [editBasisOfRecordNegated, setEditBasisOfRecordNegated] = useState<boolean>(false);
-  const [editSelectedDataset, setEditSelectedDataset] = useState<any>(null);
+  const navigate = useNavigate();
   
   const basisOfRecordOptions = [
     'HUMAN_OBSERVATION',
@@ -817,85 +804,6 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     }
   };
 
-  // Handle edit rule button click
-  const handleEditRule = (rule: UserRule) => {
-    setEditingRule(rule);
-    
-    // Initialize basis of record state
-    setEditBasisOfRecord(Array.isArray(rule.basisOfRecord) ? rule.basisOfRecord : []);
-    setEditBasisOfRecordNegated((rule as any).basisOfRecordNegated || false);
-    
-    // Initialize dataset state
-    if (rule.datasetKey) {
-      setDatasetQuery(rule.datasetKey);
-      setEditSelectedDataset({ key: rule.datasetKey });
-    } else {
-      setDatasetQuery('');
-      setEditSelectedDataset(null);
-    }
-    
-    setDatasetSuggestions([]);
-    setShowDatasetSuggestions(false);
-    setIsEditDialogOpen(true);
-  };
-
-  // Handle update rule
-  const handleUpdateRule = async () => {
-    if (!editingRule) return;
-
-    setIsUpdating(true);
-    
-    try {
-      const gbifAuth = localStorage.getItem('gbifAuth');
-      
-      const response = await fetch(getAnnotationApiUrl(`/rule/${editingRule.id}`), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${gbifAuth}`,
-        },
-        body: JSON.stringify({
-          id: editingRule.id,
-          taxonKey: editingRule.taxonKey,
-          datasetKey: editSelectedDataset ? editSelectedDataset.key : null,
-          geometry: editingRule.geometry,
-          annotation: editingRule.annotation,
-          basisOfRecord: editBasisOfRecord.length > 0 ? editBasisOfRecord : null,
-          basisOfRecordNegated: editBasisOfRecordNegated,
-          yearRange: editingRule.yearRange,
-          rulesetId: editingRule.rulesetId,
-          projectId: editingRule.projectId,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to update rule: ${response.status} ${response.statusText}`);
-      }
-
-      const updatedRule = await response.json();
-      
-      // Update the rule in the list
-      setAllRules(prev => prev.map(r => r.id === updatedRule.id ? updatedRule : r));
-      
-      // Close dialog and reset state
-      setIsEditDialogOpen(false);
-      setEditingRule(null);
-      setDatasetQuery('');
-      setDatasetSuggestions([]);
-      setShowDatasetSuggestions(false);
-      setEditBasisOfRecord([]);
-      setEditBasisOfRecordNegated(false);
-      setEditSelectedDataset(null);
-      
-      toast.success('Rule updated successfully');
-    } catch (err) {
-      console.error('Error updating rule:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to update rule');
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
   // Debounce function for dataset search
   const debounce = <T extends (...args: any[]) => any>(func: T, wait: number): ((...args: Parameters<T>) => void) => {
     let timeout: number;
@@ -904,59 +812,6 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
       timeout = window.setTimeout(() => func(...args), wait);
     };
   };
-
-  // Dataset search with debouncing
-  const searchDatasetsDebounced = useCallback(
-    debounce(async (query: string) => {
-      if (!query.trim() || query.length < 3) {
-        setDatasetSuggestions([]);
-        setShowDatasetSuggestions(false);
-        return;
-      }
-
-      try {
-        const response = await fetch(getGbifApiUrl(`/dataset/suggest?q=${encodeURIComponent(query)}&limit=10`));
-        if (response.ok) {
-          const suggestions = await response.json();
-          setDatasetSuggestions(suggestions || []);
-          setShowDatasetSuggestions((suggestions || []).length > 0);
-        }
-      } catch (error) {
-        console.warn('Failed to fetch dataset suggestions:', error);
-      }
-    }, 300),
-    []
-  );
-
-  // Handle dataset selection in edit dialog
-  const handleDatasetSelectForEdit = (dataset: any) => {
-    setEditSelectedDataset(dataset);
-    setDatasetQuery(dataset.title || dataset.key);
-    setShowDatasetSuggestions(false);
-  };
-
-  // Original dataset select handler (for compatibility)
-  const handleDatasetSelect = (dataset: any) => {
-    if (editingRule) {
-      setEditingRule({ ...editingRule, datasetKey: dataset.key });
-    }
-    setDatasetQuery(dataset.title);
-    setShowDatasetSuggestions(false);
-  };
-
-  // Close suggestions when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => {
-      if (showDatasetSuggestions) {
-        setShowDatasetSuggestions(false);
-      }
-    };
-    
-    if (showDatasetSuggestions) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [showDatasetSuggestions]);
 
   // Prefetch species info for visible rules
   useEffect(() => {
@@ -1687,17 +1542,6 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                             </Button>
                             
                             {!rule.deleted && (isOwnRule(rule) || isAdmin()) && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEditRule(rule)}
-                                title="Edit this rule"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                            )}
-                            
-                            {!rule.deleted && (isOwnRule(rule) || isAdmin()) && (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button
@@ -2178,179 +2022,6 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
 
         </Tabs>
       </div>
-
-      {/* Edit Rule Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Edit Rule #{editingRule?.id}</DialogTitle>
-            <DialogDescription>
-              Update the annotation rule details. Changes will be saved immediately.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {editingRule && (
-            <div className="space-y-4 py-4 overflow-y-auto">
-              <div className="space-y-2">
-                <Label htmlFor="edit-annotation">Annotation Type</Label>
-                <select
-                  id="edit-annotation"
-                  className="w-full p-2 border rounded-md"
-                  value={editingRule.annotation}
-                  onChange={(e) => setEditingRule({ ...editingRule, annotation: e.target.value })}
-                >
-                  <option value="NATIVE">Native</option>
-                  <option value="INTRODUCED">Introduced</option>
-                  <option value="MANAGED">Managed</option>
-                  <option value="FORMER">Former</option>
-                  <option value="VAGRANT">Vagrant</option>
-                  <option value="SUSPICIOUS">Suspicious</option>
-                  <option value="OTHER">Other</option>
-                </select>
-              </div>
-
-              {/* Basis of Record - Multi-select */}
-              <BasisOfRecordMultiSelect
-                options={basisOfRecordOptions}
-                selected={editBasisOfRecord}
-                onChange={setEditBasisOfRecord}
-                negated={editBasisOfRecordNegated}
-                onNegatedChange={setEditBasisOfRecordNegated}
-              />
-
-              <div className="space-y-2 relative">
-                <Label htmlFor="edit-dataset">Dataset (optional)</Label>
-                <div className="relative">
-                  <Input
-                    id="edit-dataset"
-                    type="text"
-                    value={datasetQuery}
-                    onChange={(e) => {
-                      setDatasetQuery(e.target.value);
-                      searchDatasetsDebounced(e.target.value);
-                    }}
-                    onFocus={() => {
-                      if (datasetSuggestions.length > 0) {
-                        setShowDatasetSuggestions(true);
-                      }
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder="Search for a dataset or leave empty for all datasets"
-                    className="text-sm"
-                  />
-                  {showDatasetSuggestions && (
-                    <div 
-                      className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {datasetSuggestions.map((dataset) => (
-                        <div
-                          key={dataset.key}
-                          className="p-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
-                          onClick={() => handleDatasetSelectForEdit(dataset)}
-                        >
-                          <div className="text-sm font-medium text-gray-900 truncate">
-                            {dataset.title}
-                          </div>
-                          <div className="text-xs text-gray-500 truncate">
-                            {dataset.key} • {dataset.type}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {editSelectedDataset && (
-                  <div className="flex items-center justify-between text-xs text-gray-600 bg-blue-50 p-2 rounded">
-                    <span>Selected: <span className="font-medium">{editSelectedDataset.title || editSelectedDataset.key}</span></span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setEditSelectedDataset(null);
-                        setDatasetQuery('');
-                      }}
-                      className="h-6 w-6 p-0 text-gray-500 hover:text-red-600"
-                    >
-                      ×
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-project">Project (optional)</Label>
-                <select
-                  id="edit-project"
-                  className="w-full p-2 border rounded-md"
-                  value={editingRule.projectId || ''}
-                  onChange={(e) => setEditingRule({ ...editingRule, projectId: e.target.value ? parseInt(e.target.value) : undefined })}
-                >
-                  <option value="">No project</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500">
-                  Select a project to organize this rule. Only projects where you are a member are shown.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-year-range">Year Range (optional)</Label>
-                <Input
-                  id="edit-year-range"
-                  placeholder="e.g., 1900,2023 or *,1990 or 2000,*"
-                  value={editingRule.yearRange || ''}
-                  onChange={(e) => setEditingRule({ ...editingRule, yearRange: e.target.value || undefined })}
-                />
-                <p className="text-xs text-gray-500">
-                  Format: startYear,endYear. Use * for no limit (e.g., *,2020 for before 2020)
-                </p>
-              </div>
-
-              <div className="bg-gray-50 p-3 rounded-md space-y-1 text-sm">
-                <div><strong>Species:</strong> {editingRule.taxonKey ? `${editingRule.taxonKey}` : 'All species'}</div>
-                <div><strong>Geometry:</strong> {editingRule.geometry.substring(0, 50)}...</div>
-                <div className="text-xs text-gray-500 mt-2">Note: Species and geometry cannot be edited</div>
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsEditDialogOpen(false);
-                setEditingRule(null);
-                setDatasetQuery('');
-                setDatasetSuggestions([]);
-                setShowDatasetSuggestions(false);
-              }}
-              disabled={isUpdating}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpdateRule}
-              disabled={isUpdating}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {isUpdating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Updating...
-                </>
-              ) : (
-                'Save Changes'
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Bulk Edit Dialog */}
       <Dialog open={isBulkEditDialogOpen} onOpenChange={setIsBulkEditDialogOpen}>
