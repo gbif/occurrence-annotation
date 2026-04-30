@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { PolygonData } from '../App';
 import { Button } from './ui/button';
 import { Upload, Loader2, Trash2, MessageSquare } from 'lucide-react';
@@ -11,6 +11,7 @@ import { Textarea } from './ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
 import { coordinatesToWKT } from '../utils/wktParser';
+import { validatePolygonSize, getPolygonSizeStatus } from '../utils/geometryValidation';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
 import { getSelectedProjectName } from '../utils/projectSelection';
@@ -491,6 +492,14 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
   const [isLoading, setIsLoading] = useState(false);
   const [wktText, setWktText] = useState('');
   
+  // Calculate polygon size status from WKT
+  const polygonSizeStatus = useMemo(() => {
+    if (!wktText || !wktText.trim()) {
+      return null;
+    }
+    return getPolygonSizeStatus(validatePolygonSize(wktText).vertexCount);
+  }, [wktText]);
+  
   // Complex rule state - initialize with polygon attributes (including from edited rules)
   const [showComplexOptions, setShowComplexOptions] = useState(false);
   const [selectedAnnotation, setSelectedAnnotation] = useState(polygon.annotation || annotation);
@@ -945,6 +954,18 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
         setIsLoading(false);
         return;
       }
+      
+      // Validate polygon size (vertex count and WKT length)
+      const sizeValidation = validatePolygonSize(wktGeometry);
+      if (!sizeValidation.isValid) {
+        console.log('SaveToGBIF: Polygon size validation failed:', sizeValidation.error);
+        toast.error('⚠️ Polygon too large', {
+          description: sizeValidation.error || 'Use the scissors tool in the editing menu to simplify your polygon.'
+        });
+        setIsLoading(false);
+        return;
+      }
+      console.log('SaveToGBIF: Polygon size validation passed:', sizeValidation.vertexCount, 'vertices');
       
       // Get selected project ID from localStorage
       const selectedProjectId = localStorage.getItem('selectedProjectId');
@@ -1434,9 +1455,45 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
             </p>
           </div>
 
+          {/* Polygon size warning */}
+          {polygonSizeStatus && (polygonSizeStatus.severity === 'warning' || polygonSizeStatus.severity === 'error') && (
+            <div className={`p-3 ${polygonSizeStatus.severity === 'error' ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'} border rounded-lg`}>
+              <div className="flex items-start gap-2">
+                <div className={`text-sm ${polygonSizeStatus.severity === 'error' ? 'text-red-600' : 'text-yellow-600'}`}>⚠️</div>
+                <div className={`text-sm ${polygonSizeStatus.severity === 'error' ? 'text-red-700' : 'text-yellow-700'}`}>
+                  <p className="font-medium">
+                    {polygonSizeStatus.severity === 'error' ? 'Polygon exceeds size limit' : 'Polygon approaching size limit'}
+                  </p>
+                  <p className="mt-1">
+                    {polygonSizeStatus.severity === 'error' 
+                      ? 'Your polygon has too many vertices and cannot be saved. ' 
+                      : 'Your polygon is approaching the maximum vertex limit. '}
+                    Use the <strong>scissors tool</strong> in the editing menu to simplify your polygon.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Polygon info */}
           <div className="text-sm text-gray-600 space-y-1">
-            <p>Geometry: {polygon.coordinates.length} vertices</p>
+            {polygonSizeStatus && (
+              <p className="flex items-center gap-2">
+                <span>Geometry:</span>
+                <span className={`font-medium ${polygonSizeStatus.color}`}>
+                  {polygonSizeStatus.message}
+                </span>
+                {polygonSizeStatus.severity === 'error' && (
+                  <span className="text-xs text-red-600">⚠️ Exceeds limit</span>
+                )}
+                {polygonSizeStatus.severity === 'warning' && (
+                  <span className="text-xs text-yellow-600">⚠️ Approaching limit</span>
+                )}
+              </p>
+            )}
+            {!polygonSizeStatus && (
+              <p>Geometry: {polygon.coordinates.length} vertices</p>
+            )}
             {polygon.inverted && (
               <p className="text-amber-600">⚠️ This polygon is inverted (excludes the area inside)</p>
             )}
