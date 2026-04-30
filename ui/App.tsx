@@ -257,8 +257,9 @@ export default function App() {
             // Clean up
             localStorage.removeItem('ruleToEdit');
             // Remove loadRule parameter from URL
-            searchParams.delete('loadRule');
-            setSearchParams(searchParams);
+            const updatedSearchParams = new URLSearchParams(searchParams);
+            updatedSearchParams.delete('loadRule');
+            setSearchParams(updatedSearchParams);
           });
         } catch (err) {
           console.error('Error loading rule from localStorage:', err);
@@ -878,6 +879,15 @@ export default function App() {
       if (!parsedGeometry) {
         toast.error('Failed to parse rule geometry');
         return false;
+      }
+
+      // Check if geometry has holes (interior rings) - warn user they will be lost
+      const hasHoles = parsedGeometry.polygons.some(p => p.holes && p.holes.length > 0);
+      if (hasHoles) {
+        toast.warning('This rule contains polygon holes (interior rings)', {
+          description: 'Interior rings will be removed when editing. The edited geometry will only include outer boundaries.',
+          duration: 8000,
+        });
       }
 
       // Convert MultiPolygon structure to coordinates array

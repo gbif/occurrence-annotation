@@ -864,7 +864,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
       onNavigateToRule(rule);
     } else {
       // Fallback: navigate to main app with rule context
-      window.location.href = `/annotations/`;
+      navigate('/');
     }
   };
 
