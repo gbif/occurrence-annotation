@@ -38,6 +38,13 @@ export interface PolygonData {
     basisOfRecord?: string[];
   };
   fromSearch?: boolean; // Flag to indicate polygon was created from search button
+  // Fields for editing existing rules
+  editingOriginalRuleId?: number;        // ID of the rule being edited
+  basisOfRecord?: string[];              // Basis of record filter
+  basisOfRecordNegated?: boolean;        // Whether basis of record is negated
+  datasetKey?: string;                   // Dataset filter
+  yearRange?: string;                    // Year range filter
+  projectId?: number;                    // Project assignment
 }
 
 export default function App() {
@@ -235,6 +242,32 @@ export default function App() {
   // Load species from URL on mount and when searchParams change (e.g., navigation)
   useEffect(() => {
     loadSpeciesFromURL();
+  }, [searchParams]);
+
+  // Handle loading rule for editing from UserPage/ProjectPage
+  useEffect(() => {
+    const loadRule = searchParams.get('loadRule');
+    if (loadRule === 'true') {
+      const ruleDataStr = localStorage.getItem('ruleToEdit');
+      if (ruleDataStr) {
+        try {
+          const ruleData = JSON.parse(ruleDataStr);
+          // Call handleLoadRuleForEditing with the rule data
+          handleLoadRuleForEditing(ruleData).then(() => {
+            // Clean up
+            localStorage.removeItem('ruleToEdit');
+            // Remove loadRule parameter from URL
+            const updatedSearchParams = new URLSearchParams(searchParams);
+            updatedSearchParams.delete('loadRule');
+            setSearchParams(updatedSearchParams);
+          });
+        } catch (err) {
+          console.error('Error loading rule from localStorage:', err);
+          toast.error('Failed to load rule for editing');
+          localStorage.removeItem('ruleToEdit');
+        }
+      }
+    }
   }, [searchParams]);
 
   // Listen for changes to selected project from other tabs/windows
@@ -839,6 +872,109 @@ export default function App() {
     console.log('📤 Rule saved to GBIF - current polygon cleared and annotation rules will refresh');
   }, []);
 
+  const handleLoadRuleForEditing = useCallback(async (rule: AnnotationRule) => {
+    try {
+      // Parse WKT geometry to coordinates
+      const parsedGeometry = parseWKTGeometry(rule.geometry);
+      if (!parsedGeometry) {
+        toast.error('Failed to parse rule geometry');
+        return false;
+      }
+
+      // Check if geometry has holes (interior rings) - warn user they will be lost
+      const hasHoles = parsedGeometry.polygons.some(p => p.holes && p.holes.length > 0);
+      if (hasHoles) {
+        toast.warning('This rule contains polygon holes (interior rings)', {
+          description: 'Interior rings will be removed when editing. The edited geometry will only include outer boundaries.',
+          duration: 8000,
+        });
+      }
+
+      // Convert MultiPolygon structure to coordinates array
+      let coordinates: [number, number][] | [number, number][][];
+      let isMultiPolygon = false;
+      
+      if (parsedGeometry.polygons.length === 1) {
+        // Single polygon - use outer ring only (ignoring holes for now)
+        coordinates = parsedGeometry.polygons[0].outer;
+      } else {
+        // Multiple polygons
+        coordinates = parsedGeometry.polygons.map(p => p.outer);
+        isMultiPolygon = true;
+      }
+
+      // Fetch species data if we don't have it or if it's different from current
+      let species = selectedSpecies;
+      if (!species || species.key !== rule.taxonKey) {
+        try {
+          const speciesResponse = await fetch(`${getGbifApiUrl()}/species/${rule.taxonKey}`);
+          if (speciesResponse.ok) {
+            const speciesData = await speciesResponse.json();
+            species = {
+              key: rule.taxonKey,
+              scientificName: speciesData.scientificName || rule.scientificName || 'Unknown',
+              rank: speciesData.rank || 'UNKNOWN'
+            };
+            setSelectedSpecies(species);
+            toast.info(`Switched to species: ${species.scientificName}`);
+          } else {
+            // Fallback to rule's scientific name if available
+            species = {
+              key: rule.taxonKey,
+              scientificName: rule.scientificName || 'Unknown',
+              rank: rule.taxonomicLevel?.toUpperCase() || 'UNKNOWN'
+            };
+            setSelectedSpecies(species);
+          }
+        } catch (err) {
+          console.error('Failed to fetch species data:', err);
+          // Fallback to rule's scientific name
+          species = {
+            key: rule.taxonKey,
+            scientificName: rule.scientificName || 'Unknown',
+            rank: rule.taxonomicLevel?.toUpperCase() || 'UNKNOWN'
+          };
+          setSelectedSpecies(species);
+        }
+      }
+
+      // Create PolygonData with all rule attributes
+      const newPolygon: PolygonData = {
+        id: Date.now().toString(),
+        coordinates: coordinates,
+        species: species,
+        timestamp: new Date().toISOString(),
+        inverted: false,
+        annotation: rule.annotation,
+        isMultiPolygon: isMultiPolygon,
+        editingOriginalRuleId: rule.id,
+        basisOfRecord: rule.basisOfRecord || undefined,
+        basisOfRecordNegated: rule.basisOfRecordNegated || false,
+        datasetKey: rule.datasetKey || undefined,
+        yearRange: rule.yearRange || undefined,
+        projectId: rule.projectId || undefined,
+        fromSearch: false
+      };
+
+      // Add to savedPolygons
+      setSavedPolygons(prev => [...prev, newPolygon]);
+      
+      toast.success('Rule loaded for editing', {
+        description: 'Modify the polygon and attributes, then save to create a new rule.',
+        duration: 5000,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error loading rule for editing:', error);
+      toast.error('Failed to load rule for editing', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+      return false;
+    }
+  }, [selectedSpecies]);
+
+
   return (
     <div className="h-screen flex flex-col">
       <Toaster />
@@ -1105,6 +1241,7 @@ export default function App() {
             refreshTrigger={annotationRulesRefreshTrigger}
             filterProjectId={filterByActiveProject ? selectedProjectId : undefined}
             vocabulary={vocabulary}
+            onLoadRuleForEditing={handleLoadRuleForEditing}
           />
         </div>
       </div>

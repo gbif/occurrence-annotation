@@ -485,22 +485,36 @@ function GBIFLogoSmall() {
 }
 
 function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, autoOpen = false }: SaveToGBIFDialogProps) {
-  console.log('SaveToGBIFDialog rendering with polygon.initialFilters:', polygon.initialFilters);
+  console.log('SaveToGBIFDialog rendering with polygon:', polygon);
   
   const [isOpen, setIsOpen] = useState(autoOpen);
   const [isLoading, setIsLoading] = useState(false);
   const [wktText, setWktText] = useState('');
   
-  // Complex rule state - initialize with initialFilters if available
+  // Complex rule state - initialize with polygon attributes (including from edited rules)
   const [showComplexOptions, setShowComplexOptions] = useState(false);
-  const [selectedAnnotation, setSelectedAnnotation] = useState(annotation);
-  const [basisOfRecord, setBasisOfRecord] = useState<string[]>(polygon.initialFilters?.basisOfRecord || []);
-  const [basisOfRecordNegated, setBasisOfRecordNegated] = useState<boolean>(false);
-  const [datasetKey, setDatasetKey] = useState<string>(polygon.initialFilters?.datasetKey || '');
-  const [yearRange, setYearRange] = useState<string>('');
+  const [selectedAnnotation, setSelectedAnnotation] = useState(polygon.annotation || annotation);
+  
+  // Use direct fields if available (from edited rules), fallback to initialFilters (from search)
+  const [basisOfRecord, setBasisOfRecord] = useState<string[]>(
+    polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord || []
+  );
+  const [basisOfRecordNegated, setBasisOfRecordNegated] = useState<boolean>(
+    polygon.basisOfRecordNegated || false
+  );
+  const [datasetKey, setDatasetKey] = useState<string>(
+    polygon.datasetKey || polygon.initialFilters?.datasetKey || ''
+  );
+  const [yearRange, setYearRange] = useState<string>(polygon.yearRange || '');
   const [basisOfRecordOptions, setBasisOfRecordOptions] = useState<string[]>([]);
   
-  console.log('SaveToGBIFDialog initial basisOfRecord state:', polygon.initialFilters?.basisOfRecord);
+  console.log('SaveToGBIFDialog initial state:', {
+    basisOfRecord: polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord,
+    basisOfRecordNegated: polygon.basisOfRecordNegated,
+    datasetKey: polygon.datasetKey || polygon.initialFilters?.datasetKey,
+    yearRange: polygon.yearRange,
+    editingOriginalRuleId: polygon.editingOriginalRuleId
+  });
   
   // Year range slider state
   const [yearRangeStart, setYearRangeStart] = useState<number>(1600);
@@ -1383,11 +1397,18 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
               <div className="p-3 rounded-lg border border-gray-200">
                 <p className="text-base text-gray-800">
                   This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of {polygon.species && <SpeciesLink species={polygon.species} className="font-bold" />}
-                  {polygon.initialFilters?.basisOfRecord && polygon.initialFilters.basisOfRecord.length > 0 && (
-                    <> with basis of record <span className="font-bold text-blue-600">{polygon.initialFilters.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}</span></>
+                  {(polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord) && (polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord || []).length > 0 && (
+                    polygon.basisOfRecordNegated ? (
+                      <> with basis of record <span className="font-bold">NOT "{(polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord || []).map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                    ) : (
+                      <> with basis of record <span className="font-bold text-blue-600">{(polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord || []).map(b => b.replace(/_/g, ' ')).join(', ')}</span></>
+                    )
                   )}
-                  {polygon.initialFilters?.datasetKey && datasetTitle && (
+                  {(polygon.datasetKey || polygon.initialFilters?.datasetKey) && datasetTitle && (
                     <> from dataset <span className="font-bold text-purple-600">{datasetTitle}</span></>
+                  )}
+                  {polygon.yearRange && (
+                    <> from years <span className="font-bold">{polygon.yearRange}</span></>
                   )} within the <span className="font-bold">polygon area</span> as <span className="font-bold text-red-600">suspicious</span>.
                 </p>
               </div>
@@ -1780,18 +1801,31 @@ function PolygonCard({
           <div className="space-y-1">
             <p className="text-sm">
               <span className="text-gray-500">This</span> <span className="font-semibold text-gray-700">proposed</span> <span className="text-gray-500">rule will designate all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <SpeciesLink species={polygon.species} className="font-semibold" style={{color: '#4C9C2E'}} />
-              {polygon.initialFilters?.basisOfRecord && polygon.initialFilters.basisOfRecord.length > 0 && (
-                <>
-                  <span className="text-gray-500"> with basis of record </span>
-                  <span className="font-semibold text-blue-600">
-                    {polygon.initialFilters.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}
-                  </span>
-                </>
+              {(polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord) && (polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord || []).length > 0 && (
+                polygon.basisOfRecordNegated ? (
+                  <>
+                    <span className="text-gray-500"> with basis of record </span>
+                    <span className="font-semibold">NOT "{(polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord || []).map(b => b.replace(/_/g, ' ')).join(', ')}"</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-gray-500"> with basis of record </span>
+                    <span className="font-semibold text-blue-600">
+                      {(polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord || []).map(b => b.replace(/_/g, ' ')).join(', ')}
+                    </span>
+                  </>
+                )
               )}
-              {polygon.initialFilters?.datasetKey && (
+              {(polygon.datasetKey || polygon.initialFilters?.datasetKey) && (
                 <>
                   <span className="text-gray-500"> from dataset </span>
-                  <DatasetTitleDisplay datasetKey={polygon.initialFilters.datasetKey} />
+                  <DatasetTitleDisplay datasetKey={polygon.datasetKey || polygon.initialFilters?.datasetKey || ''} />
+                </>
+              )}
+              {polygon.yearRange && (
+                <>
+                  <span className="text-gray-500"> from years </span>
+                  <span className="font-semibold">{polygon.yearRange}</span>
                 </>
               )}
               <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${

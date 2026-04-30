@@ -2121,6 +2121,12 @@ export function MapComponent({
           const annotation = polygonData.annotation || 'SUSPICIOUS';
           const color = getColorFromVocabulary(annotation);
           
+          // Use different styling for edited rules (thicker, dashed)
+          const isEditedRule = !!polygonData.editingOriginalRuleId;
+          const strokeColor = color.stroke; // Use annotation color
+          const strokeWidth = isEditedRule ? '3' : '2';
+          const strokeDasharray = isEditedRule ? '8,4' : 'none'; // Dashed line for edited rules
+          
           // Normalize coordinates to array of polygons
           const polygonParts: [number, number][][] = polygonData.isMultiPolygon 
             ? (polygonData.coordinates as [number, number][][])
@@ -2189,8 +2195,9 @@ export function MapComponent({
                           d={pathStr}
                           fill={color.fill}
                           fillOpacity="0.1"
-                          stroke={color.stroke}
-                          strokeWidth="2"
+                          stroke={strokeColor}
+                          strokeWidth={strokeWidth}
+                          strokeDasharray={strokeDasharray}
                           fillRule="evenodd"
                         />
                       );
@@ -2218,8 +2225,9 @@ export function MapComponent({
                             points={pixelPoints}
                             fill={color.fill}
                             fillOpacity="0.1"
-                            stroke={color.stroke}
-                            strokeWidth="2"
+                            stroke={strokeColor}
+                            strokeWidth={strokeWidth}
+                            strokeDasharray={strokeDasharray}
                           />
                         );
                       })}
@@ -2249,7 +2257,7 @@ export function MapComponent({
                           cy={offsetY}
                           r="6"
                           fill="white"
-                          stroke={color.stroke}
+                          stroke={strokeColor}
                           strokeWidth="2"
                           style={{ 
                             cursor: 'move',

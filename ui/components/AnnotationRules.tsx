@@ -318,6 +318,7 @@ interface AnnotationRulesProps {
   refreshTrigger?: number; // Add this to force refresh when rules are saved
   filterProjectId?: number | null; // Filter rules by project ID
   vocabulary?: VocabularyTerm[];
+  onLoadRuleForEditing?: (rule: AnnotationRule) => Promise<boolean>; // Callback to load rule for editing
 }
 
 export function AnnotationRules({ 
@@ -335,6 +336,7 @@ export function AnnotationRules({
     { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
     { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
   ],
+  onLoadRuleForEditing,
 }: AnnotationRulesProps) {
   const [rules, setRules] = useState<AnnotationRule[]>([]);
   const [loading, setLoading] = useState(false);
@@ -367,22 +369,10 @@ export function AnnotationRules({
   const [hasNextPage, setHasNextPage] = useState(false);
   const pageSize = 20;
   
-  // Edit rule dialog state
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingRule, setEditingRule] = useState<AnnotationRule | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
-  
-  // Projects state for edit dialog
-  const [projects, setProjects] = useState<Array<{ id: number; name: string }>>([]);
-  const [loadingProjects, setLoadingProjects] = useState(false);
-  
-  // Edit dialog form state
-  const [editBasisOfRecord, setEditBasisOfRecord] = useState<string[]>([]);
-  const [editBasisOfRecordNegated, setEditBasisOfRecordNegated] = useState<boolean>(false);
-  const [editDatasetQuery, setEditDatasetQuery] = useState<string>('');
-  const [editSelectedDataset, setEditSelectedDataset] = useState<any>(null);
-  const [datasetSuggestions, setDatasetSuggestions] = useState<any[]>([]);
-  const [showDatasetSuggestions, setShowDatasetSuggestions] = useState(false);
+  // Edit confirmation dialog state
+  const [isEditConfirmOpen, setIsEditConfirmOpen] = useState(false);
+  const [ruleToEdit, setRuleToEdit] = useState<AnnotationRule | null>(null);
+  const [isLoadingForEdit, setIsLoadingForEdit] = useState(false);
   
   const basisOfRecordOptions = [
     'HUMAN_OBSERVATION',
@@ -985,142 +975,81 @@ export function AnnotationRules({
   }
 
   // Search datasets for edit dialog
-  const searchDatasetsForEdit = async (query: string) => {
-    if (query.length < 3) {
-      setDatasetSuggestions([]);
-      setShowDatasetSuggestions(false);
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        getGbifApiUrl(`/dataset/suggest?q=${encodeURIComponent(query)}&limit=10`)
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        setDatasetSuggestions(data || []);
-        setShowDatasetSuggestions(true);
-      }
-    } catch (error) {
-      console.error('Error searching datasets:', error);
-    }
+  // Edit rule handlers - new workflow: delete + load for editing
+  const handleEditRule = (rule: AnnotationRule) => {
+    setRuleToEdit(rule);
+    setIsEditConfirmOpen(true);
   };
 
-  const handleDatasetSelectForEdit = (dataset: any) => {
-    setEditSelectedDataset(dataset);
-    setEditDatasetQuery(dataset.title);
-    setShowDatasetSuggestions(false);
-  };
+  const handleConfirmEdit = async () => {
+    if (!ruleToEdit || !onLoadRuleForEditing) return;
 
-  // Fetch projects for the edit dialog
-  const fetchProjects = async () => {
-    if (!isLoggedIn || !currentUser) return;
+    setIsLoadingForEdit(true);
     
-    setLoadingProjects(true);
     try {
-      const response = await fetch(
-        getAnnotationApiUrl(`/project?createdBy=${currentUser.userName}`),
+      // Check if user is logged in
+      const gbifAuth = localStorage.getItem('gbifAuth');
+      if (!gbifAuth) {
+        toast.error('Please login to GBIF to edit annotation rules');
+        setIsLoadingForEdit(false);
+        setIsEditConfirmOpen(false);
+        return;
+      }
+
+      // Step 1: Delete the old rule
+      const deleteResponse = await fetch(
+        getAnnotationApiUrl(`/rule/${ruleToEdit.id}`),
         {
+          method: 'DELETE',
           headers: {
-            'Authorization': getBasicAuthHeader() || '',
+            'Authorization': `Basic ${gbifAuth}`,
           },
         }
       );
-      
-      if (response.ok) {
-        const data = await response.json();
-        setProjects(data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching projects:', error);
-    } finally {
-      setLoadingProjects(false);
-    }
-  };
 
-  // Edit rule handlers
-  const handleEditRule = (rule: AnnotationRule) => {
-    setEditingRule(rule);
-    
-    // Initialize basis of record state
-    setEditBasisOfRecord(rule.basisOfRecord || []);
-    setEditBasisOfRecordNegated(rule.basisOfRecordNegated || false);
-    
-    // Initialize dataset state
-    if (rule.datasetKey) {
-      setEditDatasetQuery(rule.datasetKey);
-      setEditSelectedDataset({ key: rule.datasetKey });
-    } else {
-      setEditDatasetQuery('');
-      setEditSelectedDataset(null);
-    }
-    
-    setIsEditDialogOpen(true);
-    
-    // Fetch projects when opening edit dialog
-    fetchProjects();
-  };
-
-  const handleUpdateRule = async () => {
-    if (!editingRule) return;
-
-    setIsUpdating(true);
-    
-    try {
-      const gbifAuth = localStorage.getItem('gbifAuth');
-      
-      const response = await fetch(getAnnotationApiUrl(`/rule/${editingRule.id}`), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${gbifAuth}`,
-        },
-        body: JSON.stringify({
-          id: editingRule.id,
-          taxonKey: editingRule.taxonKey,
-          datasetKey: editSelectedDataset ? editSelectedDataset.key : null,
-          geometry: editingRule.geometry,
-          annotation: editingRule.annotation,
-          basisOfRecord: editBasisOfRecord.length > 0 ? editBasisOfRecord : null,
-          basisOfRecordNegated: editBasisOfRecordNegated,
-          yearRange: editingRule.yearRange,
-          rulesetId: editingRule.rulesetId,
-          projectId: editingRule.projectId,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to update rule: ${response.status} ${response.statusText}`);
+      if (!deleteResponse.ok) {
+        if (deleteResponse.status === 401) {
+          throw new Error('Unauthorized - please check your GBIF credentials');
+        } else if (deleteResponse.status === 403) {
+          throw new Error('Forbidden - you may not have permission to edit this rule');
+        } else if (deleteResponse.status === 404) {
+          throw new Error('Rule not found');
+        } else {
+          throw new Error(`Failed to delete rule (${deleteResponse.status})`);
+        }
       }
 
-      const updatedRule = await response.json();
-      
-      // Parse geometry for the updated rule
-      const parsedGeometry = parseWKTGeometry(updatedRule.geometry);
-      const ruleWithGeometry = {
-        ...updatedRule,
-        multiPolygon: parsedGeometry,
-      };
-      
-      // Update the rule in the list
-      setRules(prev => {
-        const updated = prev.map(r => r.id === ruleWithGeometry.id ? ruleWithGeometry : r);
-        onRulesLoadRef.current?.(updated);
-        return updated;
+      // Step 2: Remove from local state
+      setRules(prevRules => {
+        const updatedRules = prevRules.filter(r => r.id !== ruleToEdit.id);
+        onRulesLoadRef.current?.(updatedRules);
+        return updatedRules;
       });
+      setTotalCount(prevCount => prevCount - 1);
+
+      // Step 3: Load the rule for editing
+      const success = await onLoadRuleForEditing(ruleToEdit);
       
-      // Close dialog and reset state
-      setIsEditDialogOpen(false);
-      setEditingRule(null);
-      
-      toast.success('Rule updated successfully');
+      if (success) {
+        toast.success('Rule loaded for editing', {
+          description: 'Modify the polygon and attributes in the sidebar, then save to create a new rule.',
+          duration: 5000,
+        });
+      }
+
+      setIsEditConfirmOpen(false);
+      setRuleToEdit(null);
     } catch (err) {
-      console.error('Error updating rule:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to update rule');
+      console.error('Error loading rule for editing:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to load rule for editing');
     } finally {
-      setIsUpdating(false);
+      setIsLoadingForEdit(false);
     }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditConfirmOpen(false);
+    setRuleToEdit(null);
   };
 
   // Voting handlers
@@ -1843,177 +1772,39 @@ export function AnnotationRules({
         })}
       </div>
 
-      {/* Edit Rule Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Edit Rule #{editingRule?.id}</DialogTitle>
-            <DialogDescription>
-              Update the annotation rule details. Changes will be saved immediately.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {editingRule && (
-            <div className="space-y-4 py-4 overflow-y-auto">
-              <div className="space-y-2">
-                <Label htmlFor="edit-annotation">Annotation Type</Label>
-                <select
-                  id="edit-annotation"
-                  className="w-full p-2 border rounded-md"
-                  value={editingRule.annotation}
-                  onChange={(e) => setEditingRule({ ...editingRule, annotation: e.target.value })}
-                >
-                  {vocabulary.map((term) => (
-                    <option key={term.term} value={term.term}>
-                      {term.term}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Basis of Record - Multi-select */}
-              <BasisOfRecordMultiSelect
-                options={basisOfRecordOptions}
-                selected={editBasisOfRecord}
-                onChange={setEditBasisOfRecord}
-                negated={editBasisOfRecordNegated}
-                onNegatedChange={setEditBasisOfRecordNegated}
-              />
-
-              {/* Dataset Key */}
-              <div className="space-y-1 relative">
-                <Label htmlFor="edit-dataset-key" className="text-xs text-gray-700">Dataset (optional)</Label>
-                <div className="relative">
-                  <Input
-                    id="edit-dataset-key"
-                    type="text"
-                    value={editDatasetQuery}
-                    onChange={(e) => {
-                      setEditDatasetQuery(e.target.value);
-                      searchDatasetsForEdit(e.target.value);
-                    }}
-                    onFocus={() => {
-                      if (datasetSuggestions.length > 0) {
-                        setShowDatasetSuggestions(true);
-                      }
-                    }}
-                    placeholder="Leave empty to apply to all datasets"
-                    className="text-xs py-1"
-                  />
-                  {showDatasetSuggestions && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto">
-                      {datasetSuggestions.map((dataset) => (
-                        <div
-                          key={dataset.key}
-                          className="p-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
-                          onClick={() => handleDatasetSelectForEdit(dataset)}
-                        >
-                          <div className="text-xs font-medium text-gray-900 truncate">
-                            {dataset.title}
-                          </div>
-                          <div className="text-xs text-gray-500 truncate">
-                            {dataset.key} • {dataset.type}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {editSelectedDataset && (
-                  <div className="text-xs text-gray-600 flex items-center justify-between">
-                    <span>Selected: <span className="font-medium">{editSelectedDataset.title || editSelectedDataset.key}</span></span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditSelectedDataset(null);
-                        setEditDatasetQuery('');
-                      }}
-                      className="text-xs text-red-600 hover:text-red-800 underline"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-year-range">Year Range (optional)</Label>
-                <Input
-                  id="edit-year-range"
-                  placeholder="e.g., 1900,2023 or *,1990 or 2000,*"
-                  value={editingRule.yearRange || ''}
-                  onChange={(e) => setEditingRule({ ...editingRule, yearRange: e.target.value || undefined })}
-                />
-                <p className="text-xs text-gray-500">
-                  Format: startYear,endYear. Use * for no limit (e.g., *,2020 for before 2020)
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-project">Project (optional)</Label>
-                <select
-                  id="edit-project"
-                  className="w-full p-2 border rounded-md"
-                  value={editingRule.projectId || ''}
-                  onChange={(e) => setEditingRule({ 
-                    ...editingRule, 
-                    projectId: e.target.value ? parseInt(e.target.value) : null 
-                  })}
-                  disabled={loadingProjects}
-                >
-                  <option value="">No project</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-                {loadingProjects && (
-                  <p className="text-xs text-gray-500">Loading projects...</p>
-                )}
-              </div>
-
-              <div className="bg-gray-50 p-3 rounded-md space-y-1 text-sm">
-                <p className="font-medium text-gray-700">Current Rule Info</p>
-                <p className="text-gray-600">Taxon Key: {editingRule.taxonKey}</p>
-                {editingRule.datasetKey && (
-                  <p className="text-gray-600">Dataset: {editingRule.datasetKey}</p>
-                )}
-                {editingRule.scientificName && (
-                  <p className="text-gray-600 italic">Species: {editingRule.scientificName}</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3 pt-2 border-t">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsEditDialogOpen(false);
-                setEditingRule(null);
-              }}
-              disabled={isUpdating}
-            >
+      {/* Edit Confirmation Dialog */}
+      <AlertDialog open={isEditConfirmOpen} onOpenChange={setIsEditConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Edit Annotation Rule</AlertDialogTitle>
+            <AlertDialogDescription>
+              Editing this rule will delete the original rule (ID: {ruleToEdit?.id}) and load it for modification. 
+              You can then modify the polygon geometry and attributes before saving as a new rule.
+              <br /><br />
+              <strong>This action cannot be undone.</strong> Continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelEdit} disabled={isLoadingForEdit}>
               Cancel
-            </Button>
-            <Button
-              onClick={handleUpdateRule}
-              disabled={isUpdating}
-              className="bg-green-600 hover:bg-green-700"
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmEdit}
+              disabled={isLoadingForEdit}
+              className="bg-blue-600 hover:bg-blue-700"
             >
-              {isUpdating ? (
+              {isLoadingForEdit ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Updating...
+                  Loading...
                 </>
               ) : (
-                'Update Rule'
+                'Load for Editing'
               )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
