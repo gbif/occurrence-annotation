@@ -13,12 +13,14 @@
  */
 package org.gbif.occurrence.annotation.controller;
 
+import org.gbif.api.vocabulary.UserRole;
 import org.gbif.occurrence.annotation.mapper.CommentMapper;
 import org.gbif.occurrence.annotation.mapper.ProjectMapper;
 import org.gbif.occurrence.annotation.mapper.RuleMapper;
 import org.gbif.occurrence.annotation.model.Comment;
 import org.gbif.occurrence.annotation.model.Project;
 import org.gbif.occurrence.annotation.model.Rule;
+import org.gbif.occurrence.annotation.service.GeometryValidationService;
 import org.gbif.occurrence.annotation.service.VocabularyService;
 
 import java.util.Arrays;
@@ -26,6 +28,7 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.annotation.Secured;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -53,6 +56,7 @@ public class RuleController implements Controller<Rule> {
   @Autowired private CommentMapper commentMapper;
   @Autowired private ProjectMapper projectMapper;
   @Autowired private VocabularyService vocabularyService;
+  @Autowired private GeometryValidationService geometryValidationService;
 
   @Operation(
       summary =
@@ -233,7 +237,7 @@ public class RuleController implements Controller<Rule> {
     return ruleMapper.get(id);
   }
 
-  @Operation(summary = "Create a new rule")
+  @Operation(summary = "Create a new rule. Maximum 2,500 vertices per polygon (admins exempt).")
   @PostMapping
   @Secured("USER")
   @Override
@@ -243,6 +247,9 @@ public class RuleController implements Controller<Rule> {
 
     // Validate annotation term exists in project vocabulary
     validateAnnotationTerm(rule);
+
+    // Validate geometry size limits (admins can bypass)
+    geometryValidationService.validateGeometry(rule.getGeometry(), isAdmin());
 
     rule.setCreatedBy(getLoggedInUser());
     ruleMapper.create(rule); // id set by mybatis
@@ -430,5 +437,15 @@ public class RuleController implements Controller<Rule> {
               + "' is not in the vocabulary for this project. "
               + "Please add the term to the project vocabulary first or use a different term.");
     }
+  }
+
+  /**
+   * Checks if the currently logged-in user has administrator privileges.
+   *
+   * @return true if the user is a REGISTRY_ADMIN, false otherwise
+   */
+  private boolean isAdmin() {
+    return SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+        .anyMatch(r -> r.getAuthority().equals(UserRole.REGISTRY_ADMIN.toString()));
   }
 }
