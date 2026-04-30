@@ -51,6 +51,8 @@ public interface RuleMapper {
 
   void deleteByProject(@Param("projectId") int id, @Param("username") String username);
 
+  int countActiveByCreatedBy(@Param("createdBy") String createdBy);
+
   void addSupport(@Param("id") int id, @Param("username") String username);
 
   void removeSupport(@Param("id") int id, @Param("username") String username);

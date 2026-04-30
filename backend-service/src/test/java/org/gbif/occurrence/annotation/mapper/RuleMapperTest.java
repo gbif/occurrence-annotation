@@ -640,6 +640,73 @@ public class RuleMapperTest {
     ruleMapper.delete(rule.getId(), "testuser");
   }
 
+  @Test
+  public void testCountActiveByCreatedBy() {
+    // Initially, count should be 0 for new user
+    int initialCount = ruleMapper.countActiveByCreatedBy("test-user-count");
+    assertEquals(0, initialCount, "Initial count should be 0");
+
+    // Create 3 rules for test-user-count
+    for (int i = 0; i < 3; i++) {
+      Rule rule = createTestRule();
+      rule.setCreatedBy("test-user-count");
+      rule.setTaxonKey(12345 + i); // Different taxon keys to avoid conflicts
+      ruleMapper.create(rule);
+    }
+
+    // Count should be 3
+    int count = ruleMapper.countActiveByCreatedBy("test-user-count");
+    assertEquals(3, count, "Should count 3 rules for test-user-count");
+
+    // Create 2 rules for another user
+    for (int i = 0; i < 2; i++) {
+      Rule rule = createTestRule();
+      rule.setCreatedBy("another-user");
+      rule.setTaxonKey(22345 + i); // Different taxon keys
+      ruleMapper.create(rule);
+    }
+
+    // test-user-count should still have 3 rules
+    count = ruleMapper.countActiveByCreatedBy("test-user-count");
+    assertEquals(
+        3, count, "test-user-count should still have 3 rules after another user creates rules");
+
+    // another-user should have 2 rules
+    int anotherUserCount = ruleMapper.countActiveByCreatedBy("another-user");
+    assertEquals(2, anotherUserCount, "another-user should have 2 rules");
+  }
+
+  @Test
+  public void testCountActiveByCreatedByExcludesDeletedRules() {
+    // Create 3 rules for test-user-deleted
+    Rule rule1 = createTestRule();
+    rule1.setCreatedBy("test-user-deleted");
+    rule1.setTaxonKey(32345);
+    ruleMapper.create(rule1);
+
+    Rule rule2 = createTestRule();
+    rule2.setCreatedBy("test-user-deleted");
+    rule2.setTaxonKey(32346);
+    ruleMapper.create(rule2);
+
+    Rule rule3 = createTestRule();
+    rule3.setCreatedBy("test-user-deleted");
+    rule3.setTaxonKey(32347);
+    ruleMapper.create(rule3);
+
+    // Count should be 3
+    int count = ruleMapper.countActiveByCreatedBy("test-user-deleted");
+    assertEquals(3, count, "Should count 3 active rules");
+
+    // Delete one rule
+    ruleMapper.delete(rule2.getId(), "test-user-deleted");
+
+    // Count should now be 2
+    count = ruleMapper.countActiveByCreatedBy("test-user-deleted");
+    assertEquals(
+        2, count, "Should count 2 active rules after deleting one (deleted rules not counted)");
+  }
+
   // @Test - Temporarily disabled due to compilation issues
   // TODO: Re-enable when null filtering is fully implemented
   /*

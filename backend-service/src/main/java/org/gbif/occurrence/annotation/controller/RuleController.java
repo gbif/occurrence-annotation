@@ -245,6 +245,17 @@ public class RuleController implements Controller<Rule> {
     // Check project membership if rule is associated with a project
     assertProjectMember(rule.getProjectId());
 
+    // Check user hasn't exceeded rule limit (admins exempt)
+    if (!isAdmin()) {
+      int userRuleCount = ruleMapper.countActiveByCreatedBy(getLoggedInUser());
+      if (userRuleCount >= 30000) {
+        throw new IllegalArgumentException(
+            "Maximum 30,000 rules per user exceeded. Current: "
+                + userRuleCount
+                + ". Please delete unused rules.");
+      }
+    }
+
     // Validate annotation term exists in project vocabulary
     validateAnnotationTerm(rule);
 
