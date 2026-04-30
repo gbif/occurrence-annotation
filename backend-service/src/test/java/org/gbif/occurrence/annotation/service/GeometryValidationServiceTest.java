@@ -71,13 +71,13 @@ public class GeometryValidationServiceTest {
   public void testExtremelyLongWktThrowsException() {
     // Generate a WKT string longer than MAX_WKT_LENGTH (125,000 characters)
     StringBuilder sb = new StringBuilder("POLYGON((");
-    // Each coordinate pair is roughly "123.456 789.012, " = ~20 characters
-    // Need ~6250 vertices to exceed 125,000 chars
-    for (int i = 0; i < 6250; i++) {
+    // Each coordinate pair is roughly "1234.123456 1234.123456, " = ~29 characters
+    // Need ~7000 vertices to exceed 125,000 chars
+    for (int i = 0; i < 7000; i++) {
       if (i > 0) {
         sb.append(", ");
       }
-      sb.append(i).append(".123 ").append(i).append(".456");
+      sb.append(i).append(".123456 ").append(i).append(".123456");
     }
     sb.append("))");
 
