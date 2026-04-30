@@ -6,6 +6,9 @@
 export const MAX_POLYGON_VERTICES = 2500;
 export const MAX_WKT_LENGTH = 125000;
 
+// Warning threshold at 80% of max vertices
+export const WARNING_THRESHOLD_VERTICES = Math.floor(MAX_POLYGON_VERTICES * 0.8);
+
 // Pattern to match coordinate pairs in WKT (e.g., "1.23 4.56")
 // Matches decimal numbers (with optional sign and decimal point) followed by space and another number
 // This regex matches the backend pattern in GeometryValidationService.java
@@ -96,7 +99,7 @@ export function getPolygonSizeStatus(vertexCount: number): {
     };
   }
   
-  if (vertexCount > MAX_POLYGON_VERTICES * 0.8) { // 80% threshold (2000 vertices)
+  if (vertexCount > WARNING_THRESHOLD_VERTICES) {
     return {
       message: `${vertexCount.toLocaleString()} / ${MAX_POLYGON_VERTICES.toLocaleString()} vertices (approaching limit)`,
       severity: 'warning',

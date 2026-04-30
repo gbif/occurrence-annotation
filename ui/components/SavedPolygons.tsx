@@ -492,13 +492,24 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
   const [isLoading, setIsLoading] = useState(false);
   const [wktText, setWktText] = useState('');
   
-  // Calculate polygon size status from WKT
-  const polygonSizeStatus = useMemo(() => {
+  // Calculate polygon size validation and status from WKT
+  const polygonSizeValidation = useMemo(() => {
     if (!wktText || !wktText.trim()) {
       return null;
     }
-    return getPolygonSizeStatus(validatePolygonSize(wktText).vertexCount);
+    return validatePolygonSize(wktText);
   }, [wktText]);
+
+  const polygonSizeStatus = useMemo(() => {
+    if (!polygonSizeValidation) {
+      return null;
+    }
+    // Only show status if validation passed; otherwise errors are shown in validation check
+    if (!polygonSizeValidation.isValid) {
+      return null;
+    }
+    return getPolygonSizeStatus(polygonSizeValidation.vertexCount);
+  }, [polygonSizeValidation]);
   
   // Complex rule state - initialize with polygon attributes (including from edited rules)
   const [showComplexOptions, setShowComplexOptions] = useState(false);

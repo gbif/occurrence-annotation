@@ -160,7 +160,7 @@ public class GeometryValidationServiceTest {
       double angle = (2 * Math.PI * i) / (vertexCount - 1);
       double x = Math.cos(angle);
       double y = Math.sin(angle);
-      sb.append(String.format("%.6f %.6f", x, y));
+      sb.append(String.format(java.util.Locale.ROOT, "%.6f %.6f", x, y));
     }
 
     sb.append("))");

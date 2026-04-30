@@ -237,7 +237,7 @@ public class RuleController implements Controller<Rule> {
     return ruleMapper.get(id);
   }
 
-  @Operation(summary = "Create a new rule. Maximum 2,500 vertices per polygon (admins exempt).")
+  @Operation(summary = "Create a new rule. Polygon vertex limits enforced (admins exempt).")
   @PostMapping
   @Secured("USER")
   @Override
@@ -256,7 +256,7 @@ public class RuleController implements Controller<Rule> {
     return ruleMapper.get(rule.getId());
   }
 
-  @Operation(summary = "Update an existing rule")
+  @Operation(summary = "Update an existing rule. Geometry validation not applied (grandfathered).")
   @PutMapping("/{id}")
   @Secured({"USER", "REGISTRY_ADMIN"})
   public Rule update(@PathVariable(value = "id") int id, @Valid @RequestBody Rule rule) {
