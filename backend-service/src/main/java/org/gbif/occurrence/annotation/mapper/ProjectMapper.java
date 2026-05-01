@@ -36,5 +36,7 @@ public interface ProjectMapper {
 
   void clearVocabulary(@Param("id") int id, @Param("modifiedBy") String modifiedBy);
 
+  int countActiveByCreatedBy(@Param("createdBy") String createdBy);
+
   void delete(@Param("id") int id, @Param("username") String username);
 }

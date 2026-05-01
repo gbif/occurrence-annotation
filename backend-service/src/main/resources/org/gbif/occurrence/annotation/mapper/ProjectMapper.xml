@@ -50,6 +50,10 @@
         WHERE id = #{id} AND DELETED IS NULL
     </update>
 
+    <select id="countActiveByCreatedBy" resultType="int">
+        SELECT COUNT(*) FROM project WHERE created_by = #{createdBy} AND deleted IS NULL
+    </select>
+
     <update id="delete" parameterType="map">
         UPDATE project SET deleted = now(), deleted_by = #{username} WHERE id = #{id} AND DELETED IS NULL
     </update>

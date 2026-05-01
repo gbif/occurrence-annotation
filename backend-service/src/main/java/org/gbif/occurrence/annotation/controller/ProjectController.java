@@ -13,6 +13,7 @@
  */
 package org.gbif.occurrence.annotation.controller;
 
+import org.gbif.api.vocabulary.UserRole;
 import org.gbif.occurrence.annotation.mapper.ProjectMapper;
 import org.gbif.occurrence.annotation.mapper.RuleMapper;
 import org.gbif.occurrence.annotation.mapper.RulesetMapper;
@@ -26,6 +27,7 @@ import java.util.Locale;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.annotation.Secured;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -83,6 +85,17 @@ public class ProjectController implements Controller<Project> {
     // Validate name is not empty or blank
     if (project.getName() == null || project.getName().trim().isEmpty()) {
       throw new IllegalArgumentException("Project name cannot be empty");
+    }
+
+    // Check user hasn't exceeded project limit (admins exempt)
+    if (!isAdmin()) {
+      int userProjectCount = projectMapper.countActiveByCreatedBy(getLoggedInUser());
+      if (userProjectCount >= 100) {
+        throw new IllegalArgumentException(
+            "Maximum 100 projects per user exceeded. Current: "
+                + userProjectCount
+                + ". Please delete unused projects.");
+      }
     }
 
     String username = getLoggedInUser();
@@ -216,5 +229,15 @@ public class ProjectController implements Controller<Project> {
     projectMapper.clearVocabulary(id, getLoggedInUser());
 
     return vocabularyService.getDefaultVocabulary();
+  }
+
+  /**
+   * Check if the current user has the REGISTRY_ADMIN role
+   *
+   * @return true if the user is a REGISTRY_ADMIN, false otherwise
+   */
+  private boolean isAdmin() {
+    return SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+        .anyMatch(r -> r.getAuthority().equals(UserRole.REGISTRY_ADMIN.toString()));
   }
 }
