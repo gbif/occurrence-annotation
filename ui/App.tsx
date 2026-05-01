@@ -959,6 +959,9 @@ export default function App() {
       // Add to savedPolygons
       setSavedPolygons(prev => [...prev, newPolygon]);
       
+      // Update currentAnnotation to match the loaded rule's annotation
+      setCurrentAnnotation(rule.annotation);
+      
       toast.success('Rule loaded for editing', {
         description: 'Modify the polygon and attributes, then save to create a new rule.',
         duration: 5000,
