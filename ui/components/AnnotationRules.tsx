@@ -1470,14 +1470,7 @@ export function AnnotationRules({
                             {rule.yearRange && (
                               <><span className="text-gray-500"> from years</span> <span className="font-semibold">{rule.yearRange}</span></>
                             )}
-                            <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${
-                              rule.annotation === 'SUSPICIOUS' ? 'text-red-600' :
-                              rule.annotation === 'NATIVE' ? 'text-green-600' :
-                              rule.annotation === 'MANAGED' ? 'text-blue-600' :
-                              rule.annotation === 'FORMER' ? 'text-purple-600' :
-                              rule.annotation === 'VAGRANT' ? 'text-orange-600' :
-                              'text-red-600'
-                            }`}>{rule.annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
+                            <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className="font-semibold" style={{ color: vocabulary.find(v => v.term.toUpperCase() === rule.annotation.toUpperCase())?.color || '#ef4444' }}>{rule.annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
                           </p>
                         )}
                       </div>
