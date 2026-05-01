@@ -94,7 +94,7 @@ public class ProjectController implements Controller<Project> {
         throw new IllegalArgumentException(
             "Maximum 100 projects per user exceeded. Current: "
                 + userProjectCount
-                + ". Please delete unused projects.");
+                + ". Contact helpdesk@gbif.org");
       }
     }
 

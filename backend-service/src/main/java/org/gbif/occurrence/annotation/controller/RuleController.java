@@ -252,7 +252,7 @@ public class RuleController implements Controller<Rule> {
         throw new IllegalArgumentException(
             "Maximum 30,000 rules per user exceeded. Current: "
                 + userRuleCount
-                + ". Please delete unused rules.");
+                + ". Contact helpdesk@gbif.org");
       }
     }
 
