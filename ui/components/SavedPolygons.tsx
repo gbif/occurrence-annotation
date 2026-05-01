@@ -1410,15 +1410,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
                     {(yearRange || (yearRangeStart !== 1600 || yearRangeEnd !== 2025)) && (
                       <> from years <span className="font-bold">{yearRange || (yearRangeStart === yearRangeEnd ? yearRangeStart : `${yearRangeStart}-${yearRangeEnd}`)}</span></>
                     )}
-                    {} within the <span className="font-bold">polygon area</span> as <span className={`font-bold ${
-                      selectedAnnotation === 'SUSPICIOUS' ? 'text-red-600' :
-                      selectedAnnotation === 'NATIVE' ? 'text-green-600' :
-                      selectedAnnotation === 'MANAGED' ? 'text-blue-600' :
-                      selectedAnnotation === 'FORMER' ? 'text-purple-600' :
-                      selectedAnnotation === 'VAGRANT' ? 'text-orange-600' :
-                      selectedAnnotation === 'INTRODUCED' ? 'text-amber-600' :
-                      'text-red-600'
-                    }`}>{selectedAnnotation.toLowerCase()}</span>.
+                    {} within the <span className="font-bold">polygon area</span> as <span className="font-bold" style={{ color: vocabulary.find(v => v.term.toUpperCase() === selectedAnnotation.toUpperCase())?.color || '#ef4444' }}>{selectedAnnotation.toLowerCase()}</span>.
                   </p>
                 </div>
               </div>
@@ -1441,7 +1433,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
                   )}
                   {polygon.yearRange && (
                     <> from years <span className="font-bold">{polygon.yearRange}</span></>
-                  )} within the <span className="font-bold">polygon area</span> as <span className="font-bold text-red-600">suspicious</span>.
+                  )} within the <span className="font-bold">polygon area</span> as <span className="font-bold" style={{ color: vocabulary.find(v => v.term.toUpperCase() === selectedAnnotation.toUpperCase())?.color || '#ef4444' }}>{selectedAnnotation.toLowerCase()}</span>.
                 </p>
               </div>
             )}
@@ -1896,15 +1888,7 @@ function PolygonCard({
                   <span className="font-semibold">{polygon.yearRange}</span>
                 </>
               )}
-              <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${
-                annotation === 'SUSPICIOUS' ? 'text-red-600' :
-                annotation === 'NATIVE' ? 'text-green-600' :
-                annotation === 'MANAGED' ? 'text-blue-600' :
-                annotation === 'FORMER' ? 'text-purple-600' :
-                annotation === 'VAGRANT' ? 'text-orange-600' :
-                annotation === 'INTRODUCED' ? 'text-amber-600' :
-                'text-red-600'
-              }`}>{annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
+              <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className="font-semibold" style={{ color: vocabulary?.find(v => v.term.toUpperCase() === annotation.toUpperCase())?.color || '#ef4444' }}>{annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
             </p>
           </div>
         )}
