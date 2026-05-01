@@ -854,6 +854,9 @@ export default function App() {
     setCurrentPolygon(null);
     setIsInverted(false);
     
+    // Reset annotation to default
+    setCurrentAnnotation('SUSPICIOUS');
+    
     // Remove the saved polygon from the local list since it's now saved to GBIF
     if (savedPolygonId) {
       setSavedPolygons(prev => prev.filter(p => p.id !== savedPolygonId));
