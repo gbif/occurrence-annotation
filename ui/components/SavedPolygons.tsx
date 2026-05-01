@@ -715,9 +715,11 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
 
   // Fetch vocabulary based on polygon's project or selected project
   useEffect(() => {
+    if (!isOpen) return; // Only fetch when dialog is open
+
     const fetchVocabulary = async () => {
       // Use polygon's projectId if available, otherwise fall back to selected project
-      const projectId = polygon.projectId || localStorage.getItem('selectedProjectId');
+      const projectId = polygon.projectId ?? localStorage.getItem('selectedProjectId');
       
       if (!projectId) {
         // No project selected, use default vocabulary
@@ -1434,7 +1436,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
                   )}
                   {polygon.yearRange && (
                     <> from years <span className="font-bold">{polygon.yearRange}</span></>
-                  )} within the <span className="font-bold">polygon area</span> as <span className="font-bold" style={{ color: vocabulary.find(v => v.term.toUpperCase() === selectedAnnotation.toUpperCase())?.color || '#ef4444' }}>{selectedAnnotation.toLowerCase()}</span>.
+                  )} within the <span className="font-bold">polygon area</span> as <span className="font-bold" style={{ color: vocabulary.find(v => v.term.toUpperCase() === (polygon.annotation || annotation).toUpperCase())?.color || '#ef4444' }}>{(polygon.annotation || annotation).toLowerCase()}</span>.
                 </p>
               </div>
             )}
@@ -1981,7 +1983,7 @@ export function SavedPolygons({
     { term: 'INTRODUCED', description: 'Introduced species', color: '#3b82f6', locked: false },
   ]);
 
-  // Fetch vocabulary for each polygon's project
+  // Fetch vocabulary based on polygon project IDs (memoized to avoid refetching on coordinate changes)
   useEffect(() => {
     const fetchVocabularyForPolygons = async () => {
       // Collect unique project IDs from all polygons
@@ -2006,8 +2008,9 @@ export function SavedPolygons({
       }
 
       try {
-        // Fetch vocabulary for all unique project IDs
-        // For simplicity, fetch the first one (or we could merge vocabularies)
+        // Fetch vocabulary for the first project ID found
+        // Note: This component displays polygons from a single editing context,
+        // so all polygons typically share the same project
         const firstProjectId = Array.from(projectIds)[0];
         const response = await fetch(getAnnotationApiUrl(`/project/${firstProjectId}/vocabulary`));
         
@@ -2025,7 +2028,8 @@ export function SavedPolygons({
     };
 
     fetchVocabularyForPolygons();
-  }, [polygons]); // Fetch when polygons change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polygons.map(p => p.projectId).join(',')]); // Only refetch when project IDs change
 
   if (polygons.length === 0) {
     return (

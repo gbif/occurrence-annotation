@@ -1304,11 +1304,17 @@ export function AnnotationRules({
 
   // Helper to get the appropriate vocabulary for a rule
   const getVocabularyForRule = (rule: AnnotationRule): VocabularyTerm[] => {
-    // If the rule has a projectId and we have vocabulary for that project, use it
+    // Prefer vocabulary attached directly to the rule when available
+    if (rule.projectVocabulary && rule.projectVocabulary.length > 0) {
+      return rule.projectVocabulary;
+    }
+    
+    // Otherwise, if the rule has a projectId and we have vocabulary for that project, use it
     if (rule.projectId && projectVocabularies.has(rule.projectId)) {
       return projectVocabularies.get(rule.projectId)!;
     }
-    // Otherwise, fall back to the default/current vocabulary
+    
+    // Finally, fall back to the default/current vocabulary
     return vocabulary;
   };
 
