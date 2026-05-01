@@ -308,6 +308,8 @@ export interface AnnotationRule {
   // Higher order metadata
   taxonomicLevel?: string;
   scientificName?: string;
+  // Project-specific vocabulary for this rule
+  projectVocabulary?: VocabularyTerm[];
 }
 
 interface AnnotationRulesProps {
@@ -330,11 +332,11 @@ export function AnnotationRules({
   filterProjectId,
   vocabulary = [
     { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
-    { term: 'NATIVE', description: 'Native species', color: '#10b981', locked: false },
-    { term: 'MANAGED', description: 'Managed population', color: '#3b82f6', locked: false },
-    { term: 'FORMER', description: 'Former population', color: '#a855f7', locked: false },
-    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
-    { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
+    { term: 'NATIVE', description: 'Native species', color: '#22c55e', locked: false },
+    { term: 'MANAGED', description: 'Managed population', color: '#a855f7', locked: false },
+    { term: 'FORMER', description: 'Former population', color: '#f97316', locked: false },
+    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#06b6d4', locked: false },
+    { term: 'INTRODUCED', description: 'Introduced species', color: '#3b82f6', locked: false },
   ],
   onLoadRuleForEditing,
 }: AnnotationRulesProps) {
@@ -362,6 +364,9 @@ export function AnnotationRules({
   
   // Project names cache
   const [projectNames, setProjectNames] = useState<Map<number, string>>(new Map());
+  
+  // Project vocabularies cache - stores vocabulary for each project
+  const [projectVocabularies, setProjectVocabularies] = useState<Map<number, VocabularyTerm[]>>(new Map());
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(0);
@@ -571,11 +576,6 @@ export function AnnotationRules({
           };
         });
         
-        setRules(rulesWithCoords);
-        setTotalCount(totalRulesCount);
-        setHasNextPage((page + 1) * pageSize < totalRulesCount);
-        onRulesLoadRef.current?.(rulesWithCoords);
-        
         // Initialize user votes based on current user being in supported/contested arrays
         if (currentUser?.userName) {
           const newUserVotes = new Map<number, 'support' | 'contest' | null>();
@@ -596,17 +596,59 @@ export function AnnotationRules({
           fetchCommentCount(rule.id);
         });
         
-        // Fetch project names for rules that have projectIds
+        // Fetch project names and vocabularies for rules that have projectIds
         const projectIdsToFetch = new Set<number>();
+        const vocabularyProjectIds = new Set<number>();
         rulesWithCoords.forEach(rule => {
-          if (rule.projectId && !projectNames.has(rule.projectId)) {
-            projectIdsToFetch.add(rule.projectId);
+          if (rule.projectId) {
+            if (!projectNames.has(rule.projectId)) {
+              projectIdsToFetch.add(rule.projectId);
+            }
+            if (!projectVocabularies.has(rule.projectId)) {
+              vocabularyProjectIds.add(rule.projectId);
+            }
           }
         });
         
+        // Fetch project names and vocabularies in parallel
+        let fetchedVocabularies = new Map<number, VocabularyTerm[]>();
+        
+        const promises: Promise<any>[] = [];
         if (projectIdsToFetch.size > 0) {
-          fetchProjectNames(Array.from(projectIdsToFetch));
+          promises.push(fetchProjectNames(Array.from(projectIdsToFetch)));
         }
+        if (vocabularyProjectIds.size > 0) {
+          promises.push(
+            fetchProjectVocabularies(Array.from(vocabularyProjectIds)).then(vocabMap => {
+              fetchedVocabularies = vocabMap;
+            })
+          );
+        }
+        
+        // Wait for vocabularies to be fetched
+        if (promises.length > 0) {
+          await Promise.all(promises);
+        }
+        
+        // Merge cached vocabularies with newly fetched ones
+        const allVocabularies = new Map([...projectVocabularies, ...fetchedVocabularies]);
+        
+        // Now augment rules with their project vocabularies
+        const rulesWithVocabulary = rulesWithCoords.map(rule => {
+          if (rule.projectId) {
+            const projectVocab = allVocabularies.get(rule.projectId);
+            if (projectVocab) {
+              return { ...rule, projectVocabulary: projectVocab };
+            }
+          }
+          return rule;
+        });
+        
+        // Update state with rules that have vocabulary attached
+        setRules(rulesWithVocabulary);
+        setTotalCount(totalRulesCount);
+        setHasNextPage((page + 1) * pageSize < totalRulesCount);
+        onRulesLoadRef.current?.(rulesWithVocabulary);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
         setRules([]);
@@ -700,6 +742,54 @@ export function AnnotationRules({
       });
     } catch (error) {
       console.error('Error fetching project names:', error);
+    }
+  };
+  
+  const fetchProjectVocabularies = async (projectIds: number[]): Promise<Map<number, VocabularyTerm[]>> => {
+    try {
+      const vocabularyPromises = projectIds.map(async (projectId) => {
+        try {
+          const response = await fetch(
+            getAnnotationApiUrl(`/project/${projectId}/vocabulary`)
+          );
+          
+          if (!response.ok) {
+            return { id: projectId, vocabulary: [] };
+          }
+          
+          const vocabulary: VocabularyTerm[] = await response.json();
+          return { id: projectId, vocabulary };
+        } catch (error) {
+          console.error(`Error fetching vocabulary for project ${projectId}:`, error);
+          return { id: projectId, vocabulary: [] };
+        }
+      });
+      
+      const vocabularyData = await Promise.all(vocabularyPromises);
+      
+      // Build the result map
+      const resultMap = new Map<number, VocabularyTerm[]>();
+      vocabularyData.forEach(({ id, vocabulary }) => {
+        if (vocabulary.length > 0) {
+          resultMap.set(id, vocabulary);
+        }
+      });
+      
+      // Update state for future use
+      setProjectVocabularies(prev => {
+        const newMap = new Map(prev);
+        vocabularyData.forEach(({ id, vocabulary }) => {
+          if (vocabulary.length > 0) {
+            newMap.set(id, vocabulary);
+          }
+        });
+        return newMap;
+      });
+      
+      return resultMap;
+    } catch (error) {
+      console.error('Error fetching project vocabularies:', error);
+      return new Map();
     }
   };
 
@@ -1212,9 +1302,28 @@ export function AnnotationRules({
     }
   };
 
-  const getAnnotationColor = (annotation: string) => {
+  // Helper to get the appropriate vocabulary for a rule
+  const getVocabularyForRule = (rule: AnnotationRule): VocabularyTerm[] => {
+    // Prefer vocabulary attached directly to the rule when available
+    if (rule.projectVocabulary && rule.projectVocabulary.length > 0) {
+      return rule.projectVocabulary;
+    }
+    
+    // Otherwise, if the rule has a projectId and we have vocabulary for that project, use it
+    if (rule.projectId && projectVocabularies.has(rule.projectId)) {
+      return projectVocabularies.get(rule.projectId)!;
+    }
+    
+    // Finally, fall back to the default/current vocabulary
+    return vocabulary;
+  };
+
+  const getAnnotationColor = (annotation: string, rule?: AnnotationRule) => {
+    // Determine which vocabulary to use
+    const vocabToUse = rule ? getVocabularyForRule(rule) : vocabulary;
+    
     // Look up color from vocabulary
-    const vocabTerm = vocabulary.find(v => v.term.toUpperCase() === annotation.toUpperCase());
+    const vocabTerm = vocabToUse.find(v => v.term.toUpperCase() === annotation.toUpperCase());
     if (vocabTerm) {
       // Convert hex color to Tailwind-style classes
       const color = vocabTerm.color.toLowerCase();
@@ -1234,8 +1343,11 @@ export function AnnotationRules({
     };
   };
 
-  const renderPolygonPreview = (multiPolygon: MultiPolygon | undefined, annotation: string) => {
+  const renderPolygonPreview = (multiPolygon: MultiPolygon | undefined, annotation: string, rule?: AnnotationRule) => {
     if (!multiPolygon || multiPolygon.polygons.length === 0) return null;
+
+    // Get the appropriate vocabulary for this rule
+    const vocabToUse = rule ? getVocabularyForRule(rule) : vocabulary;
 
     // Helper function to detect if a polygon is inverted by checking if outer ring covers the world
     const isInvertedPolygon = (polygon: PolygonWithHoles): boolean => {
@@ -1302,7 +1414,7 @@ export function AnnotationRules({
         width={80}
         height={60}
         className="rounded-md shadow-sm"
-        vocabulary={vocabulary}
+        vocabulary={vocabToUse}
       />
     );
 
@@ -1388,7 +1500,7 @@ export function AnnotationRules({
                 {/* Polygon preview */}
                 {rule.multiPolygon && (
                   <div className="flex-shrink-0">
-                    {renderPolygonPreview(rule.multiPolygon, rule.annotation)}
+                    {renderPolygonPreview(rule.multiPolygon, rule.annotation, rule)}
                   </div>
                 )}
                 
@@ -1396,7 +1508,7 @@ export function AnnotationRules({
                 <div className="flex-1 space-y-2 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <Badge 
-                      style={getAnnotationColor(rule.annotation)} 
+                      style={getAnnotationColor(rule.annotation, rule)} 
                       variant="outline"
                       className="border"
                     >
@@ -1470,14 +1582,7 @@ export function AnnotationRules({
                             {rule.yearRange && (
                               <><span className="text-gray-500"> from years</span> <span className="font-semibold">{rule.yearRange}</span></>
                             )}
-                            <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${
-                              rule.annotation === 'SUSPICIOUS' ? 'text-red-600' :
-                              rule.annotation === 'NATIVE' ? 'text-green-600' :
-                              rule.annotation === 'MANAGED' ? 'text-blue-600' :
-                              rule.annotation === 'FORMER' ? 'text-purple-600' :
-                              rule.annotation === 'VAGRANT' ? 'text-orange-600' :
-                              'text-red-600'
-                            }`}>{rule.annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
+                            <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className="font-semibold" style={{ color: getVocabularyForRule(rule).find(v => v.term.toUpperCase() === rule.annotation.toUpperCase())?.color || '#ef4444' }}>{rule.annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
                           </p>
                         )}
                       </div>

@@ -99,10 +99,10 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
   const [vocabulary, setVocabulary] = useState<Array<{term: string, color: string}>>([
     { term: 'SUSPICIOUS', color: '#ef4444' },
     { term: 'NATIVE', color: '#22c55e' },
-    { term: 'INTRODUCED', color: '#3b82f6' },
     { term: 'MANAGED', color: '#a855f7' },
     { term: 'FORMER', color: '#f97316' },
     { term: 'VAGRANT', color: '#06b6d4' },
+    { term: 'INTRODUCED', color: '#3b82f6' },
     { term: 'OTHER', color: '#6b7280' },
   ]);
   const [loadingVocabulary, setLoadingVocabulary] = useState(false);
@@ -159,10 +159,10 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
         [
           { term: 'SUSPICIOUS', color: '#ef4444' },
           { term: 'NATIVE', color: '#22c55e' },
-          { term: 'INTRODUCED', color: '#3b82f6' },
           { term: 'MANAGED', color: '#a855f7' },
           { term: 'FORMER', color: '#f97316' },
           { term: 'VAGRANT', color: '#06b6d4' },
+          { term: 'INTRODUCED', color: '#3b82f6' },
           { term: 'OTHER', color: '#6b7280' },
         ].forEach(v => mergedVocabMap.set(v.term, v));
 

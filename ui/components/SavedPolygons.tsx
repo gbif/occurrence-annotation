@@ -563,10 +563,10 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
   // Vocabulary state
   const [vocabulary, setVocabulary] = useState<VocabularyTerm[]>([
     { term: 'SUSPICIOUS', color: '#ef4444', locked: true },
+    { term: 'NATIVE', color: '#22c55e', locked: false },
     { term: 'MANAGED', color: '#a855f7', locked: false },
     { term: 'FORMER', color: '#f97316', locked: false },
     { term: 'VAGRANT', color: '#06b6d4', locked: false },
-    { term: 'NATIVE', color: '#22c55e', locked: false },
     { term: 'INTRODUCED', color: '#3b82f6', locked: false },
   ]);
   const [loadingVocabulary, setLoadingVocabulary] = useState(false);
@@ -713,19 +713,22 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
     fetchBasisOfRecordOptions();
   }, []);
 
-  // Fetch vocabulary based on selected project
+  // Fetch vocabulary based on polygon's project or selected project
   useEffect(() => {
+    if (!isOpen) return; // Only fetch when dialog is open
+
     const fetchVocabulary = async () => {
-      const selectedProjectId = localStorage.getItem('selectedProjectId');
+      // Use polygon's projectId if available, otherwise fall back to selected project
+      const projectId = polygon.projectId ?? localStorage.getItem('selectedProjectId');
       
-      if (!selectedProjectId) {
+      if (!projectId) {
         // No project selected, use default vocabulary
         return;
       }
 
       setLoadingVocabulary(true);
       try {
-        const response = await fetch(getAnnotationApiUrl(`/project/${selectedProjectId}/vocabulary`));
+        const response = await fetch(getAnnotationApiUrl(`/project/${projectId}/vocabulary`));
         
         if (!response.ok) {
           console.error('Failed to fetch vocabulary, using defaults');
@@ -743,7 +746,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
     };
 
     fetchVocabulary();
-  }, [isOpen]); // Fetch when dialog opens
+  }, [isOpen, polygon.projectId]); // Fetch when dialog opens or polygon.projectId changes
 
   // Update yearRange string when slider values change
   useEffect(() => {
@@ -1410,15 +1413,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
                     {(yearRange || (yearRangeStart !== 1600 || yearRangeEnd !== 2025)) && (
                       <> from years <span className="font-bold">{yearRange || (yearRangeStart === yearRangeEnd ? yearRangeStart : `${yearRangeStart}-${yearRangeEnd}`)}</span></>
                     )}
-                    {} within the <span className="font-bold">polygon area</span> as <span className={`font-bold ${
-                      selectedAnnotation === 'SUSPICIOUS' ? 'text-red-600' :
-                      selectedAnnotation === 'NATIVE' ? 'text-green-600' :
-                      selectedAnnotation === 'MANAGED' ? 'text-blue-600' :
-                      selectedAnnotation === 'FORMER' ? 'text-purple-600' :
-                      selectedAnnotation === 'VAGRANT' ? 'text-orange-600' :
-                      selectedAnnotation === 'INTRODUCED' ? 'text-amber-600' :
-                      'text-red-600'
-                    }`}>{selectedAnnotation.toLowerCase()}</span>.
+                    {} within the <span className="font-bold">polygon area</span> as <span className="font-bold" style={{ color: vocabulary.find(v => v.term.toUpperCase() === selectedAnnotation.toUpperCase())?.color || '#ef4444' }}>{selectedAnnotation.toLowerCase()}</span>.
                   </p>
                 </div>
               </div>
@@ -1441,7 +1436,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
                   )}
                   {polygon.yearRange && (
                     <> from years <span className="font-bold">{polygon.yearRange}</span></>
-                  )} within the <span className="font-bold">polygon area</span> as <span className="font-bold text-red-600">suspicious</span>.
+                  )} within the <span className="font-bold">polygon area</span> as <span className="font-bold" style={{ color: vocabulary.find(v => v.term.toUpperCase() === (polygon.annotation || annotation).toUpperCase())?.color || '#ef4444' }}>{(polygon.annotation || annotation).toLowerCase()}</span>.
                 </p>
               </div>
             )}
@@ -1896,15 +1891,7 @@ function PolygonCard({
                   <span className="font-semibold">{polygon.yearRange}</span>
                 </>
               )}
-              <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${
-                annotation === 'SUSPICIOUS' ? 'text-red-600' :
-                annotation === 'NATIVE' ? 'text-green-600' :
-                annotation === 'MANAGED' ? 'text-blue-600' :
-                annotation === 'FORMER' ? 'text-purple-600' :
-                annotation === 'VAGRANT' ? 'text-orange-600' :
-                annotation === 'INTRODUCED' ? 'text-amber-600' :
-                'text-red-600'
-              }`}>{annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
+              <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className="font-semibold" style={{ color: vocabulary?.find(v => v.term.toUpperCase() === annotation.toUpperCase())?.color || '#ef4444' }}>{annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
             </p>
           </div>
         )}
@@ -1989,25 +1976,43 @@ export function SavedPolygons({
   // Vocabulary state for polygon colors
   const [vocabulary, setVocabulary] = useState<VocabularyTerm[]>([
     { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
-    { term: 'NATIVE', description: 'Native species', color: '#10b981', locked: false },
-    { term: 'MANAGED', description: 'Managed population', color: '#3b82f6', locked: false },
-    { term: 'FORMER', description: 'Former population', color: '#a855f7', locked: false },
-    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
-    { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
+    { term: 'NATIVE', description: 'Native species', color: '#22c55e', locked: false },
+    { term: 'MANAGED', description: 'Managed population', color: '#a855f7', locked: false },
+    { term: 'FORMER', description: 'Former population', color: '#f97316', locked: false },
+    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#06b6d4', locked: false },
+    { term: 'INTRODUCED', description: 'Introduced species', color: '#3b82f6', locked: false },
   ]);
 
-  // Fetch vocabulary based on selected project
+  // Fetch vocabulary based on polygon project IDs (memoized to avoid refetching on coordinate changes)
   useEffect(() => {
-    const fetchVocabulary = async () => {
-      const selectedProjectId = localStorage.getItem('selectedProjectId');
-      
-      if (!selectedProjectId) {
-        // No project selected, use default vocabulary
+    const fetchVocabularyForPolygons = async () => {
+      // Collect unique project IDs from all polygons
+      const projectIds = new Set<number>();
+      polygons.forEach(p => {
+        if (p.projectId) {
+          projectIds.add(p.projectId);
+        }
+      });
+
+      // If no project IDs, check if there's a selected project
+      if (projectIds.size === 0) {
+        const selectedProjectId = localStorage.getItem('selectedProjectId');
+        if (selectedProjectId) {
+          projectIds.add(parseInt(selectedProjectId));
+        }
+      }
+
+      if (projectIds.size === 0) {
+        // No projects to fetch vocabulary for, use defaults
         return;
       }
 
       try {
-        const response = await fetch(getAnnotationApiUrl(`/project/${selectedProjectId}/vocabulary`));
+        // Fetch vocabulary for the first project ID found
+        // Note: This component displays polygons from a single editing context,
+        // so all polygons typically share the same project
+        const firstProjectId = Array.from(projectIds)[0];
+        const response = await fetch(getAnnotationApiUrl(`/project/${firstProjectId}/vocabulary`));
         
         if (!response.ok) {
           console.error('Failed to fetch vocabulary, using defaults');
@@ -2022,8 +2027,9 @@ export function SavedPolygons({
       }
     };
 
-    fetchVocabulary();
-  }, []); // Fetch once on mount
+    fetchVocabularyForPolygons();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polygons.map(p => p.projectId).join(',')]); // Only refetch when project IDs change
 
   if (polygons.length === 0) {
     return (

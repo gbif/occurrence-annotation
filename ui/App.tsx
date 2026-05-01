@@ -94,11 +94,11 @@ export default function App() {
   // Vocabulary for dynamic annotation colors
   const [vocabulary, setVocabulary] = useState<VocabularyTerm[]>([
     { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
-    { term: 'NATIVE', description: 'Native species', color: '#10b981', locked: false },
-    { term: 'MANAGED', description: 'Managed population', color: '#3b82f6', locked: false },
-    { term: 'FORMER', description: 'Former population', color: '#a855f7', locked: false },
-    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
-    { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
+    { term: 'NATIVE', description: 'Native species', color: '#22c55e', locked: false },
+    { term: 'MANAGED', description: 'Managed population', color: '#a855f7', locked: false },
+    { term: 'FORMER', description: 'Former population', color: '#f97316', locked: false },
+    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#06b6d4', locked: false },
+    { term: 'INTRODUCED', description: 'Introduced species', color: '#3b82f6', locked: false },
   ]);
   
   // Note: Countries are now converted to PolygonData when selected (no separate state)
@@ -854,6 +854,9 @@ export default function App() {
     setCurrentPolygon(null);
     setIsInverted(false);
     
+    // Reset annotation to default
+    setCurrentAnnotation('SUSPICIOUS');
+    
     // Remove the saved polygon from the local list since it's now saved to GBIF
     if (savedPolygonId) {
       setSavedPolygons(prev => prev.filter(p => p.id !== savedPolygonId));
@@ -958,6 +961,9 @@ export default function App() {
 
       // Add to savedPolygons
       setSavedPolygons(prev => [...prev, newPolygon]);
+      
+      // Update currentAnnotation to match the loaded rule's annotation
+      setCurrentAnnotation(rule.annotation);
       
       toast.success('Rule loaded for editing', {
         description: 'Modify the polygon and attributes, then save to create a new rule.',

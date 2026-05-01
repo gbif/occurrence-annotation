@@ -106,21 +106,24 @@ export function MapComponent({
   onSplitMultiPolygon,
   vocabulary = [
     { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
-    { term: 'NATIVE', description: 'Native species', color: '#10b981', locked: false },
-    { term: 'MANAGED', description: 'Managed population', color: '#3b82f6', locked: false },
-    { term: 'FORMER', description: 'Former population', color: '#a855f7', locked: false },
-    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
-    { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
+    { term: 'NATIVE', description: 'Native species', color: '#22c55e', locked: false },
+    { term: 'MANAGED', description: 'Managed population', color: '#a855f7', locked: false },
+    { term: 'FORMER', description: 'Former population', color: '#f97316', locked: false },
+    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#06b6d4', locked: false },
+    { term: 'INTRODUCED', description: 'Introduced species', color: '#3b82f6', locked: false },
   ],
 }: MapComponentProps) {
   // Helper function to get colors from vocabulary
-  const getColorFromVocabulary = (annotation: string): { fill: string; stroke: string } => {
-    const term = vocabulary.find(v => v.term.toUpperCase() === annotation.toUpperCase());
+  const getColorFromVocabulary = (annotation: string, rule?: AnnotationRule): { fill: string; stroke: string } => {
+    // Use rule's project vocabulary if available, otherwise use the main vocabulary prop
+    const vocabToUse = rule?.projectVocabulary || vocabulary;
+    
+    const term = vocabToUse.find(v => v.term.toUpperCase() === annotation.toUpperCase());
     if (term) {
       return { fill: term.color, stroke: term.color };
     }
     // Fallback to SUSPICIOUS if term not found
-    const suspicious = vocabulary.find(v => v.term.toUpperCase() === 'SUSPICIOUS');
+    const suspicious = vocabToUse.find(v => v.term.toUpperCase() === 'SUSPICIOUS');
     return { fill: suspicious?.color || '#ef4444', stroke: suspicious?.color || '#dc2626' };
   };
   
@@ -2054,8 +2057,8 @@ export function MapComponent({
             return null;
           }
           
-          // Color based on annotation type
-          const colorSet = getColorFromVocabulary(rule.annotation);
+          // Color based on annotation type - use rule's project vocabulary if available
+          const colorSet = getColorFromVocabulary(rule.annotation, rule);
           
           // Find the first coordinate to use as anchor point
           const firstPolygon = rule.multiPolygon.polygons[0];
