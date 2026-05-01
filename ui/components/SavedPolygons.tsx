@@ -563,11 +563,11 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
   // Vocabulary state
   const [vocabulary, setVocabulary] = useState<VocabularyTerm[]>([
     { term: 'SUSPICIOUS', color: '#ef4444', locked: true },
-    { term: 'NATIVE', color: '#10b981', locked: false },
-    { term: 'MANAGED', color: '#3b82f6', locked: false },
-    { term: 'FORMER', color: '#a855f7', locked: false },
-    { term: 'VAGRANT', color: '#f97316', locked: false },
-    { term: 'INTRODUCED', color: '#d97706', locked: false },
+    { term: 'NATIVE', color: '#22c55e', locked: false },
+    { term: 'MANAGED', color: '#a855f7', locked: false },
+    { term: 'FORMER', color: '#f97316', locked: false },
+    { term: 'VAGRANT', color: '#06b6d4', locked: false },
+    { term: 'INTRODUCED', color: '#3b82f6', locked: false },
   ]);
   const [loadingVocabulary, setLoadingVocabulary] = useState(false);
 
@@ -1974,11 +1974,11 @@ export function SavedPolygons({
   // Vocabulary state for polygon colors
   const [vocabulary, setVocabulary] = useState<VocabularyTerm[]>([
     { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
-    { term: 'NATIVE', description: 'Native species', color: '#10b981', locked: false },
-    { term: 'MANAGED', description: 'Managed population', color: '#3b82f6', locked: false },
-    { term: 'FORMER', description: 'Former population', color: '#a855f7', locked: false },
-    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
-    { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
+    { term: 'NATIVE', description: 'Native species', color: '#22c55e', locked: false },
+    { term: 'MANAGED', description: 'Managed population', color: '#a855f7', locked: false },
+    { term: 'FORMER', description: 'Former population', color: '#f97316', locked: false },
+    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#06b6d4', locked: false },
+    { term: 'INTRODUCED', description: 'Introduced species', color: '#3b82f6', locked: false },
   ]);
 
   // Fetch vocabulary for each polygon's project

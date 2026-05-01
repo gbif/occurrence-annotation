@@ -332,11 +332,11 @@ export function AnnotationRules({
   filterProjectId,
   vocabulary = [
     { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
-    { term: 'NATIVE', description: 'Native species', color: '#10b981', locked: false },
-    { term: 'MANAGED', description: 'Managed population', color: '#3b82f6', locked: false },
-    { term: 'FORMER', description: 'Former population', color: '#a855f7', locked: false },
-    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#f97316', locked: false },
-    { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
+    { term: 'NATIVE', description: 'Native species', color: '#22c55e', locked: false },
+    { term: 'MANAGED', description: 'Managed population', color: '#a855f7', locked: false },
+    { term: 'FORMER', description: 'Former population', color: '#f97316', locked: false },
+    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#06b6d4', locked: false },
+    { term: 'INTRODUCED', description: 'Introduced species', color: '#3b82f6', locked: false },
   ],
   onLoadRuleForEditing,
 }: AnnotationRulesProps) {
