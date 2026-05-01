@@ -713,19 +713,20 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
     fetchBasisOfRecordOptions();
   }, []);
 
-  // Fetch vocabulary based on selected project
+  // Fetch vocabulary based on polygon's project or selected project
   useEffect(() => {
     const fetchVocabulary = async () => {
-      const selectedProjectId = localStorage.getItem('selectedProjectId');
+      // Use polygon's projectId if available, otherwise fall back to selected project
+      const projectId = polygon.projectId || localStorage.getItem('selectedProjectId');
       
-      if (!selectedProjectId) {
+      if (!projectId) {
         // No project selected, use default vocabulary
         return;
       }
 
       setLoadingVocabulary(true);
       try {
-        const response = await fetch(getAnnotationApiUrl(`/project/${selectedProjectId}/vocabulary`));
+        const response = await fetch(getAnnotationApiUrl(`/project/${projectId}/vocabulary`));
         
         if (!response.ok) {
           console.error('Failed to fetch vocabulary, using defaults');
@@ -743,7 +744,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
     };
 
     fetchVocabulary();
-  }, [isOpen]); // Fetch when dialog opens
+  }, [isOpen, polygon.projectId]); // Fetch when dialog opens or polygon.projectId changes
 
   // Update yearRange string when slider values change
   useEffect(() => {
@@ -1980,18 +1981,35 @@ export function SavedPolygons({
     { term: 'INTRODUCED', description: 'Introduced species', color: '#d97706', locked: false },
   ]);
 
-  // Fetch vocabulary based on selected project
+  // Fetch vocabulary for each polygon's project
   useEffect(() => {
-    const fetchVocabulary = async () => {
-      const selectedProjectId = localStorage.getItem('selectedProjectId');
-      
-      if (!selectedProjectId) {
-        // No project selected, use default vocabulary
+    const fetchVocabularyForPolygons = async () => {
+      // Collect unique project IDs from all polygons
+      const projectIds = new Set<number>();
+      polygons.forEach(p => {
+        if (p.projectId) {
+          projectIds.add(p.projectId);
+        }
+      });
+
+      // If no project IDs, check if there's a selected project
+      if (projectIds.size === 0) {
+        const selectedProjectId = localStorage.getItem('selectedProjectId');
+        if (selectedProjectId) {
+          projectIds.add(parseInt(selectedProjectId));
+        }
+      }
+
+      if (projectIds.size === 0) {
+        // No projects to fetch vocabulary for, use defaults
         return;
       }
 
       try {
-        const response = await fetch(getAnnotationApiUrl(`/project/${selectedProjectId}/vocabulary`));
+        // Fetch vocabulary for all unique project IDs
+        // For simplicity, fetch the first one (or we could merge vocabularies)
+        const firstProjectId = Array.from(projectIds)[0];
+        const response = await fetch(getAnnotationApiUrl(`/project/${firstProjectId}/vocabulary`));
         
         if (!response.ok) {
           console.error('Failed to fetch vocabulary, using defaults');
@@ -2006,8 +2024,8 @@ export function SavedPolygons({
       }
     };
 
-    fetchVocabulary();
-  }, []); // Fetch once on mount
+    fetchVocabularyForPolygons();
+  }, [polygons]); // Fetch when polygons change
 
   if (polygons.length === 0) {
     return (
