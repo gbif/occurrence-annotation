@@ -70,39 +70,45 @@ public class VocabularyService {
   public VocabularyTerm[] getDefaultVocabulary() {
     return new VocabularyTerm[] {
       VocabularyTerm.builder()
+          .term("NATIVE")
+          .description("Native to the area")
+          .color("#22c55e")
+          .locked(false)
+          .build(),
+      VocabularyTerm.builder()
+          .term("INTRODUCED")
+          .description("Introduced to the area")
+          .color("#3b82f6")
+          .locked(false)
+          .build(),
+      VocabularyTerm.builder()
+          .term("MANAGED")
+          .description("Managed population")
+          .color("#a855f7")
+          .locked(false)
+          .build(),
+      VocabularyTerm.builder()
+          .term("FORMER")
+          .description("Formerly present")
+          .color("#f97316")
+          .locked(false)
+          .build(),
+      VocabularyTerm.builder()
+          .term("VAGRANT")
+          .description("Vagrant occurrence")
+          .color("#06b6d4")
+          .locked(false)
+          .build(),
+      VocabularyTerm.builder()
           .term("SUSPICIOUS")
           .description("Suspicious or questionable")
           .color("#ef4444")
           .locked(true)
           .build(),
       VocabularyTerm.builder()
-          .term("NATIVE")
-          .description("Native to the area")
-          .color("#10b981")
-          .locked(false)
-          .build(),
-      VocabularyTerm.builder()
-          .term("MANAGED")
-          .description("Managed population")
-          .color("#3b82f6")
-          .locked(false)
-          .build(),
-      VocabularyTerm.builder()
-          .term("FORMER")
-          .description("Formerly present")
-          .color("#a855f7")
-          .locked(false)
-          .build(),
-      VocabularyTerm.builder()
-          .term("VAGRANT")
-          .description("Vagrant occurrence")
-          .color("#f97316")
-          .locked(false)
-          .build(),
-      VocabularyTerm.builder()
-          .term("INTRODUCED")
-          .description("Introduced to the area")
-          .color("#d97706")
+          .term("OTHER")
+          .description("Other annotation type")
+          .color("#6b7280")
           .locked(false)
           .build()
     };
