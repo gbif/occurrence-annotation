@@ -563,11 +563,11 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
   // Vocabulary state
   const [vocabulary, setVocabulary] = useState<VocabularyTerm[]>([
     { term: 'SUSPICIOUS', color: '#ef4444', locked: true },
-    { term: 'MANAGED', color: '#a855f7', locked: false },
-    { term: 'FORMER', color: '#f97316', locked: false },
-    { term: 'VAGRANT', color: '#06b6d4', locked: false },
-    { term: 'NATIVE', color: '#22c55e', locked: false },
-    { term: 'INTRODUCED', color: '#3b82f6', locked: false },
+    { term: 'NATIVE', color: '#10b981', locked: false },
+    { term: 'MANAGED', color: '#3b82f6', locked: false },
+    { term: 'FORMER', color: '#a855f7', locked: false },
+    { term: 'VAGRANT', color: '#f97316', locked: false },
+    { term: 'INTRODUCED', color: '#d97706', locked: false },
   ]);
   const [loadingVocabulary, setLoadingVocabulary] = useState(false);
 

@@ -98,11 +98,11 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
   // Vocabulary state
   const [vocabulary, setVocabulary] = useState<Array<{term: string, color: string}>>([
     { term: 'SUSPICIOUS', color: '#ef4444' },
-    { term: 'NATIVE', color: '#22c55e' },
-    { term: 'INTRODUCED', color: '#3b82f6' },
-    { term: 'MANAGED', color: '#a855f7' },
-    { term: 'FORMER', color: '#f97316' },
-    { term: 'VAGRANT', color: '#06b6d4' },
+    { term: 'NATIVE', color: '#10b981' },
+    { term: 'MANAGED', color: '#3b82f6' },
+    { term: 'FORMER', color: '#a855f7' },
+    { term: 'VAGRANT', color: '#f97316' },
+    { term: 'INTRODUCED', color: '#d97706' },
     { term: 'OTHER', color: '#6b7280' },
   ]);
   const [loadingVocabulary, setLoadingVocabulary] = useState(false);
@@ -158,11 +158,11 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
         // Start with defaults
         [
           { term: 'SUSPICIOUS', color: '#ef4444' },
-          { term: 'NATIVE', color: '#22c55e' },
-          { term: 'INTRODUCED', color: '#3b82f6' },
-          { term: 'MANAGED', color: '#a855f7' },
-          { term: 'FORMER', color: '#f97316' },
-          { term: 'VAGRANT', color: '#06b6d4' },
+          { term: 'NATIVE', color: '#10b981' },
+          { term: 'MANAGED', color: '#3b82f6' },
+          { term: 'FORMER', color: '#a855f7' },
+          { term: 'VAGRANT', color: '#f97316' },
+          { term: 'INTRODUCED', color: '#d97706' },
           { term: 'OTHER', color: '#6b7280' },
         ].forEach(v => mergedVocabMap.set(v.term, v));
 
