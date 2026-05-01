@@ -610,24 +610,33 @@ export function AnnotationRules({
           }
         });
         
-        // Fetch both project names and vocabularies in parallel
-        const promises: Promise<void>[] = [];
+        // Fetch project names and vocabularies in parallel
+        let fetchedVocabularies = new Map<number, VocabularyTerm[]>();
+        
+        const promises: Promise<any>[] = [];
         if (projectIdsToFetch.size > 0) {
           promises.push(fetchProjectNames(Array.from(projectIdsToFetch)));
         }
         if (vocabularyProjectIds.size > 0) {
-          promises.push(fetchProjectVocabularies(Array.from(vocabularyProjectIds)));
+          promises.push(
+            fetchProjectVocabularies(Array.from(vocabularyProjectIds)).then(vocabMap => {
+              fetchedVocabularies = vocabMap;
+            })
+          );
         }
         
-        // Wait for vocabularies to be fetched, then augment rules and notify parent
+        // Wait for vocabularies to be fetched
         if (promises.length > 0) {
           await Promise.all(promises);
         }
         
+        // Merge cached vocabularies with newly fetched ones
+        const allVocabularies = new Map([...projectVocabularies, ...fetchedVocabularies]);
+        
         // Now augment rules with their project vocabularies
         const rulesWithVocabulary = rulesWithCoords.map(rule => {
           if (rule.projectId) {
-            const projectVocab = projectVocabularies.get(rule.projectId);
+            const projectVocab = allVocabularies.get(rule.projectId);
             if (projectVocab) {
               return { ...rule, projectVocabulary: projectVocab };
             }
@@ -736,7 +745,7 @@ export function AnnotationRules({
     }
   };
   
-  const fetchProjectVocabularies = async (projectIds: number[]) => {
+  const fetchProjectVocabularies = async (projectIds: number[]): Promise<Map<number, VocabularyTerm[]>> => {
     try {
       const vocabularyPromises = projectIds.map(async (projectId) => {
         try {
@@ -758,6 +767,15 @@ export function AnnotationRules({
       
       const vocabularyData = await Promise.all(vocabularyPromises);
       
+      // Build the result map
+      const resultMap = new Map<number, VocabularyTerm[]>();
+      vocabularyData.forEach(({ id, vocabulary }) => {
+        if (vocabulary.length > 0) {
+          resultMap.set(id, vocabulary);
+        }
+      });
+      
+      // Update state for future use
       setProjectVocabularies(prev => {
         const newMap = new Map(prev);
         vocabularyData.forEach(({ id, vocabulary }) => {
@@ -767,8 +785,11 @@ export function AnnotationRules({
         });
         return newMap;
       });
+      
+      return resultMap;
     } catch (error) {
       console.error('Error fetching project vocabularies:', error);
+      return new Map();
     }
   };
 
