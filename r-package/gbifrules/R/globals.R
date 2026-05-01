@@ -10,6 +10,7 @@ utils::globalVariables(c(
   "id",
   "is_suspicious",
   "lat",
+  "locked",
   "lon",
   "record_id",
   "taxonKey"
