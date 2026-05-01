@@ -114,13 +114,16 @@ export function MapComponent({
   ],
 }: MapComponentProps) {
   // Helper function to get colors from vocabulary
-  const getColorFromVocabulary = (annotation: string): { fill: string; stroke: string } => {
-    const term = vocabulary.find(v => v.term.toUpperCase() === annotation.toUpperCase());
+  const getColorFromVocabulary = (annotation: string, rule?: AnnotationRule): { fill: string; stroke: string } => {
+    // Use rule's project vocabulary if available, otherwise use the main vocabulary prop
+    const vocabToUse = rule?.projectVocabulary || vocabulary;
+    
+    const term = vocabToUse.find(v => v.term.toUpperCase() === annotation.toUpperCase());
     if (term) {
       return { fill: term.color, stroke: term.color };
     }
     // Fallback to SUSPICIOUS if term not found
-    const suspicious = vocabulary.find(v => v.term.toUpperCase() === 'SUSPICIOUS');
+    const suspicious = vocabToUse.find(v => v.term.toUpperCase() === 'SUSPICIOUS');
     return { fill: suspicious?.color || '#ef4444', stroke: suspicious?.color || '#dc2626' };
   };
   
@@ -2054,8 +2057,8 @@ export function MapComponent({
             return null;
           }
           
-          // Color based on annotation type
-          const colorSet = getColorFromVocabulary(rule.annotation);
+          // Color based on annotation type - use rule's project vocabulary if available
+          const colorSet = getColorFromVocabulary(rule.annotation, rule);
           
           // Find the first coordinate to use as anchor point
           const firstPolygon = rule.multiPolygon.polygons[0];

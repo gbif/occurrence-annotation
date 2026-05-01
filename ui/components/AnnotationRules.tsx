@@ -308,6 +308,8 @@ export interface AnnotationRule {
   // Higher order metadata
   taxonomicLevel?: string;
   scientificName?: string;
+  // Project-specific vocabulary for this rule
+  projectVocabulary?: VocabularyTerm[];
 }
 
 interface AnnotationRulesProps {
@@ -574,11 +576,6 @@ export function AnnotationRules({
           };
         });
         
-        setRules(rulesWithCoords);
-        setTotalCount(totalRulesCount);
-        setHasNextPage((page + 1) * pageSize < totalRulesCount);
-        onRulesLoadRef.current?.(rulesWithCoords);
-        
         // Initialize user votes based on current user being in supported/contested arrays
         if (currentUser?.userName) {
           const newUserVotes = new Map<number, 'support' | 'contest' | null>();
@@ -599,29 +596,50 @@ export function AnnotationRules({
           fetchCommentCount(rule.id);
         });
         
-        // Fetch project names for rules that have projectIds
+        // Fetch project names and vocabularies for rules that have projectIds
         const projectIdsToFetch = new Set<number>();
-        rulesWithCoords.forEach(rule => {
-          if (rule.projectId && !projectNames.has(rule.projectId)) {
-            projectIdsToFetch.add(rule.projectId);
-          }
-        });
-        
-        if (projectIdsToFetch.size > 0) {
-          fetchProjectNames(Array.from(projectIdsToFetch));
-        }
-        
-        // Fetch vocabularies for all unique project IDs
         const vocabularyProjectIds = new Set<number>();
         rulesWithCoords.forEach(rule => {
-          if (rule.projectId && !projectVocabularies.has(rule.projectId)) {
-            vocabularyProjectIds.add(rule.projectId);
+          if (rule.projectId) {
+            if (!projectNames.has(rule.projectId)) {
+              projectIdsToFetch.add(rule.projectId);
+            }
+            if (!projectVocabularies.has(rule.projectId)) {
+              vocabularyProjectIds.add(rule.projectId);
+            }
           }
         });
         
-        if (vocabularyProjectIds.size > 0) {
-          fetchProjectVocabularies(Array.from(vocabularyProjectIds));
+        // Fetch both project names and vocabularies in parallel
+        const promises: Promise<void>[] = [];
+        if (projectIdsToFetch.size > 0) {
+          promises.push(fetchProjectNames(Array.from(projectIdsToFetch)));
         }
+        if (vocabularyProjectIds.size > 0) {
+          promises.push(fetchProjectVocabularies(Array.from(vocabularyProjectIds)));
+        }
+        
+        // Wait for vocabularies to be fetched, then augment rules and notify parent
+        if (promises.length > 0) {
+          await Promise.all(promises);
+        }
+        
+        // Now augment rules with their project vocabularies
+        const rulesWithVocabulary = rulesWithCoords.map(rule => {
+          if (rule.projectId) {
+            const projectVocab = projectVocabularies.get(rule.projectId);
+            if (projectVocab) {
+              return { ...rule, projectVocabulary: projectVocab };
+            }
+          }
+          return rule;
+        });
+        
+        // Update state with rules that have vocabulary attached
+        setRules(rulesWithVocabulary);
+        setTotalCount(totalRulesCount);
+        setHasNextPage((page + 1) * pageSize < totalRulesCount);
+        onRulesLoadRef.current?.(rulesWithVocabulary);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
         setRules([]);
