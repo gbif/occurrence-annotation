@@ -12,7 +12,7 @@ test_that("get project vocabulary works as expected", {
   }
   
   # Get vocabulary for the project
-  vocab <- get_project_vocabulary(project_id)
+  vocab <- get_project_vocab(project_id)
   
   # Check structure
   expect_s3_class(vocab, "tbl_df")
@@ -45,13 +45,13 @@ test_that("update project vocabulary works as expected", {
   )
   
   # Update vocabulary
-  result <- update_project_vocabulary(project_id, custom_vocab)
+  result <- update_project_vocab(project_id, custom_vocab)
   
   # Result should be a list
   expect_type(result, "list")
   
   # Verify the vocabulary was updated
-  updated_vocab <- get_project_vocabulary(project_id)
+  updated_vocab <- get_project_vocab(project_id)
   expect_equal(nrow(updated_vocab), 4)
   expect_true("TEST_TERM_1" %in% updated_vocab$term)
   expect_true("TEST_TERM_2" %in% updated_vocab$term)
@@ -76,22 +76,22 @@ test_that("delete project vocabulary works as expected", {
     list(term = "TEST_TERM_2", description = "Second test term", color = "#0000ff", locked = FALSE),
     list(term = "SUSPICIOUS", description = "Suspicious", color = "#ef4444", locked = TRUE)
   )
-  update_project_vocabulary(project_id, custom_vocab)
+  update_project_vocab(project_id, custom_vocab)
   
   # Verify custom vocabulary is set
-  vocab <- get_project_vocabulary(project_id)
+  vocab <- get_project_vocab(project_id)
   expect_equal(nrow(vocab), 3)
   expect_true("TEST_TERM_1" %in% vocab$term)
   expect_true("TEST_TERM_2" %in% vocab$term)
   
   # Delete vocabulary (reset to default)
-  result <- delete_project_vocabulary(project_id)
+  result <- delete_project_vocab(project_id)
   
   # Result should be a list
   expect_type(result, "list")
   
   # Verify vocabulary was reset to default (should have more than 3 terms)
-  default_vocab <- get_project_vocabulary(project_id)
+  default_vocab <- get_project_vocab(project_id)
   expect_true(nrow(default_vocab) > 3)
   expect_true("NATIVE" %in% default_vocab$term)
   expect_true("INTRODUCED" %in% default_vocab$term)
@@ -119,7 +119,7 @@ test_that("vocabulary validation works", {
   
   # Should get an error (HTTP 400)
   expect_error(
-    update_project_vocabulary(project_id, invalid_vocab)
+    update_project_vocab(project_id, invalid_vocab)
   )
   
   # Clean up
@@ -147,7 +147,7 @@ test_that("vocabulary size limit validation works", {
   
   # Should get an error (HTTP 400) for exceeding max vocabulary size
   expect_error(
-    update_project_vocabulary(project_id, large_vocab)
+    update_project_vocab(project_id, large_vocab)
   )
   
   # Clean up

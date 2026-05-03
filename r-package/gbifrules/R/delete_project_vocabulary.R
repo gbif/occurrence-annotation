@@ -21,7 +21,7 @@
 #' # Reset project 1 to default vocabulary
 #' delete_project_vocabulary(1)
 #' }
-delete_project_vocabulary <- function(id) {
+delete_project_vocab <- function(id) {
   
   if(is.null(id)) stop("Must supply a project id.")
   

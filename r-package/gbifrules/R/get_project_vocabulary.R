@@ -17,7 +17,7 @@
 #' \dontrun{
 #' get_project_vocabulary(1)
 #' }
-get_project_vocabulary <- function(id) {
+get_project_vocab <- function(id) {
   
   if(is.null(id)) stop("Must supply a project id.")
   

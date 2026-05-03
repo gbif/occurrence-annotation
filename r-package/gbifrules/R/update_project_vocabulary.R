@@ -38,7 +38,7 @@
 #' 
 #' update_project_vocabulary(1, vocab)
 #' }
-update_project_vocabulary <- function(id, vocabulary) {
+update_project_vocab <- function(id, vocabulary) {
   
   if(is.null(id)) stop("Must supply a project id.")
   if(is.null(vocabulary)) stop("Must supply vocabulary terms.")
