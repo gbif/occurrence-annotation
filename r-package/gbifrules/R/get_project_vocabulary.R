@@ -43,6 +43,11 @@ get_project_vocab <- function(id) {
       tidyr::pivot_wider(names_from = "name", values_from = "value")
     ) |>
     dplyr::bind_rows() |>
-    # Ensure locked is logical type
-    dplyr::mutate(locked = as.logical(locked))
+    # Flatten list columns to character/logical
+    dplyr::mutate(
+      term = as.character(term),
+      description = as.character(description),
+      color = as.character(color),
+      locked = as.logical(locked)
+    )
 }
