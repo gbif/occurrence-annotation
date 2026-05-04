@@ -6,6 +6,7 @@
 #' @param id the project id (required).
 #'
 #' @return a `tibble` with vocabulary terms containing columns: term, description, color, locked.
+#' @importFrom rlang .data
 #' @export
 #'
 #' @details
