@@ -1,3 +1,6 @@
+# run this test file with:
+# testthat::test_file("tests/testthat/test-project_vocabulary.R")
+
 test_that("get project vocabulary works as expected", {
   skip_on_cran()
   skip_if_offline()
@@ -20,9 +23,11 @@ test_that("get project vocabulary works as expected", {
   expect_true("description" %in% names(vocab))
   expect_true("color" %in% names(vocab))
   expect_true("locked" %in% names(vocab))
-  
+  expect_equal(nrow(vocab), 7) # Default vocabulary should have 7 terms
+
   # Check that default vocabulary includes SUSPICIOUS
   expect_true("SUSPICIOUS" %in% vocab$term)
+  expect_true("NATIVE" %in% vocab$term)
   
   # Check that locked is logical
   expect_type(vocab$locked, "logical")
