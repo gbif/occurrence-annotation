@@ -134,16 +134,14 @@ test_that("vocabulary size limit validation works", {
   p <- make_project(name="test vocab size limit", description = "test size limit validation")
   project_id <- p$id
   
-  # Create vocabulary with 51 terms (exceeds the 50 term limit)
-  large_vocab <- lapply(1:50, function(i) {
+  # Create vocabulary with 51 custom terms (exceeds the 50 term limit)
+  # Don't include SUSPICIOUS - testing size limit, not vocabulary validation
+  large_vocab <- lapply(1:51, function(i) {
     list(term = paste0("TEST_TERM_", i), 
          description = paste("Test term", i), 
          color = "#22c55e", 
          locked = FALSE)
   })
-  # Add SUSPICIOUS as the 51st term
-  large_vocab[[51]] <- list(term = "SUSPICIOUS", description = "Suspicious", 
-                            color = "#ef4444", locked = TRUE)
   
   # Should get an error (HTTP 400) for exceeding max vocabulary size
   # Note: This test uses admin credentials (default GBIF_USER env var)
@@ -170,16 +168,14 @@ test_that("non-admin cannot exceed vocabulary size limit", {
                     description = "test non-admin size limit validation")
   project_id <- p$id
   
-  # Create vocabulary with 51 terms (exceeds the 50 term limit)
-  large_vocab <- lapply(1:50, function(i) {
+  # Create vocabulary with 51 custom terms (exceeds the 50 term limit)
+  # Don't include SUSPICIOUS - testing size limit enforcement for non-admin
+  large_vocab <- lapply(1:51, function(i) {
     list(term = paste0("TEST_TERM_", i), 
          description = paste("Test term", i), 
          color = "#22c55e", 
          locked = FALSE)
   })
-  # Add SUSPICIOUS as the 51st term
-  large_vocab[[51]] <- list(term = "SUSPICIOUS", description = "Suspicious", 
-                            color = "#ef4444", locked = TRUE)
   
   # Non-admin should get an error (HTTP 400 or 403) for exceeding max vocabulary size
   expect_error(
