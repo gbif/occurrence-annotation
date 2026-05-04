@@ -47,20 +47,33 @@ gbifrules_delete <- function(url, user = NULL, pwd = NULL) {
 #' gbifrules_get
 #' @param url helper
 #' @param query helper 
+#' @param user optional user for authentication, defaults to GBIF_USER env variable
+#' @param pwd optional password for authentication, defaults to GBIF_PWD env variable
 #' @keywords internal
-gbifrules_get <- function(url,query) {  
-
-httr2::request(url) |>
-  httr2::req_url_query(!!!query) |>
-  httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
-  httr2::req_perform() |>
-  httr2::resp_body_json() |> 
-  purrr::map(~
-   .x |>             
-   tibble::enframe() |> 
-   tidyr::pivot_wider(names_from="name",values_from="value")
-   ) |>
-   dplyr::bind_rows()   
+gbifrules_get <- function(url, query, user = NULL, pwd = NULL) {  
+  
+  # Use provided credentials or fall back to environment variables
+  auth_user <- if(is.null(user)) Sys.getenv("GBIF_USER", "") else user
+  auth_pwd <- if(is.null(pwd)) Sys.getenv("GBIF_PWD", "") else pwd
+  
+  req <- httr2::request(url) |>
+    httr2::req_url_query(!!!query) |>
+    httr2::req_options(http_version = 1.1)  # Force HTTP/1.1
+  
+  # Add authentication if credentials are provided
+  if (auth_user != "" && auth_pwd != "") {
+    req <- req |> httr2::req_auth_basic(auth_user, auth_pwd)
+  }
+  
+  req |>
+    httr2::req_perform() |>
+    httr2::resp_body_json() |> 
+    purrr::map(~
+      .x |>             
+      tibble::enframe() |> 
+      tidyr::pivot_wider(names_from="name",values_from="value")
+    ) |>
+    dplyr::bind_rows()   
 }
 
 #' gbifrules_put
