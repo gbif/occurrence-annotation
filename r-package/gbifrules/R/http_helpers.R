@@ -1,12 +1,17 @@
 #' gbifrules_post
 #' @param url helper
 #' @param body helper
+#' @param user optional user for authentication, defaults to GBIF_USER env variable
+#' @param pwd optional password for authentication, defaults to GBIF_PWD env variable
 #' @keywords internal
-gbifrules_post <- function(url,body) {
+gbifrules_post <- function(url, body, user = NULL, pwd = NULL) {
+  # Use provided credentials or fall back to environment variables
+  auth_user <- if(is.null(user)) Sys.getenv("GBIF_USER", "") else user
+  auth_pwd <- if(is.null(pwd)) Sys.getenv("GBIF_PWD", "") else pwd
+  
   httr2::request(url) |>
     httr2::req_method("POST") |>
-    httr2::req_auth_basic(Sys.getenv("GBIF_USER", ""),
-                          Sys.getenv("GBIF_PWD", "")) |>
+    httr2::req_auth_basic(auth_user, auth_pwd) |>
     httr2::req_body_json(body) |>
     httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
     httr2::req_perform() |>
@@ -15,14 +20,19 @@ gbifrules_post <- function(url,body) {
 
 #' gbifrules_delete
 #' @param url helper
+#' @param user optional user for authentication, defaults to GBIF_USER env variable
+#' @param pwd optional password for authentication, defaults to GBIF_PWD env variable
 #' @keywords internal
-gbifrules_delete <- function(url) {
- resp <- httr2::request(url) |>
-  httr2::req_method("DELETE") |>
-  httr2::req_auth_basic(Sys.getenv("GBIF_USER", ""),
-                        Sys.getenv("GBIF_PWD", "")) |>
-  httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
-  httr2::req_perform()
+gbifrules_delete <- function(url, user = NULL, pwd = NULL) {
+  # Use provided credentials or fall back to environment variables
+  auth_user <- if(is.null(user)) Sys.getenv("GBIF_USER", "") else user
+  auth_pwd <- if(is.null(pwd)) Sys.getenv("GBIF_PWD", "") else pwd
+  
+  resp <- httr2::request(url) |>
+    httr2::req_method("DELETE") |>
+    httr2::req_auth_basic(auth_user, auth_pwd) |>
+    httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
+    httr2::req_perform()
   
   # Check if response has content before trying to parse JSON
   content_type <- httr2::resp_content_type(resp)
@@ -56,12 +66,17 @@ httr2::request(url) |>
 #' gbifrules_put
 #' @param url helper
 #' @param body helper 
+#' @param user optional user for authentication, defaults to GBIF_USER env variable
+#' @param pwd optional password for authentication, defaults to GBIF_PWD env variable
 #' @keywords internal
-gbifrules_put <- function(url,body) {
+gbifrules_put <- function(url, body, user = NULL, pwd = NULL) {
+  # Use provided credentials or fall back to environment variables
+  auth_user <- if(is.null(user)) Sys.getenv("GBIF_USER", "") else user
+  auth_pwd <- if(is.null(pwd)) Sys.getenv("GBIF_PWD", "") else pwd
+  
   httr2::request(url) |>
     httr2::req_method("PUT") |>
-    httr2::req_auth_basic(Sys.getenv("GBIF_USER", ""),
-                          Sys.getenv("GBIF_PWD", "")) |>
+    httr2::req_auth_basic(auth_user, auth_pwd) |>
     httr2::req_body_json(body) |>
     httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
     httr2::req_perform() |>

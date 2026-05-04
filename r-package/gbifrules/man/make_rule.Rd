@@ -19,6 +19,8 @@ make_rule(
   createdBy = NULL,
   deleted = NULL,
   deletedBy = NULL,
+  user = NULL,
+  pwd = NULL,
   ...
 )
 }
@@ -50,6 +52,10 @@ make_rule(
 \item{deleted}{(character) Optional deletion timestamp (ISO format).}
 
 \item{deletedBy}{(character) Optional user ID who deleted the rule.}
+
+\item{user}{(character) Optional username for authentication. Defaults to GBIF_USER environment variable.}
+
+\item{pwd}{(character) Optional password for authentication. Defaults to GBIF_PWD environment variable.}
 
 \item{...}{Additional named parameters to include in the rule payload.}
 }

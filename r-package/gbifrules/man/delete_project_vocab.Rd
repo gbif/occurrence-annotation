@@ -4,10 +4,14 @@
 \alias{delete_project_vocab}
 \title{Delete project vocabulary}
 \usage{
-delete_project_vocab(id)
+delete_project_vocab(id, user = NULL, pwd = NULL)
 }
 \arguments{
 \item{id}{the project id (required).}
+
+\item{user}{(character) Optional username for authentication. Defaults to GBIF_USER environment variable.}
+
+\item{pwd}{(character) Optional password for authentication. Defaults to GBIF_PWD environment variable.}
 }
 \value{
 a `list` with the default vocabulary terms.
@@ -19,13 +23,13 @@ vocabulary terms that were defined for the project.
 \details{
 Removes the custom vocabulary from a project and reverts to the default system vocabulary.
 Only project members can reset vocabulary. Authentication via GBIF_USER and GBIF_PWD
-environment variables is required.
+environment variables is required (or can be provided via user/pwd parameters).
 
 The default vocabulary includes: NATIVE, INTRODUCED, MANAGED, FORMER, VAGRANT, SUSPICIOUS, and OTHER.
 }
 \examples{
 \dontrun{
 # Reset project 1 to default vocabulary
-delete_project_vocabulary(1)
+delete_project_vocab(1)
 }
 }

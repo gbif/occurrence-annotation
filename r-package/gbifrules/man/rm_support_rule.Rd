@@ -4,10 +4,14 @@
 \alias{rm_support_rule}
 \title{Remove support for a rule}
 \usage{
-rm_support_rule(id = NULL)
+rm_support_rule(id = NULL, user = NULL, pwd = NULL)
 }
 \arguments{
 \item{id}{the id of the rule to updated.}
+
+\item{user}{(character) Optional username for authentication. Defaults to GBIF_USER environment variable.}
+
+\item{pwd}{(character) Optional password for authentication. Defaults to GBIF_PWD environment variable.}
 }
 \value{
 A `list` information about the rule supported.

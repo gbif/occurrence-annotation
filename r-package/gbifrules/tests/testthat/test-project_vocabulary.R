@@ -146,10 +146,47 @@ test_that("vocabulary size limit validation works", {
                             color = "#ef4444", locked = TRUE)
   
   # Should get an error (HTTP 400) for exceeding max vocabulary size
+  # Note: This test uses admin credentials (default GBIF_USER env var)
   expect_error(
     update_project_vocab(project_id, large_vocab)
   )
   
   # Clean up
+  delete_project(project_id)
+})
+
+test_that("non-admin cannot exceed vocabulary size limit", {
+  skip_on_cran()
+  skip_if_offline()
+  
+  # Skip if non-admin credentials not configured
+  non_admin_user <- Sys.getenv("GBIF_USER_NON_ADMIN", "")
+  non_admin_pwd <- Sys.getenv("GBIF_PWD_NON_ADMIN", "")
+  skip_if(non_admin_user == "" || non_admin_pwd == "", 
+          "Non-admin credentials not configured")
+  
+  # Create a test project with admin credentials
+  p <- make_project(name="test non-admin vocab limit", 
+                    description = "test non-admin size limit validation")
+  project_id <- p$id
+  
+  # Create vocabulary with 51 terms (exceeds the 50 term limit)
+  large_vocab <- lapply(1:50, function(i) {
+    list(term = paste0("TEST_TERM_", i), 
+         description = paste("Test term", i), 
+         color = "#22c55e", 
+         locked = FALSE)
+  })
+  # Add SUSPICIOUS as the 51st term
+  large_vocab[[51]] <- list(term = "SUSPICIOUS", description = "Suspicious", 
+                            color = "#ef4444", locked = TRUE)
+  
+  # Non-admin should get an error (HTTP 400 or 403) for exceeding max vocabulary size
+  expect_error(
+    update_project_vocab(project_id, large_vocab, 
+                        user = non_admin_user, pwd = non_admin_pwd)
+  )
+  
+  # Clean up with admin credentials
   delete_project(project_id)
 })

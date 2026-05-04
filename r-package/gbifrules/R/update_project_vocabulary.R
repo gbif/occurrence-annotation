@@ -11,6 +11,8 @@
 #'     \item color: Hex color code for the term (e.g., "#ef4444")
 #'     \item locked: Logical indicating if term can be deleted (SUSPICIOUS must be locked)
 #'   }
+#' @param user (character) Optional username for authentication. Defaults to GBIF_USER environment variable.
+#' @param pwd (character) Optional password for authentication. Defaults to GBIF_PWD environment variable.
 #'
 #' @return a `list` with the updated vocabulary.
 #' 
@@ -20,7 +22,7 @@
 #' normalized to uppercase.
 #' 
 #' Only project members can update vocabulary. Authentication via GBIF_USER and GBIF_PWD
-#' environment variables is required.
+#' environment variables is required (or can be provided via user/pwd parameters).
 #' 
 #' @export  
 #'
@@ -36,9 +38,9 @@
 #'        color = "#ef4444", locked = TRUE)
 #' )
 #' 
-#' update_project_vocabulary(1, vocab)
+#' update_project_vocab(1, vocab)
 #' }
-update_project_vocab <- function(id, vocabulary) {
+update_project_vocab <- function(id, vocabulary, user = NULL, pwd = NULL) {
   
   if(is.null(id)) stop("Must supply a project id.")
   if(is.null(vocabulary)) stop("Must supply vocabulary terms.")
@@ -67,5 +69,5 @@ update_project_vocab <- function(id, vocabulary) {
   body <- vocabulary
   url <- paste0(gbifrules_url("project/"), id, "/vocabulary")
   
-  gbifrules_put(url, body)
+  gbifrules_put(url, body, user, pwd)
 }

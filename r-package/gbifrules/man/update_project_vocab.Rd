@@ -4,7 +4,7 @@
 \alias{update_project_vocab}
 \title{Update project vocabulary}
 \usage{
-update_project_vocab(id, vocabulary)
+update_project_vocab(id, vocabulary, user = NULL, pwd = NULL)
 }
 \arguments{
 \item{id}{the project id (required).}
@@ -16,6 +16,10 @@ update_project_vocab(id, vocabulary)
   \item color: Hex color code for the term (e.g., "#ef4444")
   \item locked: Logical indicating if term can be deleted (SUSPICIOUS must be locked)
 }}
+
+\item{user}{(character) Optional username for authentication. Defaults to GBIF_USER environment variable.}
+
+\item{pwd}{(character) Optional password for authentication. Defaults to GBIF_PWD environment variable.}
 }
 \value{
 a `list` with the updated vocabulary.
@@ -30,7 +34,7 @@ the "SUSPICIOUS" term with locked=TRUE. Maximum 50 terms allowed. Terms are auto
 normalized to uppercase.
 
 Only project members can update vocabulary. Authentication via GBIF_USER and GBIF_PWD
-environment variables is required.
+environment variables is required (or can be provided via user/pwd parameters).
 }
 \examples{
 \dontrun{
@@ -44,6 +48,6 @@ vocab <- list(
        color = "#ef4444", locked = TRUE)
 )
 
-update_project_vocabulary(1, vocab)
+update_project_vocab(1, vocab)
 }
 }
