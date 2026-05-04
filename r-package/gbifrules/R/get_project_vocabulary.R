@@ -45,9 +45,9 @@ get_project_vocab <- function(id) {
     dplyr::bind_rows() |>
     # Flatten list columns to character/logical
     dplyr::mutate(
-      term = as.character(term),
-      description = as.character(description),
-      color = as.character(color),
-      locked = as.logical(locked)
+      term = as.character(.data$term),
+      description = as.character(.data$description),
+      color = as.character(.data$color),
+      locked = as.logical(.data$locked)
     )
 }
