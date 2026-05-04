@@ -9,6 +9,8 @@ jobs:
     env:
       GBIF_USER: ${{ secrets.GBIF_USER }}
       GBIF_PWD: ${{ secrets.GBIF_PWD }}
+      GBIF_USER_NON_ADMIN: ${{ secrets.GBIF_USER_NON_ADMIN }}
+      GBIF_PWD_NON_ADMIN: ${{ secrets.GBIF_PWD_NON_ADMIN }}
       GBIFRULES_URL: http://localhost:8080/occurrence/experimental/annotation/
       GBIFRULES_GITHUB_ACTIONS: true
 
