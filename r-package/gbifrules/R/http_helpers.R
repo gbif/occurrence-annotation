@@ -15,7 +15,7 @@ gbifrules_post <- function(url, body, user = NULL, pwd = NULL) {
     httr2::req_body_json(body) |>
     httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
     httr2::req_perform() |>
-    httr2::resp_body_json() 
+    httr2::resp_body_json()
 }
 
 #' gbifrules_delete
@@ -65,15 +65,11 @@ gbifrules_get <- function(url, query, user = NULL, pwd = NULL) {
     req <- req |> httr2::req_auth_basic(auth_user, auth_pwd)
   }
   
+  # Return raw list - let caller handle conversion to tibble
+  # This preserves NULL values and nested structures
   req |>
     httr2::req_perform() |>
-    httr2::resp_body_json() |> 
-    purrr::map(~
-      .x |>             
-      tibble::enframe() |> 
-      tidyr::pivot_wider(names_from="name",values_from="value")
-    ) |>
-    dplyr::bind_rows()   
+    httr2::resp_body_json()
 }
 
 #' gbifrules_put
@@ -133,9 +129,31 @@ gbifrules_get_id <- function(url) {
       return(NULL)
     }
     
-    body |>
+    # enframe and pivot_wider handle NULL values by converting to NA
+    result <- body |>
       tibble::enframe() |>
       tidyr::pivot_wider(names_from="name", values_from = "value")
+    
+    # Handle list columns - flatten scalar values but keep array fields as lists
+    # Define which columns should remain as list columns (arrays/collections)
+    array_cols <- c("members", "customVocabulary", "supportedBy", "contestedBy", "basisOfRecord")
+    
+    # Flatten only non-array list columns
+    for (col_name in names(result)) {
+      if (is.list(result[[col_name]]) && !col_name %in% array_cols) {
+        # Check if this is truly a scalar (all entries have length 0 or 1)
+        lengths <- purrr::map_int(result[[col_name]], length)
+        is_scalar <- all(lengths <= 1)
+        
+        if (is_scalar) {
+          # Scalar column - extract single values
+          result[[col_name]] <- purrr::map(result[[col_name]], ~ if (is.null(.x) || length(.x) == 0) NA else .x[[1L]]) |> unlist()
+        }
+        # Otherwise keep as list (it's an array with varying lengths)
+      }
+    }
+    
+    result
       
   }, error = function(e) {
     # Catch any other errors and return NULL
@@ -147,13 +165,40 @@ gbifrules_get_id <- function(url) {
 
 #' gbifrules_get_id_
 #' @param url helper
+#' @param user optional user for authentication, defaults to GBIF_USER env variable
+#' @param pwd optional password for authentication, defaults to GBIF_PWD env variable
 #' @keywords internal
-gbifrules_get_id_ <- function(url) {  
+gbifrules_get_id_ <- function(url, user = NULL, pwd = NULL) {  
   
-  httr2::request(url) |>
-    httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
-    httr2::req_perform() |>
-    httr2::resp_body_json()
+  # Use provided credentials or fall back to environment variables
+  auth_user <- if(is.null(user)) Sys.getenv("GBIF_USER", "") else user
+  auth_pwd <- if(is.null(pwd)) Sys.getenv("GBIF_PWD", "") else pwd
+  
+  req <- httr2::request(url) |>
+    httr2::req_error(is_error = \(resp) FALSE) |>  # Don't auto-error on HTTP errors
+    httr2::req_options(http_version = 1.1)  # Force HTTP/1.1
+  
+  # Add authentication if credentials are provided
+  if (auth_user != "" && auth_pwd != "") {
+    req <- req |> httr2::req_auth_basic(auth_user, auth_pwd)
+  }
+  
+  resp <- req |> httr2::req_perform()
+  
+  # Check status code
+  status <- httr2::resp_status(resp)
+  if (status == 404) {
+    return(NULL)  # Resource not found
+  }
+  
+  # Check if response has content
+  content_type <- httr2::resp_content_type(resp)
+  if (is.na(content_type) || status == 204) {
+    return(NULL)  # No content
+  }
+  
+  # Parse JSON response
+  httr2::resp_body_json(resp)
   
 }
 

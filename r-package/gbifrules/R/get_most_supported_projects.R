@@ -43,8 +43,29 @@ get_most_supported_projects <- function(limit = 10) {
     return(result[0, ])
   }
   
+  # Convert to data frame using jsonlite to properly flatten
+  result <- jsonlite::fromJSON(jsonlite::toJSON(r), flatten = TRUE)
+  
   # Convert to tibble
-  result <- tibble::as_tibble(r)
+  result <- tibble::as_tibble(result)
+  
+  # Handle list columns - flatten scalar values and convert arrays to character strings
+  result <- result |> dplyr::mutate_all(~ {
+    if (is.list(.x)) {
+      # Check if this is likely an array column (has multiple values in some entries)
+      is_array_col <- any(purrr::map_int(.x, length) > 1, na.rm = TRUE)
+      
+      if (is_array_col) {
+        # Array column - convert to comma-separated strings
+        purrr::map_chr(.x, ~ if (is.null(.x) || length(.x) == 0) NA_character_ else paste(.x, collapse = ", "))
+      } else {
+        # Scalar column - extract single values
+        purrr::map(.x, ~ if (is.null(.x) || length(.x) == 0) NA else .x[[1L]]) |> unlist()
+      }
+    } else {
+      .x
+    }
+  })
   
   # Ensure all expected columns are present
   for (col_name in names(expected_columns)) {

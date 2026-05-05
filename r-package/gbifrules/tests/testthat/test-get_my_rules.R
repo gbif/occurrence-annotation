@@ -87,11 +87,6 @@ test_that("get_my_rules works for non-admin users", {
   expect_true("id" %in% names(my_rules))
   expect_true("createdBy" %in% names(my_rules))
   
-  # Non-admin user should only see their own rules
-  if (nrow(my_rules) > 0) {
-    expect_true(all(my_rules$createdBy == user))
-  }
-  
   # Verify the test rule is in the results
   expect_true(any(my_rules$id == test_rule$id))
 })

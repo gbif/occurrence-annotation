@@ -34,7 +34,7 @@ update_project <- function(id=NULL,
                           ) {
   
   if(is.null(id)) stop("Must supply a project id.")
-  project <- gbifrules_get_id_(paste0(gbifrules_url("project/"),id))
+  project <- gbifrules_get_id_(paste0(gbifrules_url("project/"),id), user, pwd)
   
   if(keep_members) members <- c(unlist(project$members),members) |> unique()
   

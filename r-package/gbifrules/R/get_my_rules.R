@@ -1,4 +1,4 @@
-#' Get rules created by the authenticated user
+#' Get rules created by the authenticated user 
 #'
 #' Returns all non-deleted rules created by the currently authenticated user.
 #'

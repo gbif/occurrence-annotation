@@ -244,8 +244,19 @@ get_suspicious_annotations <- function(d, project_id = NULL) {
       
       # Apply basisOfRecord filter if specified in the rule AND the data has basisOfRecord column
       # Check if rule has actual basisOfRecord values (not NULL, not empty, not just NAs)
-      rule_basis_values <- if (!is.null(rule$basisOfRecord)) unlist(rule$basisOfRecord) else character(0)
-      rule_basis_values <- rule_basis_values[!is.na(rule_basis_values)]  # Remove any NA values
+      # Handle both character vectors and list-columns from bind_rows()
+      rule_basis_values <- character(0)
+      if (!is.null(rule$basisOfRecord) && !all(is.na(rule$basisOfRecord))) {
+        # Could be a character vector, a list, or a single value
+        basis_raw <- rule$basisOfRecord
+        if (is.list(basis_raw)) {
+          rule_basis_values <- unlist(basis_raw)
+        } else {
+          rule_basis_values <- basis_raw
+        }
+        # Remove NA values and empty strings
+        rule_basis_values <- rule_basis_values[!is.na(rule_basis_values) & nchar(rule_basis_values) > 0]
+      }
       
       has_basis_filter <- length(rule_basis_values) > 0 && "basisOfRecord" %in% colnames(records_for_rule)
       
