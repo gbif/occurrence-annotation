@@ -31,7 +31,7 @@ Returns aggregated metrics about rules including count of rules, datasets, proje
 taxa, supports, and contests. Can be filtered by various parameters.
 }
 \examples{
-\\dontrun{
+\dontrun{
 # Get overall metrics
 get_rule_metrics()
 

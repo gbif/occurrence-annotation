@@ -17,7 +17,7 @@ A `tibble` with columns: projectId, projectName, projectDescription, createdBy,
 Returns top projects ordered by total support count (sum of supports across all project rules).
 }
 \examples{
-\\dontrun{
+\dontrun{
 # Get top 10 most supported projects
 get_most_supported_projects()
 

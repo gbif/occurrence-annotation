@@ -68,7 +68,7 @@ The \\code{basisOfRecord} parameter accepts a character vector that will be
 serialized as a JSON array in the API request.
 }
 \examples{
-\\dontrun{
+\dontrun{
 # Update annotation type only
 update_rule(id = 123, annotation = "NATIVE")
 

@@ -32,7 +32,7 @@
 #' @export
 #'
 #' @examples
-#' \\dontrun{
+#' \dontrun{
 #' # Update annotation type only
 #' update_rule(id = 123, annotation = "NATIVE")
 #' 

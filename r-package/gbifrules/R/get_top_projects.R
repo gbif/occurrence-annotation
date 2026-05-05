@@ -9,7 +9,7 @@
 #' @export
 #'
 #' @examples
-#' \\dontrun{
+#' \dontrun{
 #' # Get top 10 projects by rule count
 #' get_top_projects()
 #' 

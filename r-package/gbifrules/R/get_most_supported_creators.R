@@ -8,7 +8,7 @@
 #' @export
 #'
 #' @examples
-#' \\dontrun{
+#' \dontrun{
 #' # Get top 10 most supported creators
 #' get_most_supported_creators()
 #' 

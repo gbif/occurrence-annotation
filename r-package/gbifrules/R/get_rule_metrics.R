@@ -13,7 +13,7 @@
 #' @export
 #'
 #' @examples
-#' \\dontrun{
+#' \dontrun{
 #' # Get overall metrics
 #' get_rule_metrics()
 #' 

@@ -16,7 +16,7 @@ A `tibble` with columns: username, ruleCount, totalSupports, totalContests, proj
 Returns top rule creators ordered by total support count (sum of supports across all their rules).
 }
 \examples{
-\\dontrun{
+\dontrun{
 # Get top 10 most supported creators
 get_most_supported_creators()
 

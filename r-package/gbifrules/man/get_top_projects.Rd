@@ -17,7 +17,7 @@ A `tibble` with columns: projectId, projectName, projectDescription, createdBy,
 Returns top projects ordered by number of rules.
 }
 \examples{
-\\dontrun{
+\dontrun{
 # Get top 10 projects by rule count
 get_top_projects()
 

@@ -8,7 +8,7 @@
 #' @export
 #'
 #' @examples
-#' \\dontrun{
+#' \dontrun{
 #' # Get top 10 rule creators
 #' get_top_creators()
 #' 

@@ -16,7 +16,7 @@ A `tibble` with columns: username, ruleCount, totalSupports, totalContests, proj
 Returns top rule creators ordered by number of rules created.
 }
 \examples{
-\\dontrun{
+\dontrun{
 # Get top 10 rule creators
 get_top_creators()
 

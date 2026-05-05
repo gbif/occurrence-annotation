@@ -9,7 +9,7 @@
 #' @export
 #'
 #' @examples
-#' \\dontrun{
+#' \dontrun{
 #' # Get top 10 most supported projects
 #' get_most_supported_projects()
 #' 
