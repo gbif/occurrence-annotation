@@ -5,14 +5,9 @@ test_that("get project vocabulary works as expected", {
   skip_on_cran()
   skip_if_offline()
   
-  # Get or create a test project
-  pc <- get_project()
-  if(nrow(pc) == 0) {
-    p <- make_project(name="test vocabulary", description = "test project for vocabulary")
-    project_id <- p$id
-  } else {
-    project_id <- pc$id[1]
-  }
+  # Create a new test project to ensure default vocabulary
+  p <- make_project(name="test vocabulary", description = "test project for vocabulary")
+  project_id <- p$id
   
   # Get vocabulary for the project
   vocab <- get_project_vocab(project_id)
@@ -31,6 +26,9 @@ test_that("get project vocabulary works as expected", {
   
   # Check that locked is logical
   expect_type(vocab$locked, "logical")
+  
+  # Clean up - delete the test project
+  delete_project(project_id)
 })
 
 test_that("update project vocabulary works as expected", {
