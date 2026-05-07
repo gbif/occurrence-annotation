@@ -210,16 +210,21 @@ test_that("annotate_download handles custom project vocabulary annotations", {
     description = "Testing custom annotation terms"
   )
   
-  # Add custom vocabulary term
+  # Add custom vocabulary term using update_project_vocab
   custom_vocab_added <- FALSE
   tryCatch({
-    resp <- httr::POST(
-      url = paste0(getOption("gbifrules_base_url"), "/project/", project$id, "/vocabulary"),
-      body = list(vocabulary = "INVASIVE"),
-      encode = "json",
-      httr::authenticate(Sys.getenv("GBIF_USER"), Sys.getenv("GBIF_PWD"))
+    # Get current vocabulary
+    current_vocab <- get_project_vocab(project$id)
+    
+    # Add INVASIVE term to the vocabulary
+    new_vocab <- list(
+      list(term = "INVASIVE", description = "Invasive species", color = "#f97316", locked = FALSE),
+      list(term = "SUSPICIOUS", description = "Suspicious record", color = "#ef4444", locked = TRUE)
     )
-    custom_vocab_added <- (httr::status_code(resp) %in% c(200, 201))
+    
+    # Update project vocabulary
+    update_project_vocab(project$id, new_vocab)
+    custom_vocab_added <- TRUE
   }, error = function(e) {
     message("Could not add custom vocabulary: ", e$message)
   })
