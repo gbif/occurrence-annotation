@@ -439,3 +439,44 @@ test_that("annotate_download preserves all original columns", {
   # Clean up
   delete_rule(rule$id)
 })
+
+test_that("annotate_download handles inverted geometries correctly", {
+  # Inverted polygon: global extent with a hole around (0,0)
+  # Points inside the hole should NOT be annotated
+  # Points in the solid area (outside the hole) should be annotated
+  inverted_geometry <- "POLYGON ((-180 -85.0511287798, 180 -85.0511287798, 180 85.0511287798, -180 85.0511287798, -180 -85.0511287798), (-12.3046875 11.723041818049527, -12.3046875 6.134097132761074, -12.3046875 0.5451524474726206, -12.3046875 -5.043792237815833, -12.3046875 -10.632736923104286, -5.44921875 -10.632736923104286, 1.40625 -10.632736923104286, 8.26171875 -10.632736923104286, 15.1171875 -10.632736923104286, 15.1171875 -5.043792237815833, 15.1171875 0.5451524474726206, 15.1171875 6.134097132761074, 15.1171875 11.723041818049527, 8.26171875 11.723041818049527, 1.40625 11.723041818049527, -5.44921875 11.723041818049527, -12.3046875 11.723041818049527))"
+  
+  # Create rule with inverted geometry - using high taxonKey
+  rule_inverted <- make_rule(
+    taxonKey = 900100,
+    annotation = "INTRODUCED",
+    geometry = inverted_geometry
+  )
+  
+  # Create test download with points in different locations
+  # Points at (0,0) are inside the hole - should NOT be annotated
+  # Points at (0,50) are in the solid area - should be annotated
+  # Points at (100,0) are in the solid area - should be annotated
+  test_download <- data.frame(
+    taxonKey = c(900100, 900100, 900100, 900100, 900100),
+    decimalLatitude = c(0, 0, 0, 50, 0),
+    decimalLongitude = c(0, 0, 0, 0, 100)
+  )
+  
+  annotated <- annotate_download(test_download)
+  
+  # All records should be preserved (no filtering)
+  expect_equal(nrow(annotated), nrow(test_download))
+  
+  # Points inside the hole (first three records at 0,0) should NOT be annotated
+  expect_true(is.na(annotated$annotations[1]))
+  expect_true(is.na(annotated$annotations[2]))
+  expect_true(is.na(annotated$annotations[3]))
+  
+  # Points in the solid area should be annotated
+  expect_equal(annotated$annotations[4], "INTRODUCED")  # (0,50) - in solid area
+  expect_equal(annotated$annotations[5], "INTRODUCED")  # (100,0) - in solid area
+  
+  # Clean up
+  delete_rule(rule_inverted$id)
+})
