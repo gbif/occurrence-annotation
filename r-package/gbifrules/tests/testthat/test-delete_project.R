@@ -188,3 +188,66 @@ test_that("deleting project also deletes associated rules", {
   retrieved_rule <- get_rule(id = test_rule$id)
   expect_true(!is.null(retrieved_rule$deleted))
 })
+
+test_that("deleting project also deletes all associated rules", {
+  skip_on_cran()
+  skip_if_offline()
+  
+  # Create a test project with multiple rules
+  test_project <- make_project(
+    name = "Test Project - Cascade Delete",
+    description = "Test project for cascade deletion"
+  )
+  
+  # Create multiple rules with different characteristics
+  rule1 <- make_rule(
+    projectId = test_project$id,
+    taxonKey = -2001,
+    geometry = "POINT (1 1)",
+    annotation = "SUSPICIOUS"
+  )
+  
+  rule2 <- make_rule(
+    projectId = test_project$id,
+    taxonKey = -2002,
+    geometry = "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))",
+    annotation = "INTRODUCED"
+  )
+  
+  rule3 <- make_rule(
+    projectId = test_project$id,
+    taxonKey = -2003,
+    geometry = "POINT (3 3)",
+    annotation = "NATIVE",
+    basisOfRecord = "HUMAN_OBSERVATION"
+  )
+  
+  rule4 <- make_rule(
+    projectId = test_project$id,
+    taxonKey = -2004,
+    geometry = "POINT (4 4)",
+    annotation = "SUSPICIOUS",
+    yearRange = "1900,2000"
+  )
+  
+  # Verify all rules are not deleted initially
+  expect_true(is.null(rule1$deleted))
+  expect_true(is.null(rule2$deleted))
+  expect_true(is.null(rule3$deleted))
+  expect_true(is.null(rule4$deleted))
+  
+  # Delete the project
+  deleted_project <- delete_project(test_project$id)
+  expect_true(!is.null(deleted_project$deleted))
+  
+  # Verify ALL associated rules are marked as deleted
+  retrieved_rule1 <- get_rule(id = rule1$id)
+  retrieved_rule2 <- get_rule(id = rule2$id)
+  retrieved_rule3 <- get_rule(id = rule3$id)
+  retrieved_rule4 <- get_rule(id = rule4$id)
+  
+  expect_true(!is.null(retrieved_rule1$deleted))
+  expect_true(!is.null(retrieved_rule2$deleted))
+  expect_true(!is.null(retrieved_rule3$deleted))
+  expect_true(!is.null(retrieved_rule4$deleted))
+})
