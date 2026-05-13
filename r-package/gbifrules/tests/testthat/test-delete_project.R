@@ -23,7 +23,7 @@ test_that("delete_project works for project creator", {
   
   # Verify project is marked as deleted when retrieved
   retrieved_project <- get_project(id = test_project$id)
-  expect_true(!is.null(retrieved_project$deleted))
+  expect_true(!is.na(retrieved_project$deleted) && nchar(retrieved_project$deleted) > 0)
 })
 
 test_that("admin can delete any project", {

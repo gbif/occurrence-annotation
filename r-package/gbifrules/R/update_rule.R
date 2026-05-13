@@ -79,8 +79,7 @@ update_rule <- function(
   if (!is.null(yearRange)) existing_rule$yearRange <- yearRange
   if (!is.null(rulesetId)) existing_rule$rulesetId <- rulesetId
   if (!is.null(projectId)) existing_rule$projectId <- projectId
-  if (!is.null(supportedBy)) existing_rule$supportedBy <- supportedBy
-  if (!is.null(contestedBy)) existing_rule$contestedBy <- contestedBy
+  # Note: supportedBy and contestedBy are not updateable via this endpoint
 
   # Merge any additional named args into body (user-supplied extra properties)
   extras <- list(...)

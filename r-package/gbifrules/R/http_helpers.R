@@ -183,21 +183,43 @@ gbifrules_get_id_ <- function(url, user = NULL, pwd = NULL) {
     req <- req |> httr2::req_auth_basic(auth_user, auth_pwd)
   }
   
-  resp <- req |> httr2::req_perform()
+  # Disable automatic error handling so we can handle it ourselves
+  resp <- req |> 
+    httr2::req_error(is_error = \(resp) FALSE) |>
+    httr2::req_perform()
   
   # Check status code
   status <- httr2::resp_status(resp)
-  if (status == 404) {
-    return(NULL)  # Resource not found
+  
+  # Handle not found or no content - return NULL
+  if (status == 404 || status == 204) {
+    return(NULL)
   }
   
-  # Check if response has content
+  # Error on non-2xx responses
+  if (status >= 400) {
+    # Try to extract error message from response body if available
+    error_msg <- tryCatch({
+      body <- httr2::resp_body_json(resp)
+      if (!is.null(body$message)) body$message else paste("HTTP", status)
+    }, error = function(e) {
+      # If JSON parsing fails, try getting text
+      tryCatch(
+        httr2::resp_body_string(resp),
+        error = function(e2) paste("HTTP", status, "error")
+      )
+    })
+    stop("API request failed (status ", status, "): ", error_msg, call. = FALSE)
+  }
+  
+  # Check content type for successful responses
   content_type <- httr2::resp_content_type(resp)
-  if (is.na(content_type) || status == 204) {
-    return(NULL)  # No content
+  if (is.na(content_type)) {
+    # No content type header - likely empty response
+    return(NULL)
   }
   
-  # Parse JSON response
+  # Parse JSON response for successful 2xx
   httr2::resp_body_json(resp)
   
 }

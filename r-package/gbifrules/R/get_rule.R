@@ -50,8 +50,8 @@ get_rule <- function(id=NULL,limit=NULL,offset=NULL,...) {
     yearRange = character(),  
     rulesetId = integer(),
     projectId = integer(),
-    supportedBy = character(),
-    contestedBy = character(),
+    supportedBy = list(),  # Keep as list for vote counting
+    contestedBy = list(),  # Keep as list for vote counting
     created = character(),
     createdBy = character(),
     deleted = character(),
@@ -70,23 +70,27 @@ get_rule <- function(id=NULL,limit=NULL,offset=NULL,...) {
   # Convert to tibble
   result <- tibble::as_tibble(result)
   
-  # Handle list columns - flatten scalar values and convert arrays to character strings
-  result <- result |> dplyr::mutate_all(~ {
-    if(is.list(.x)) {
-      # Check if this is likely an array column (has multiple values in some entries)
-      is_array_col <- any(purrr::map_int(.x, length) > 1, na.rm = TRUE)
-      
-      if(is_array_col) {
-        # Array column - convert to comma-separated strings
-        purrr::map_chr(.x, ~ if(is.null(.x) || length(.x) == 0) NA_character_ else paste(.x, collapse = ", "))
+  # Handle list columns - keep supportedBy/contestedBy as lists for vote counting,
+  # flatten other scalar values and convert other arrays to character strings
+  result <- result |> dplyr::mutate(dplyr::across(
+    !dplyr::any_of(c("supportedBy", "contestedBy")),
+    ~ {
+      if(is.list(.x)) {
+        # Check if this is likely an array column (has multiple values in some entries)
+        is_array_col <- any(purrr::map_int(.x, length) > 1, na.rm = TRUE)
+        
+        if(is_array_col) {
+          # Array column - convert to comma-separated strings
+          purrr::map_chr(.x, ~ if(is.null(.x) || length(.x) == 0) NA_character_ else paste(.x, collapse = ", "))
+        } else {
+          # Scalar column - extract single values
+          purrr::map(.x, ~ if(is.null(.x) || length(.x) == 0) NA else .x[[1L]]) |> unlist()
+        }
       } else {
-        # Scalar column - extract single values
-        purrr::map(.x, ~ if(is.null(.x) || length(.x) == 0) NA else .x[[1L]]) |> unlist()
+        .x
       }
-    } else {
-      .x
     }
-  })
+  ))
   
   # Ensure all expected columns are present
   for(col_name in names(expected_columns)) {
@@ -98,6 +102,9 @@ get_rule <- function(id=NULL,limit=NULL,offset=NULL,...) {
           result[[col_name]] <- rep(NA_integer_, nrow(result))
         } else if(is.logical(default_val)) {
           result[[col_name]] <- rep(NA, nrow(result))
+        } else if(is.list(default_val)) {
+          # For list columns like supportedBy/contestedBy
+          result[[col_name]] <- rep(list(NULL), nrow(result))
         } else {
           result[[col_name]] <- rep(NA_character_, nrow(result))
         }

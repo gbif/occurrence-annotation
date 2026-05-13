@@ -24,7 +24,7 @@ test_that("delete_rule works for rule creator", {
   
   # Verify rule is marked as deleted when retrieved
   retrieved_rule <- get_rule(id = test_rule$id)
-  expect_true(!is.null(retrieved_rule$deleted))
+  expect_true(!is.na(retrieved_rule$deleted) && nchar(retrieved_rule$deleted) > 0)
 })
 
 test_that("admin can delete any rule", {
