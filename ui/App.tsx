@@ -896,14 +896,15 @@ export default function App() {
         // If there are holes, this is an inverted polygon
         if (polygonWithHoles.holes.length > 0) {
           isInverted = true;
-          // Extract the first hole as the actual region
-          coordinates = polygonWithHoles.holes[0];
           
-          if (polygonWithHoles.holes.length > 1) {
-            toast.warning('This rule has multiple holes (exclusion areas)', {
-              description: 'Only the first hole will be loaded for editing. Multiple holes are not supported in the editor.',
-              duration: 8000,
-            });
+          if (polygonWithHoles.holes.length === 1) {
+            // Single hole - load as single polygon
+            coordinates = polygonWithHoles.holes[0];
+            isMultiPolygon = false;
+          } else {
+            // Multiple holes - load as multi-polygon so all excluded regions can be edited
+            coordinates = polygonWithHoles.holes;
+            isMultiPolygon = true;
           }
         } else {
           // No holes, just a regular polygon
