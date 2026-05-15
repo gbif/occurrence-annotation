@@ -1329,8 +1329,15 @@ export function AnnotationRules({
     };
   };
 
-  const renderPolygonPreview = (multiPolygon: MultiPolygon | undefined, annotation: string, rule?: AnnotationRule) => {
-    if (!multiPolygon || multiPolygon.polygons.length === 0) return null;
+  const renderPolygonPreview = (geometry: MultiPolygon | PolygonWithHoles | undefined, annotation: string, rule?: AnnotationRule) => {
+    if (!geometry) return null;
+
+    // Normalize to array of PolygonWithHoles
+    const polygons: PolygonWithHoles[] = 'polygons' in geometry 
+      ? geometry.polygons 
+      : [geometry];
+
+    if (polygons.length === 0) return null;
 
     // Get the appropriate vocabulary for this rule
     const vocabToUse = rule ? getVocabularyForRule(rule) : vocabulary;
@@ -1355,13 +1362,13 @@ export function AnnotationRules({
       return coversWorld && hasHoles;
     };
 
-    // Convert MultiPolygon format to coordinates format expected by MiniMapPreview
+    // Convert to coordinates format expected by MiniMapPreview
     let coordinates: [number, number][] | [number, number][][];
     let isMultiPolygon = false;
     let isInverted = false;
 
-    if (multiPolygon.polygons.length === 1) {
-      const polygon = multiPolygon.polygons[0];
+    if (polygons.length === 1) {
+      const polygon = polygons[0];
       const isOriginallyInverted = isInvertedPolygon(polygon);
       
       if (isOriginallyInverted && polygon.holes && polygon.holes.length > 0) {
@@ -1385,7 +1392,7 @@ export function AnnotationRules({
       }
     } else {
       // Multiple polygons - convert to array of coordinate arrays
-      coordinates = multiPolygon.polygons.map(poly => poly.outer);
+      coordinates = polygons.map(poly => poly.outer);
       isMultiPolygon = true;
       // For simplicity, don't handle inversion for multipolygons in preview
       isInverted = false;
