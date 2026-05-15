@@ -16,6 +16,7 @@ import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
 import { getSelectedProjectName } from '../utils/projectSelection';
 import { Checkbox } from './ui/checkbox';
+import { CountrySelector } from './CountrySelector';
 
 // Vocabulary term interface
 interface VocabularyTerm {
@@ -2042,11 +2043,14 @@ export function SavedPolygons({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-gray-700 text-sm">Active Rules (0)</h3>
-          {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
+          <div className="flex gap-2">
+            {onImportWKT && <CountrySelector onCountriesSelected={(coords) => onImportWKT(coords, true)} />}
+            {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
+          </div>
         </div>
         <div className="text-center py-8">
           <p className="text-gray-500">No active rules yet</p>
-          <p className="text-gray-400 text-sm mt-1">Draw a polygon on the map or import WKT</p>
+          <p className="text-gray-400 text-sm mt-1">Draw a polygon on the map, select countries, or import WKT</p>
         </div>
       </div>
     );
@@ -2059,7 +2063,10 @@ export function SavedPolygons({
       <div className="border-2 rounded-lg p-4" style={{ borderColor: '#4C9C2E', backgroundColor: '#4C9C2E08' }}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-sm" style={{ color: '#4C9C2E' }}>Active Rules ({polygons.length})</h3>
-          {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
+          <div className="flex gap-2">
+            {onImportWKT && <CountrySelector onCountriesSelected={(coords) => onImportWKT(coords, true)} />}
+            {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
+          </div>
         </div>
         <div className="space-y-3">
           {polygons.map((polygon) => (
