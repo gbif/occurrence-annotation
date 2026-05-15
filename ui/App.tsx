@@ -8,7 +8,7 @@ import { AnnotationRules, AnnotationRule } from './components/AnnotationRules';
 import { OccurrenceFilterOptions } from './components/OccurrenceFilters';
 import { toast } from 'sonner';
 import { getGbifApiUrl, getAnnotationApiUrl } from './utils/apiConfig';
-import { parseWKTGeometry } from './utils/wktParser';
+import { parseWKTGeometry, PolygonWithHoles, MultiPolygon, isInvertedPolygon } from './utils/wktParser';
 import { unionPolygons } from './utils/spatialOperations';
 
 import { Toaster } from './components/ui/sonner';
@@ -884,26 +884,68 @@ export default function App() {
         return false;
       }
 
-      // Check if geometry has holes (interior rings) - warn user they will be lost
-      const hasHoles = parsedGeometry.polygons.some(p => p.holes && p.holes.length > 0);
-      if (hasHoles) {
-        toast.warning('This rule contains polygon holes (interior rings)', {
-          description: 'Interior rings will be removed when editing. The edited geometry will only include outer boundaries.',
-          duration: 8000,
-        });
-      }
-
-      // Convert MultiPolygon structure to coordinates array
+      // Detect if this is an inverted polygon and extract coordinates
       let coordinates: [number, number][] | [number, number][][];
       let isMultiPolygon = false;
+      let isInverted = false;
       
-      if (parsedGeometry.polygons.length === 1) {
-        // Single polygon - use outer ring only (ignoring holes for now)
-        coordinates = parsedGeometry.polygons[0].outer;
-      } else {
-        // Multiple polygons
-        coordinates = parsedGeometry.polygons.map(p => p.outer);
-        isMultiPolygon = true;
+      // Check if it's a PolygonWithHoles structure (single polygon with optional holes)
+      if ('holes' in parsedGeometry) {
+        const polygonWithHoles = parsedGeometry as PolygonWithHoles;
+        
+        // Use proper inversion detection based on outer ring covering the world
+        const isOriginallyInverted = isInvertedPolygon(polygonWithHoles);
+        
+        if (isOriginallyInverted) {
+          // Inverted polygon - load the holes as the editable regions
+          isInverted = true;
+          
+          if (polygonWithHoles.holes.length === 1) {
+            // Single hole - load as single polygon
+            coordinates = polygonWithHoles.holes[0];
+            isMultiPolygon = false;
+          } else {
+            // Multiple holes - load as multi-polygon so all excluded regions can be edited
+            coordinates = polygonWithHoles.holes;
+            isMultiPolygon = true;
+          }
+        } else if (polygonWithHoles.holes.length > 0) {
+          // Normal polygon with holes (not inverted) - warn that holes will be lost
+          toast.warning('This rule contains interior holes', {
+            description: 'Interior holes will be removed when editing. Only the outer boundary will be preserved.',
+            duration: 8000,
+          });
+          coordinates = polygonWithHoles.outer;
+        } else {
+          // No holes, just a regular polygon
+          coordinates = polygonWithHoles.outer;
+        }
+      }
+      // Check if it's a MultiPolygon structure
+      else if ('polygons' in parsedGeometry) {
+        const multiPolygon = parsedGeometry as MultiPolygon;
+        
+        // Check if any of the polygons have holes
+        const hasHoles = multiPolygon.polygons.some(p => p.holes && p.holes.length > 0);
+        if (hasHoles) {
+          toast.warning('This rule contains polygon holes (interior rings)', {
+            description: 'Interior rings will be removed when editing. The edited geometry will only include outer boundaries.',
+            duration: 8000,
+          });
+        }
+        
+        if (multiPolygon.polygons.length === 1) {
+          // Single polygon - use outer ring only (ignoring holes)
+          coordinates = multiPolygon.polygons[0].outer;
+        } else {
+          // Multiple polygons
+          coordinates = multiPolygon.polygons.map(p => p.outer);
+          isMultiPolygon = true;
+        }
+      }
+      else {
+        toast.error('Unknown geometry type');
+        return false;
       }
 
       // Fetch species data if we don't have it or if it's different from current
@@ -947,7 +989,7 @@ export default function App() {
         coordinates: coordinates,
         species: species,
         timestamp: new Date().toISOString(),
-        inverted: false,
+        inverted: isInverted,
         annotation: rule.annotation,
         isMultiPolygon: isMultiPolygon,
         editingOriginalRuleId: rule.id,

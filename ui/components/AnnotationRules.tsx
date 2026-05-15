@@ -303,8 +303,8 @@ export interface AnnotationRule {
   createdBy: string;
   deleted: string | null;
   deletedBy: string | null;
-  // Parsed geometry (can be single or multi polygon)
-  multiPolygon?: MultiPolygon;
+  // Parsed geometry (can be single polygon with holes or multi polygon)
+  multiPolygon?: MultiPolygon | PolygonWithHoles;
   // Higher order metadata
   taxonomicLevel?: string;
   scientificName?: string;
@@ -555,20 +555,6 @@ export function AnnotationRules({
         // Parse WKT geometry for each paginated rule
         const rulesWithCoords = paginatedRules.map(rule => {
           const multiPolygon = parseWKTGeometry(rule.geometry);
-          
-          // DEBUG: Log coordinate information for the first few rules
-          if (multiPolygon && multiPolygon.polygons && multiPolygon.polygons.length > 0) {
-            const firstPolygon = multiPolygon.polygons[0];
-            console.log('DEBUG: Annotation Rule Coordinates', {
-              ruleId: rule.id,
-              annotation: rule.annotation,
-              originalWKT: rule.geometry.substring(0, 100) + '...', // First 100 chars
-              polygonCount: multiPolygon.polygons.length,
-              firstPolygonVertexCount: firstPolygon.outer.length,
-              firstThreeVertices: firstPolygon.outer.slice(0, 3),
-              hasHoles: firstPolygon.holes.length > 0
-            });
-          }
           
           return {
             ...rule,
@@ -1343,8 +1329,15 @@ export function AnnotationRules({
     };
   };
 
-  const renderPolygonPreview = (multiPolygon: MultiPolygon | undefined, annotation: string, rule?: AnnotationRule) => {
-    if (!multiPolygon || multiPolygon.polygons.length === 0) return null;
+  const renderPolygonPreview = (geometry: MultiPolygon | PolygonWithHoles | undefined, annotation: string, rule?: AnnotationRule) => {
+    if (!geometry) return null;
+
+    // Normalize to array of PolygonWithHoles
+    const polygons: PolygonWithHoles[] = 'polygons' in geometry 
+      ? geometry.polygons 
+      : [geometry];
+
+    if (polygons.length === 0) return null;
 
     // Get the appropriate vocabulary for this rule
     const vocabToUse = rule ? getVocabularyForRule(rule) : vocabulary;
@@ -1369,13 +1362,13 @@ export function AnnotationRules({
       return coversWorld && hasHoles;
     };
 
-    // Convert MultiPolygon format to coordinates format expected by MiniMapPreview
+    // Convert to coordinates format expected by MiniMapPreview
     let coordinates: [number, number][] | [number, number][][];
     let isMultiPolygon = false;
     let isInverted = false;
 
-    if (multiPolygon.polygons.length === 1) {
-      const polygon = multiPolygon.polygons[0];
+    if (polygons.length === 1) {
+      const polygon = polygons[0];
       const isOriginallyInverted = isInvertedPolygon(polygon);
       
       if (isOriginallyInverted && polygon.holes && polygon.holes.length > 0) {
@@ -1399,7 +1392,7 @@ export function AnnotationRules({
       }
     } else {
       // Multiple polygons - convert to array of coordinate arrays
-      coordinates = multiPolygon.polygons.map(poly => poly.outer);
+      coordinates = polygons.map(poly => poly.outer);
       isMultiPolygon = true;
       // For simplicity, don't handle inversion for multipolygons in preview
       isInverted = false;

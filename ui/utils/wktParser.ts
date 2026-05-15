@@ -8,6 +8,45 @@ export interface MultiPolygon {
 }
 
 /**
+ * Detect if a polygon is inverted by checking if outer ring covers the world
+ * Inverted polygons have a world-spanning outer boundary with holes representing excluded regions
+ */
+export function isInvertedPolygon(polygon: PolygonWithHoles): boolean {
+  const outer = polygon.outer;
+  if (outer.length < 4) return false;
+  
+  // Check if the outer ring spans close to the entire world (-180 to 180, -85 to 85)
+  const lats = outer.map((coord: [number, number]) => coord[0]);
+  const lngs = outer.map((coord: [number, number]) => coord[1]);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  
+  // If it covers nearly the entire world and has holes, it's likely inverted
+  const coversWorld = (maxLat - minLat) > 170 && (maxLng - minLng) > 350;
+  const hasHoles = polygon.holes && polygon.holes.length > 0;
+  
+  return coversWorld && hasHoles;
+}
+
+/**
+ * Remove closing coordinate if polygon is explicitly closed (first point === last point)
+ */
+export function removeClosingCoordinate(coords: [number, number][]): [number, number][] {
+  if (coords.length < 2) return coords;
+  
+  const first = coords[0];
+  const last = coords[coords.length - 1];
+  
+  if (first[0] === last[0] && first[1] === last[1]) {
+    return coords.slice(0, -1);
+  }
+  
+  return coords;
+}
+
+/**
  * Parse WKT POLYGON string to coordinates array
  * Handles POLYGON format: "POLYGON ((x1 y1, x2 y2, ...))"
  * And POLYGON with holes: "POLYGON ((outer ring), (hole1), (hole2))"
@@ -63,8 +102,10 @@ export function parseWKTPolygonWithHoles(wkt: string): PolygonWithHoles | null {
       return coords;
     };
     
-    const outerRing = parseRing(rings[0]);
-    const holes = rings.slice(1).map(parseRing).filter(ring => ring.length >= 3);
+    const outerRing = removeClosingCoordinate(parseRing(rings[0]));
+    const holes = rings.slice(1)
+      .map(ring => removeClosingCoordinate(parseRing(ring)))
+      .filter(ring => ring.length >= 3);
     
     if (outerRing.length < 3) return null;
     
@@ -117,9 +158,9 @@ export function parseWKTMultiPolygon(wkt: string): MultiPolygon | null {
 
 /**
  * Parse any WKT geometry (POLYGON or MULTIPOLYGON)
- * Returns a MultiPolygon structure (single polygon becomes array of 1)
+ * Returns PolygonWithHoles for single POLYGON, MultiPolygon for MULTIPOLYGON
  */
-export function parseWKTGeometry(wkt: string): MultiPolygon | null {
+export function parseWKTGeometry(wkt: string): MultiPolygon | PolygonWithHoles | null {
   if (!wkt) return null;
   
   const trimmed = wkt.trim().toUpperCase();
@@ -127,8 +168,8 @@ export function parseWKTGeometry(wkt: string): MultiPolygon | null {
   if (trimmed.startsWith('MULTIPOLYGON')) {
     return parseWKTMultiPolygon(wkt);
   } else if (trimmed.startsWith('POLYGON')) {
-    const polygon = parseWKTPolygonWithHoles(wkt);
-    return polygon ? { polygons: [polygon] } : null;
+    // Return PolygonWithHoles directly - don't wrap in MultiPolygon
+    return parseWKTPolygonWithHoles(wkt);
   }
   
   return null;

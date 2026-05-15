@@ -79,10 +79,7 @@ export function InvestigateArea({
 
   // Function to be called when user clicks on map in investigate mode
   const investigateArea = useCallback(async (lat: number, lng: number) => {
-    console.log('🔍 InvestigateArea: Function called with coordinates:', { lat, lng, selectedSpecies: selectedSpecies?.scientificName, isInvestigateMode });
-    
     if (!selectedSpecies || !isInvestigateMode) {
-      console.log('🔍 InvestigateArea: Aborting - missing species or not in investigate mode');
       return;
     }
     
@@ -132,7 +129,6 @@ export function InvestigateArea({
       }
       
       const data = await response.json();
-      console.log('🔍 InvestigateArea: API response data:', data);
       
       // Set total count and calculate if there are more results
       setTotalCount(data.count || 0);
