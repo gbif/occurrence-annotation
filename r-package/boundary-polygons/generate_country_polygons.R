@@ -247,10 +247,46 @@ simplify_geometry <- function(countries) {
 }
 
 # ============================================================================
-# Step 5: Extract and Prepare Data
+# Step 5a: Fetch GBIF Country Names
 # ============================================================================
-prepare_country_data <- function(countries) {
-  message("[Step 5] Preparing country data...")
+fetch_gbif_countries <- function() {
+  message("[Step 5a] Fetching GBIF country names...")
+  
+  gbif_api_url <- "https://api.gbif.org/v1/enumeration/country"
+  
+  tryCatch({
+    response <- GET(gbif_api_url)
+    
+    if (status_code(response) != 200) {
+      stop(sprintf("GBIF API returned status code %d", status_code(response)))
+    }
+    
+    countries_json <- content(response, as = "text", encoding = "UTF-8")
+    countries_list <- fromJSON(countries_json)
+    
+    # Extract ISO2 and title (official name)
+    gbif_names <- data.frame(
+      iso2_code = countries_list$iso2,
+      gbif_name = countries_list$title,
+      stringsAsFactors = FALSE
+    )
+    
+    message(sprintf("  ✓ Fetched %d GBIF country names", nrow(gbif_names)))
+    
+    return(gbif_names)
+    
+  }, error = function(e) {
+    message(sprintf("  ✗ Failed to fetch GBIF country names: %s", e$message))
+    message("  Continuing with names from GPKG...")
+    return(NULL)
+  })
+}
+
+# ============================================================================
+# Step 5b: Extract and Prepare Data
+# ============================================================================
+prepare_country_data <- function(countries, gbif_names = NULL) {
+  message("[Step 5b] Preparing country data...")
   
   # Identify name and code columns
   col_names <- names(countries)
@@ -279,36 +315,65 @@ prepare_country_data <- function(countries) {
   message(sprintf("  Name column: %s", ifelse(is.null(name_col), "NOT FOUND", name_col)))
   message(sprintf("  ISO column: %s", ifelse(is.null(iso_col), "NOT FOUND", iso_col)))
   
-  # Prepare data frame
+  # Prepare data frame with GPKG names and ISO codes
   if (!is.null(name_col) && !is.null(iso_col)) {
     result <- countries %>%
       mutate(
-        country_name = as.character(.data[[name_col]]),
+        gpkg_name = as.character(.data[[name_col]]),
         iso2_code = as.character(.data[[iso_col]])
       ) %>%
-      select(country_name, iso2_code, geometry)
+      select(gpkg_name, iso2_code, geometry)
   } else if (!is.null(name_col)) {
     result <- countries %>%
       mutate(
-        country_name = as.character(.data[[name_col]]),
+        gpkg_name = as.character(.data[[name_col]]),
         iso2_code = ""
       ) %>%
-      select(country_name, iso2_code, geometry)
+      select(gpkg_name, iso2_code, geometry)
   } else {
     result <- countries %>%
       mutate(
-        country_name = paste0("Country_", row_number()),
+        gpkg_name = paste0("Country_", row_number()),
         iso2_code = ""
       ) %>%
-      select(country_name, iso2_code, geometry)
+      select(gpkg_name, iso2_code, geometry)
   }
   
-  # Clean up NA values
+  # Clean up NA values in ISO codes
   result <- result %>%
     mutate(
-      country_name = ifelse(is.na(country_name), paste0("Unknown_", row_number()), country_name),
-      iso2_code = ifelse(is.na(iso2_code), "", iso2_code)
+      iso2_code = ifelse(is.na(iso2_code) | iso2_code == "", "", iso2_code),
+      gpkg_name = ifelse(is.na(gpkg_name), paste0("Unknown_", row_number()), gpkg_name)
     )
+  
+  # Join with GBIF names if available
+  if (!is.null(gbif_names)) {
+    message("  Joining with GBIF country names...")
+    result <- result %>%
+      left_join(gbif_names, by = "iso2_code")
+    
+    # Use GBIF name if available, otherwise fall back to GPKG name
+    result <- result %>%
+      mutate(
+        country_name = ifelse(!is.na(gbif_name) & nchar(gbif_name) > 0, gbif_name, gpkg_name),
+        used_gbif = !is.na(gbif_name) & nchar(gbif_name) > 0
+      )
+    
+    # Count matches before removing columns
+    matched_count <- sum(result$used_gbif, na.rm = TRUE)
+    
+    # Select final columns
+    result <- result %>%
+      select(country_name, iso2_code, geometry)
+    
+    message(sprintf("  ✓ Matched %d countries with GBIF names", matched_count))
+  } else {
+    # No GBIF names available, use GPKG names
+    result <- result %>%
+      mutate(country_name = gpkg_name) %>%
+      select(country_name, iso2_code, geometry)
+    message("  Using GPKG names (GBIF names not available)")
+  }
   
   message(sprintf("  ✓ Prepared %d country records\n", nrow(result)))
   return(result)
@@ -402,8 +467,11 @@ main <- function() {
     # Step 4: Simplify geometry
     countries <- simplify_geometry(countries)
     
-    # Step 5: Prepare data
-    countries <- prepare_country_data(countries)
+    # Step 5a: Fetch GBIF country names
+    gbif_names <- fetch_gbif_countries()
+    
+    # Step 5b: Prepare data with GBIF names
+    countries <- prepare_country_data(countries, gbif_names)
     
     # Step 6: Export to JSON
     country_data <- export_to_json(countries)
