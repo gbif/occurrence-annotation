@@ -10,7 +10,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
-import { coordinatesToWKT, parseWKTGeometry, PolygonWithHoles, MultiPolygon } from '../utils/wktParser';
+import { coordinatesToWKT, parseWKTGeometry, PolygonWithHoles, MultiPolygon, isInvertedPolygon } from '../utils/wktParser';
 import { validatePolygonSize, getPolygonSizeStatus } from '../utils/geometryValidation';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
@@ -359,16 +359,31 @@ function ImportWKTDialog({ onImport }: ImportWKTDialogProps) {
         return parsed.polygons.map(p => p.outer);
       }
       
-      // Handle PolygonWithHoles (including inverted polygons)
+      // Handle PolygonWithHoles (single polygon)
       if ('holes' in parsed) {
-        // If there are holes, this is an inverted polygon
-        // Return the first hole as the actual polygon to edit
-        // (the outer ring is the world boundary in inverted polygons)
-        if (parsed.holes.length > 0) {
-          return parsed.holes[0];
+        // Check if it's actually an inverted polygon (outer ring covers world)
+        const isOriginallyInverted = isInvertedPolygon(parsed);
+        
+        if (isOriginallyInverted) {
+          // Inverted polygon - return all holes as editable regions
+          if (parsed.holes.length === 1) {
+            // Single hole - return as single polygon
+            return parsed.holes[0];
+          } else {
+            // Multiple holes - return as multipolygon
+            return parsed.holes;
+          }
+        } else {
+          // Normal polygon (not inverted)
+          if (parsed.holes.length > 0) {
+            toast.warning('Polygon has interior holes', {
+              description: 'Interior holes will be removed. Only the outer boundary will be imported.',
+              duration: 6000,
+            });
+          }
+          // Return outer ring
+          return parsed.outer;
         }
-        // No holes, just return the outer ring
-        return parsed.outer;
       }
       
       throw new Error('Unexpected geometry type');

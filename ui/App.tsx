@@ -8,7 +8,7 @@ import { AnnotationRules, AnnotationRule } from './components/AnnotationRules';
 import { OccurrenceFilterOptions } from './components/OccurrenceFilters';
 import { toast } from 'sonner';
 import { getGbifApiUrl, getAnnotationApiUrl } from './utils/apiConfig';
-import { parseWKTGeometry, PolygonWithHoles, MultiPolygon } from './utils/wktParser';
+import { parseWKTGeometry, PolygonWithHoles, MultiPolygon, isInvertedPolygon } from './utils/wktParser';
 import { unionPolygons } from './utils/spatialOperations';
 
 import { Toaster } from './components/ui/sonner';
@@ -893,8 +893,11 @@ export default function App() {
       if ('holes' in parsedGeometry) {
         const polygonWithHoles = parsedGeometry as PolygonWithHoles;
         
-        // If there are holes, this is an inverted polygon
-        if (polygonWithHoles.holes.length > 0) {
+        // Use proper inversion detection based on outer ring covering the world
+        const isOriginallyInverted = isInvertedPolygon(polygonWithHoles);
+        
+        if (isOriginallyInverted) {
+          // Inverted polygon - load the holes as the editable regions
           isInverted = true;
           
           if (polygonWithHoles.holes.length === 1) {
@@ -906,6 +909,13 @@ export default function App() {
             coordinates = polygonWithHoles.holes;
             isMultiPolygon = true;
           }
+        } else if (polygonWithHoles.holes.length > 0) {
+          // Normal polygon with holes (not inverted) - warn that holes will be lost
+          toast.warning('This rule contains interior holes', {
+            description: 'Interior holes will be removed when editing. Only the outer boundary will be preserved.',
+            duration: 8000,
+          });
+          coordinates = polygonWithHoles.outer;
         } else {
           // No holes, just a regular polygon
           coordinates = polygonWithHoles.outer;

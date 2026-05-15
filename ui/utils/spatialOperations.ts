@@ -1,5 +1,5 @@
 import polygonClipping from 'polygon-clipping';
-import { parseWKTGeometry, PolygonWithHoles } from './wktParser';
+import { parseWKTGeometry, PolygonWithHoles, MultiPolygon } from './wktParser';
 import buffer from '@turf/buffer';
 import simplify from '@turf/simplify';
 import { polygon as turfPolygon } from '@turf/helpers';
@@ -44,14 +44,19 @@ async function loadOceanPolygon(): Promise<MultiPolygon | null> {
 
     // Parse the WKT MULTIPOLYGON
     const parsedGeometry = parseWKTGeometry(oceanBoundary.wkt);
-    if (!parsedGeometry || !parsedGeometry.polygons) {
+    if (!parsedGeometry) {
       console.error('Failed to parse Ocean WKT geometry');
       return null;
     }
 
+    // Normalize to array of PolygonWithHoles
+    const polygons: PolygonWithHoles[] = 'polygons' in parsedGeometry 
+      ? parsedGeometry.polygons 
+      : [parsedGeometry];
+
     // Convert to polygon-clipping format: [[[lng, lat], ...], ...][]
     // WKT parser returns [lat, lng] format, need to convert to [lng, lat]
-    const oceanMultiPolygon: MultiPolygon = parsedGeometry.polygons.map((poly: PolygonWithHoles) => {
+    const oceanMultiPolygon: MultiPolygon = polygons.map((poly: PolygonWithHoles) => {
       // Outer ring
       const outerRing: Ring = poly.outer.map(([lat, lng]) => [lng, lat]);
       

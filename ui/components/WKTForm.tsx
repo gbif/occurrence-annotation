@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Copy, Check, RefreshCw, Repeat } from 'lucide-react';
 import { Card } from './ui/card';
 import { toast } from 'sonner';
-import { parseWKTGeometry, PolygonWithHoles, MultiPolygon } from '../utils/wktParser';
+import { parseWKTGeometry, PolygonWithHoles, MultiPolygon, isInvertedPolygon } from '../utils/wktParser';
 
 interface WKTFormProps {
   currentPolygon: [number, number][] | null;
@@ -66,19 +66,44 @@ export function WKTForm({
         if (parsed.polygons.length === 0) {
           throw new Error('MultiPolygon has no polygons');
         }
+        
+        // Check if first polygon has holes
+        if (parsed.polygons[0].holes.length > 0) {
+          toast.warning('Polygon has interior holes', {
+            description: 'Interior holes will be removed. Only the outer boundary will be used.',
+            duration: 6000,
+          });
+        }
+        
         return parsed.polygons[0].outer;
       }
       
-      // Handle PolygonWithHoles (including inverted polygons)
+      // Handle PolygonWithHoles (single polygon)
       if ('holes' in parsed) {
-        // If there are holes, this is an inverted polygon
-        // Return the first hole as the actual polygon to edit
-        // (the outer ring is the world boundary in inverted polygons)
-        if (parsed.holes.length > 0) {
+        // Check if it's actually an inverted polygon (outer ring covers world)
+        const isOriginallyInverted = isInvertedPolygon(parsed);
+        
+        if (isOriginallyInverted) {
+          // Inverted polygon - return first hole as editable region
+          // (WKTForm only supports single polygons, not multipolygons)
+          if (parsed.holes.length > 1) {
+            toast.warning('Multiple exclusion areas detected', {
+              description: 'Only the first exclusion area will be loaded. Use "Load Rule for Editing" to edit all areas.',
+              duration: 8000,
+            });
+          }
           return parsed.holes[0];
+        } else {
+          // Normal polygon (not inverted)
+          if (parsed.holes.length > 0) {
+            toast.warning('Polygon has interior holes', {
+              description: 'Interior holes will be removed. Only the outer boundary will be used.',
+              duration: 6000,
+            });
+          }
+          // Return outer ring
+          return parsed.outer;
         }
-        // No holes, just return the outer ring
-        return parsed.outer;
       }
       
       throw new Error('Unexpected geometry type');
