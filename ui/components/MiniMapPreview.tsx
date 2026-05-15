@@ -308,8 +308,8 @@ export function MiniMapPreview({
                   {/* Main inverted polygon */}
                   <path
                     d={combinedPath}
-                    fill={annotationColors.SUSPICIOUS.fillRgba}
-                    stroke={annotationColors.SUSPICIOUS.stroke}
+                    fill={color.fillRgba}
+                    stroke={color.stroke}
                     strokeWidth={0.8}
                     fillRule="evenodd" // This makes the inner paths holes
                     style={{ outline: "none" }}
@@ -328,7 +328,7 @@ export function MiniMapPreview({
                         cx={projectedCentroid[0]}
                         cy={projectedCentroid[1]}
                         r={2.5}
-                        fill={annotationColors.SUSPICIOUS.fill}
+                        fill={color.fill}
                         stroke="#fff"
                         strokeWidth={0.5}
                         style={{ outline: "none" }}
