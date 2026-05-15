@@ -8,7 +8,7 @@ import { AnnotationRules, AnnotationRule } from './components/AnnotationRules';
 import { OccurrenceFilterOptions } from './components/OccurrenceFilters';
 import { toast } from 'sonner';
 import { getGbifApiUrl, getAnnotationApiUrl } from './utils/apiConfig';
-import { parseWKTGeometry } from './utils/wktParser';
+import { parseWKTGeometry, PolygonWithHoles, MultiPolygon } from './utils/wktParser';
 import { unionPolygons } from './utils/spatialOperations';
 
 import { Toaster } from './components/ui/sonner';
@@ -877,6 +877,8 @@ export default function App() {
 
   const handleLoadRuleForEditing = useCallback(async (rule: AnnotationRule) => {
     try {
+      console.log('🔧 Loading rule for editing:', { id: rule.id, annotation: rule.annotation, geometryPreview: rule.geometry.substring(0, 100) });
+      
       // Parse WKT geometry to coordinates
       const parsedGeometry = parseWKTGeometry(rule.geometry);
       if (!parsedGeometry) {
@@ -884,27 +886,80 @@ export default function App() {
         return false;
       }
 
-      // Check if geometry has holes (interior rings) - warn user they will be lost
-      const hasHoles = parsedGeometry.polygons.some(p => p.holes && p.holes.length > 0);
-      if (hasHoles) {
-        toast.warning('This rule contains polygon holes (interior rings)', {
-          description: 'Interior rings will be removed when editing. The edited geometry will only include outer boundaries.',
-          duration: 8000,
-        });
-      }
+      console.log('🔧 Parsed geometry structure:', {
+        hasPolygonsArray: 'polygons' in parsedGeometry,
+        hasHolesProperty: 'holes' in parsedGeometry,
+        type: 'polygons' in parsedGeometry ? 'MultiPolygon' : 'PolygonWithHoles'
+      });
 
-      // Convert MultiPolygon structure to coordinates array
+      // Detect if this is an inverted polygon and extract coordinates
       let coordinates: [number, number][] | [number, number][][];
       let isMultiPolygon = false;
+      let isInverted = false;
       
-      if (parsedGeometry.polygons.length === 1) {
-        // Single polygon - use outer ring only (ignoring holes for now)
-        coordinates = parsedGeometry.polygons[0].outer;
-      } else {
-        // Multiple polygons
-        coordinates = parsedGeometry.polygons.map(p => p.outer);
-        isMultiPolygon = true;
+      // Check if it's a PolygonWithHoles structure (single polygon with optional holes)
+      if ('holes' in parsedGeometry) {
+        const polygonWithHoles = parsedGeometry as PolygonWithHoles;
+        
+        // If there are holes, this is an inverted polygon
+        if (polygonWithHoles.holes.length > 0) {
+          isInverted = true;
+          // Extract the first hole as the actual region
+          coordinates = polygonWithHoles.holes[0];
+          console.log('🔧 Detected INVERTED polygon - using hole as coordinates:', { 
+            holesCount: polygonWithHoles.holes.length,
+            extractedPointsCount: coordinates.length 
+          });
+          
+          if (polygonWithHoles.holes.length > 1) {
+            toast.warning('This rule has multiple holes (exclusion areas)', {
+              description: 'Only the first hole will be loaded for editing. Multiple holes are not supported in the editor.',
+              duration: 8000,
+            });
+          }
+        } else {
+          // No holes, just a regular polygon
+          coordinates = polygonWithHoles.outer;
+          console.log('🔧 Regular polygon (no holes):', { pointsCount: coordinates.length });
+        }
       }
+      // Check if it's a MultiPolygon structure
+      else if ('polygons' in parsedGeometry) {
+        const multiPolygon = parsedGeometry as MultiPolygon;
+        
+        // Check if any of the polygons have holes
+        const hasHoles = multiPolygon.polygons.some(p => p.holes && p.holes.length > 0);
+        if (hasHoles) {
+          toast.warning('This rule contains polygon holes (interior rings)', {
+            description: 'Interior rings will be removed when editing. The edited geometry will only include outer boundaries.',
+            duration: 8000,
+          });
+        }
+        
+        if (multiPolygon.polygons.length === 1) {
+          // Single polygon - use outer ring only (ignoring holes)
+          coordinates = multiPolygon.polygons[0].outer;
+          console.log('🔧 Single polygon from MultiPolygon:', { pointsCount: coordinates.length });
+        } else {
+          // Multiple polygons
+          coordinates = multiPolygon.polygons.map(p => p.outer);
+          isMultiPolygon = true;
+          console.log('🔧 Multi-polygon:', { polygonCount: multiPolygon.polygons.length });
+        }
+      }
+      else {
+        toast.error('Unknown geometry type');
+        return false;
+      }
+
+      console.log('🔧 Final geometry extraction:', { 
+        isInverted, 
+        isMultiPolygon, 
+        coordsType: Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0]) ? 'multi' : 'single',
+        firstCoord: Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0]) 
+          ? (coordinates as [number, number][][])[0][0] 
+          : (coordinates as [number, number][])[0]
+      });
 
       // Fetch species data if we don't have it or if it's different from current
       let species = selectedSpecies;
@@ -947,7 +1002,7 @@ export default function App() {
         coordinates: coordinates,
         species: species,
         timestamp: new Date().toISOString(),
-        inverted: false,
+        inverted: isInverted,  // ✅ Fixed: Preserve inverted status
         annotation: rule.annotation,
         isMultiPolygon: isMultiPolygon,
         editingOriginalRuleId: rule.id,
@@ -958,6 +1013,12 @@ export default function App() {
         projectId: rule.projectId || undefined,
         fromSearch: false
       };
+
+      console.log('🔧 Created PolygonData:', {
+        inverted: newPolygon.inverted,
+        isMultiPolygon: newPolygon.isMultiPolygon,
+        annotation: newPolygon.annotation
+      });
 
       // Add to savedPolygons
       setSavedPolygons(prev => [...prev, newPolygon]);
