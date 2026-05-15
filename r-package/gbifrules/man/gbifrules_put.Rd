@@ -4,12 +4,16 @@
 \alias{gbifrules_put}
 \title{gbifrules_put}
 \usage{
-gbifrules_put(url, body)
+gbifrules_put(url, body, user = NULL, pwd = NULL)
 }
 \arguments{
 \item{url}{helper}
 
 \item{body}{helper}
+
+\item{user}{optional user for authentication, defaults to GBIF_USER env variable}
+
+\item{pwd}{optional password for authentication, defaults to GBIF_PWD env variable}
 }
 \description{
 gbifrules_put

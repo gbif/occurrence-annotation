@@ -4,12 +4,16 @@
 \alias{gbifrules_get}
 \title{gbifrules_get}
 \usage{
-gbifrules_get(url, query)
+gbifrules_get(url, query, user = NULL, pwd = NULL)
 }
 \arguments{
 \item{url}{helper}
 
 \item{query}{helper}
+
+\item{user}{optional user for authentication, defaults to GBIF_USER env variable}
+
+\item{pwd}{optional password for authentication, defaults to GBIF_PWD env variable}
 }
 \description{
 gbifrules_get

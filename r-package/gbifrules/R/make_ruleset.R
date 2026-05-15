@@ -2,7 +2,9 @@
 #'
 #' @param projectId the id of the project the ruleset should belong to.  
 #' @param name the name of the project. 
-#' @param description describe the project. 
+#' @param description describe the project.
+#' @param user (character) Optional username for authentication. Defaults to GBIF_USER environment variable.
+#' @param pwd (character) Optional password for authentication. Defaults to GBIF_PWD environment variable. 
 #'
 #' @return
 #' The rulesetId and projectId of the ruleset as a list.
@@ -13,7 +15,7 @@
 #' \dontrun{
 #' make_ruleset(1,"Name of project","Example description")
 #' }
-make_ruleset = function(projectId = NULL, name = NULL, description = NULL) {
+make_ruleset = function(projectId = NULL, name = NULL, description = NULL, user = NULL, pwd = NULL) {
   
   if(is.null(name)) stop("Please provide a name for the ruleset.")
   if(is.null(description)) stop("Please provide a description for the ruleset.")
@@ -25,5 +27,5 @@ make_ruleset = function(projectId = NULL, name = NULL, description = NULL) {
     name=name,
     description=description) 
   
-  gbifrules_post(url,body)
+  gbifrules_post(url, body, user, pwd)
 }

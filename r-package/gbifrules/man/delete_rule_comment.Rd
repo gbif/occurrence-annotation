@@ -4,12 +4,16 @@
 \alias{delete_rule_comment}
 \title{Delete a rule comment}
 \usage{
-delete_rule_comment(ruleId, commentId)
+delete_rule_comment(ruleId, commentId, user = NULL, pwd = NULL)
 }
 \arguments{
 \item{ruleId}{The ID of the rule that the comment belongs to}
 
 \item{commentId}{The ID of the comment to delete}
+
+\item{user}{(character) Optional username for authentication. Defaults to GBIF_USER environment variable.}
+
+\item{pwd}{(character) Optional password for authentication. Defaults to GBIF_PWD environment variable.}
 }
 \value{
 Nothing (invisible NULL)

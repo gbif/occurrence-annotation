@@ -6,7 +6,9 @@
 #' @param members new members. If `keep_members=TRUE`, then new will be added to old members. 
 #' @param deleted logical should the project be deleted or restored. 
 #' @param createdBy new creator of project. 
-#' @param keep_members keep old members. Default is TRUE.  
+#' @param keep_members keep old members. Default is TRUE.
+#' @param user (character) Optional username for authentication. Defaults to GBIF_USER environment variable.
+#' @param pwd (character) Optional password for authentication. Defaults to GBIF_PWD environment variable.  
 #'
 #' @return A `list` with data of the new project. 
 #' 
@@ -26,11 +28,13 @@ update_project <- function(id=NULL,
                           members=NULL,
                           deleted=NULL,
                           createdBy=NULL,
-                          keep_members=TRUE
+                          keep_members=TRUE,
+                          user = NULL,
+                          pwd = NULL
                           ) {
   
   if(is.null(id)) stop("Must supply a project id.")
-  project <- gbifrules_get_id_(paste0(gbifrules_url("project/"),id))
+  project <- gbifrules_get_id_(paste0(gbifrules_url("project/"),id), user, pwd)
   
   if(keep_members) members <- c(unlist(project$members),members) |> unique()
   
@@ -41,7 +45,7 @@ update_project <- function(id=NULL,
   if(!is.null(createdBy)) project$createdBy = createdBy
   
   body <- project
-  url <- paste0(gbifrules_url("project/"),id)
+  url <- paste0(gbifrules_url("project/"), id)
   
-  gbifrules_put(url,body)
+  gbifrules_put(url, body, user, pwd)
 }

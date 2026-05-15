@@ -4,12 +4,16 @@
 #' @param rm_suspicious removes records with suspicious annotations
 #' @param handle_conflicts how to handle conflicting annotations
 #' @param project_id optional project ID(s) to filter rules by specific project(s). Can be a single ID or vector of IDs.
+#' @param use_higher_taxonomy logical; if TRUE (default), rules will match records based on higher taxonomic ranks. The function checks for matches against kingdomKey, phylumKey, classKey, orderKey, familyKey, genusKey, speciesKey, and taxonKey columns in the download data. For example, a rule created for taxonKey 212 (Aves/Birds) will match all bird species records that have classKey = 212.
+#' @param min_support integer; minimum number of supports required for a rule to be applied. NULL (default) means no minimum. Only rules with at least this many supports will be used.
+#' @param exclude_contested logical; if TRUE, exclude any rules that have been contested (downvoted). Default is FALSE.
 #'
 #' @return A cleaned download `data.frame()`
 #' @description
 #' Removes records that have been marked as suspicious by annotation users using complex rules.
 #' Only filters based on SUSPICIOUS annotations, ignoring other annotation types.
 #' If project_id is provided, only rules belonging to those project(s) will be used.
+#' When use_higher_taxonomy is TRUE, rules can match records at any taxonomic level present in the download.
 #' 
 #' 
 #' @export
@@ -36,13 +40,22 @@
 #' 
 #' # Clean using rules from multiple projects
 #' clean_download(d, project_id = c(1, 2, 3))
+#' 
+#' # Disable higher taxonomy matching (only exact taxonKey matches)
+#' clean_download(d, use_higher_taxonomy = FALSE)
+#' 
+#' # Only use rules with at least 3 supports and no contests
+#' clean_download(d, min_support = 3, exclude_contested = TRUE)
 #' }
 #' 
 #' 
 clean_download <- function(d,
                            rm_suspicious = TRUE,
                            handle_conflicts = "favor_suspicious",
-                           project_id = NULL) {
+                           project_id = NULL,
+                           use_higher_taxonomy = TRUE,
+                           min_support = NULL,
+                           exclude_contested = FALSE) {
   
   # Prepare the original data with coordinates and unique identifier
   d_org <- d |>
@@ -61,22 +74,33 @@ clean_download <- function(d,
     ) 
   
   # Prepare simplified dataset for rule checking
-  # Include basisOfRecord and datasetKey if they exist in the data
+  # Include basisOfRecord, datasetKey, and year if they exist in the data
+  # Also include higher taxonomy columns if use_higher_taxonomy is enabled
+  columns_to_select <- c(
+    "decimalLongitude",
+    "decimalLatitude",
+    "taxonKey",
+    "record_id",
+    "lon",
+    "lat"
+  )
+  
+  # Add optional columns
+  columns_to_select <- c(columns_to_select, "basisOfRecord", "datasetKey", "year")
+  
+  # Add higher taxonomy columns if enabled
+  if (use_higher_taxonomy) {
+    taxonomy_columns <- c("kingdomKey", "phylumKey", "classKey", "orderKey", 
+                          "familyKey", "genusKey", "speciesKey")
+    columns_to_select <- c(columns_to_select, taxonomy_columns)
+  }
+  
   d_clean <- d_org |>
-    dplyr::select(
-      decimalLongitude,
-      decimalLatitude,
-      taxonKey,
-      record_id,
-      lon,
-      lat,
-      # Include basisOfRecord and datasetKey if present
-      dplyr::any_of(c("basisOfRecord", "datasetKey"))
-    ) |>
+    dplyr::select(dplyr::any_of(columns_to_select)) |>
     unique()
   
   # Get suspicious annotations for all taxon keys in the dataset
-  suspicious_annotations <- get_suspicious_annotations(d_clean, project_id = project_id)
+  suspicious_annotations <- get_suspicious_annotations(d_clean, project_id = project_id, use_higher_taxonomy = use_higher_taxonomy, min_support = min_support, exclude_contested = exclude_contested)
   
   # Merge annotations back with original data
   out <- d_org |>
@@ -126,9 +150,25 @@ clean_download <- function(d,
   rule_download
 }
 
-get_suspicious_annotations <- function(d, project_id = NULL) {
+get_suspicious_annotations <- function(d, project_id = NULL, use_higher_taxonomy = TRUE, min_support = NULL, exclude_contested = FALSE) {
   # Get unique taxon keys from the dataset
   unique_taxon_keys <- unique(d$taxonKey)
+  
+  # If use_higher_taxonomy is TRUE, expand to include all taxonomy keys
+  if (use_higher_taxonomy) {
+    # Extract all taxonomy keys from available columns
+    taxonomy_columns <- c("kingdomKey", "phylumKey", "classKey", "orderKey", 
+                          "familyKey", "genusKey", "speciesKey", "taxonKey")
+    available_columns <- intersect(taxonomy_columns, colnames(d))
+    
+    # Collect all unique taxonomy keys from available columns
+    all_taxonomy_keys <- unique(unlist(lapply(available_columns, function(col) {
+      unique(d[[col]])
+    })))
+    
+    # Remove NA values and use expanded set
+    unique_taxon_keys <- unique(all_taxonomy_keys[!is.na(all_taxonomy_keys)])
+  }
   
   # Fetch all rules for the taxon keys in the dataset
   # If project_id is specified, filter by projectId parameter
@@ -150,6 +190,53 @@ get_suspicious_annotations <- function(d, project_id = NULL) {
         annotation == "SUSPICIOUS",
         is.na(deleted)  # Only include non-deleted rules
       )
+  }
+  
+  # Filter rules by support/contest requirements
+  n_rules_before_filter <- nrow(all_rules)
+  
+  if (nrow(all_rules) > 0) {
+    # Calculate vote counts for each rule
+    # supportedBy and contestedBy can be: NA, NULL, empty list, list with elements, or character vector
+    all_rules <- all_rules |>
+      dplyr::mutate(
+        support_count = sapply(supportedBy, function(x) {
+          if (is.null(x)) return(0L)
+          if (length(x) == 1 && is.na(x)) return(0L)  # Handles NA (logical or character)
+          if (is.list(x) && length(x) == 0) return(0L)
+          if (is.character(x)) return(as.integer(length(x)))  # Character vector with usernames
+          if (is.list(x)) return(as.integer(length(x)))  # List with usernames
+          return(0L)
+        }),
+        contest_count = sapply(contestedBy, function(x) {
+          if (is.null(x)) return(0L)
+          if (length(x) == 1 && is.na(x)) return(0L)  # Handles NA (logical or character)
+          if (is.list(x) && length(x) == 0) return(0L)
+          if (is.character(x)) return(as.integer(length(x)))  # Character vector with usernames
+          if (is.list(x)) return(as.integer(length(x)))  # List with usernames
+          return(0L)
+        })
+      )
+    
+    # Apply minimum support filter
+    if (!is.null(min_support)) {
+      all_rules <- all_rules |>
+        dplyr::filter(support_count >= min_support)
+    }
+    
+    # Apply exclude contested filter
+    if (exclude_contested) {
+      all_rules <- all_rules |>
+        dplyr::filter(contest_count == 0)
+    }
+  }
+  
+  # Warn if all rules were filtered out by vote requirements
+  if (n_rules_before_filter > 0 && nrow(all_rules) == 0) {
+    warning(sprintf("All %d rules were filtered out by vote requirements (min_support=%s, exclude_contested=%s)",
+                    n_rules_before_filter,
+                    ifelse(is.null(min_support), "NULL", as.character(min_support)),
+                    exclude_contested))
   }
   
   if (nrow(all_rules) == 0) {
@@ -175,7 +262,7 @@ get_suspicious_annotations <- function(d, project_id = NULL) {
       
       # Detect if this is an inverted polygon (global extent with holes) BEFORE st_make_valid
       is_inverted <- FALSE
-      tryCatch({
+      suppressWarnings(tryCatch({
         # Parse geometry directly from WKT to check original structure
         geom_sf <- sf::st_as_sfc(rule$geometry, crs = 4326)
         if (length(geom_sf) > 0) {
@@ -193,25 +280,53 @@ get_suspicious_annotations <- function(d, project_id = NULL) {
         }
       }, error = function(e) {
         # If geometry parsing fails, assume it's a normal polygon
-        message("Geometry parsing failed for rule ", rule$id, ": ", e$message)
         is_inverted <- FALSE
-      })
+      }))
 
       # Convert WKT geometry to sf polygon
       # Disable s2 for better handling of global polygons with holes
       old_s2 <- sf::sf_use_s2()
       suppressMessages(sf::sf_use_s2(FALSE))
       
-      polygon <- rule |>
-        dplyr::mutate(geometry = sf::st_as_sfc(geometry, crs = 4326)) |>
-        sf::st_sf() |>
-        sf::st_geometry() |>
-        sf::st_make_valid() |>
-        sf::st_transform(crs = 3857)  # Transform to same CRS as points
+      # Try to parse the geometry, skip rule if it fails
+      polygon <- tryCatch({
+        suppressWarnings({
+          rule |>
+            dplyr::mutate(geometry = sf::st_as_sfc(geometry, crs = 4326)) |>
+            sf::st_sf() |>
+            sf::st_geometry() |>
+            sf::st_make_valid() |>
+            sf::st_transform(crs = 3857)  # Transform to same CRS as points
+        })
+      }, error = function(e) {
+        # Silently skip rules with invalid geometries
+        suppressMessages(sf::sf_use_s2(old_s2))  # Restore s2 setting
+        return(NULL)
+      })
       
-      # Filter points to only those matching this rule's taxonKey
-      # This ensures the spatial result has the same length as records_for_rule
-      d_sf_for_rule <- d_sf[d_sf$taxonKey == rule$taxonKey, ]
+      # If polygon parsing failed, skip this rule
+      if (is.null(polygon)) {
+        return(data.frame())
+      }
+      
+      # Filter points to those matching this rule's taxonKey
+      # When use_higher_taxonomy is TRUE, match against any taxonomy level
+      if (use_higher_taxonomy) {
+        # Build filter condition: rule's taxonKey matches any taxonomy column
+        taxonomy_columns <- c("kingdomKey", "phylumKey", "classKey", "orderKey", 
+                              "familyKey", "genusKey", "speciesKey", "taxonKey")
+        available_columns <- intersect(taxonomy_columns, colnames(d))
+        
+        # Check if rule's taxonKey matches any of the available taxonomy columns
+        matches <- rep(FALSE, nrow(d))
+        for (col in available_columns) {
+          matches <- matches | (!is.na(d[[col]]) & d[[col]] == rule$taxonKey)
+        }
+        d_sf_for_rule <- d_sf[matches, ]
+      } else {
+        # Exact match on taxonKey only
+        d_sf_for_rule <- d_sf[d_sf$taxonKey == rule$taxonKey, ]
+      }
       
       # Determine which points (for this taxon) are within the polygon
       within <- as.vector(sf::st_within(d_sf_for_rule, polygon, sparse = FALSE))
@@ -234,18 +349,47 @@ get_suspicious_annotations <- function(d, project_id = NULL) {
       #        sum(d_sf$taxonKey == rule$taxonKey), " points")
       
       # Apply basisOfRecord filtering if specified in the rule
-      records_for_rule <- d |>
-        dplyr::filter(taxonKey == rule$taxonKey) |>
-        dplyr::mutate(
-          is_suspicious_spatial = within,
-          rule_id = rule$id,
-          taxon_key_rule = rule$taxonKey
-        )
+      # Filter records matching this rule's taxonKey (considering higher taxonomy if enabled)
+      if (use_higher_taxonomy) {
+        taxonomy_columns <- c("kingdomKey", "phylumKey", "classKey", "orderKey", 
+                              "familyKey", "genusKey", "speciesKey", "taxonKey")
+        available_columns <- intersect(taxonomy_columns, colnames(d))
+        
+        matches <- rep(FALSE, nrow(d))
+        for (col in available_columns) {
+          matches <- matches | (!is.na(d[[col]]) & d[[col]] == rule$taxonKey)
+        }
+        records_for_rule <- d[matches, ] |>
+          dplyr::mutate(
+            is_suspicious_spatial = within,
+            rule_id = rule$id,
+            taxon_key_rule = rule$taxonKey
+          )
+      } else {
+        records_for_rule <- d |>
+          dplyr::filter(taxonKey == rule$taxonKey) |>
+          dplyr::mutate(
+            is_suspicious_spatial = within,
+            rule_id = rule$id,
+            taxon_key_rule = rule$taxonKey
+          )
+      }
       
       # Apply basisOfRecord filter if specified in the rule AND the data has basisOfRecord column
       # Check if rule has actual basisOfRecord values (not NULL, not empty, not just NAs)
-      rule_basis_values <- if (!is.null(rule$basisOfRecord)) unlist(rule$basisOfRecord) else character(0)
-      rule_basis_values <- rule_basis_values[!is.na(rule_basis_values)]  # Remove any NA values
+      # Handle both character vectors and list-columns from bind_rows()
+      rule_basis_values <- character(0)
+      if (!is.null(rule$basisOfRecord) && !all(is.na(rule$basisOfRecord))) {
+        # Could be a character vector, a list, or a single value
+        basis_raw <- rule$basisOfRecord
+        if (is.list(basis_raw)) {
+          rule_basis_values <- unlist(basis_raw)
+        } else {
+          rule_basis_values <- basis_raw
+        }
+        # Remove NA values and empty strings
+        rule_basis_values <- rule_basis_values[!is.na(rule_basis_values) & nchar(rule_basis_values) > 0]
+      }
       
       has_basis_filter <- length(rule_basis_values) > 0 && "basisOfRecord" %in% colnames(records_for_rule)
       
@@ -291,6 +435,45 @@ get_suspicious_annotations <- function(d, project_id = NULL) {
             is_suspicious_dataset = !is.na(datasetKey) & (datasetKey == rule_dataset_key),
             # Combine with existing is_suspicious (from spatial + basisOfRecord)
             is_suspicious = is_suspicious & is_suspicious_dataset
+          )
+      }
+      
+      # Apply yearRange filter if specified in the rule AND the data has year column
+      has_year_filter <- !is.null(rule$yearRange) && 
+                         !is.na(rule$yearRange) && 
+                         nchar(rule$yearRange) > 0 && 
+                         "year" %in% colnames(records_for_rule)
+      
+      if (has_year_filter) {
+        year_range_str <- rule$yearRange
+        
+        # Parse yearRange format: start,end or *,end or start,*
+        # Backend API format: "1900,2000", "*,1950", "1950,*"
+        min_year <- -Inf
+        max_year <- Inf
+        
+        if (grepl(",", year_range_str)) {
+          # Format: start,end or *,end or start,*
+          parts <- strsplit(year_range_str, ",")[[1]]
+          if (parts[1] != "*" && nchar(trimws(parts[1])) > 0) {
+            min_year <- as.integer(trimws(parts[1]))
+          }
+          if (parts[2] != "*" && nchar(trimws(parts[2])) > 0) {
+            max_year <- as.integer(trimws(parts[2]))
+          }
+        } else {
+          # Format: single year (exact match)
+          single_year <- as.integer(year_range_str)
+          min_year <- single_year
+          max_year <- single_year
+        }
+        
+        # Filter: rule applies only to records within the year range
+        records_for_rule <- records_for_rule |>
+          dplyr::mutate(
+            is_suspicious_year = !is.na(year) & (year >= min_year) & (year <= max_year),
+            # Combine with existing is_suspicious (from spatial + basisOfRecord + datasetKey)
+            is_suspicious = is_suspicious & is_suspicious_year
           )
       }
       

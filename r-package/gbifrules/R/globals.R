@@ -3,6 +3,8 @@
 utils::globalVariables(c(
   "annotation",
   "basisOfRecord",
+  "contest_count",
+  "contestedBy",
   "decimalLatitude",
   "decimalLongitude",
   "deleted",
@@ -10,7 +12,13 @@ utils::globalVariables(c(
   "id",
   "is_suspicious",
   "lat",
+  "locked",
   "lon",
   "record_id",
+  "rule_annotation",
+  "rule_contest_count",
+  "rule_support_count",
+  "support_count",
+  "supportedBy",
   "taxonKey"
 ))
