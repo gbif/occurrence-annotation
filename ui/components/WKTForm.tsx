@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Copy, Check, RefreshCw, Repeat } from 'lucide-react';
 import { Card } from './ui/card';
 import { toast } from 'sonner';
+import { parseWKTGeometry, PolygonWithHoles, MultiPolygon } from '../utils/wktParser';
 
 interface WKTFormProps {
   currentPolygon: [number, number][] | null;
@@ -55,50 +56,32 @@ export function WKTForm({
   // Parse WKT string to polygon coordinates
   const parseWKT = (wkt: string): [number, number][] | null => {
     try {
-      // Remove extra whitespace and normalize
-      const normalized = wkt.trim().toUpperCase();
-      
-      // Match POLYGON pattern
-      const polygonMatch = normalized.match(/POLYGON\s*\(\s*\((.*?)\)\s*\)/);
-      if (!polygonMatch) {
-        throw new Error('Invalid WKT format. Expected: POLYGON((lon lat, lon lat, ...))');
+      const parsed = parseWKTGeometry(wkt);
+      if (!parsed) {
+        throw new Error('Failed to parse WKT geometry');
       }
 
-      const coordsString = polygonMatch[1];
-      const coordPairs = coordsString.split(',').map(pair => pair.trim());
-      
-      const coordinates: [number, number][] = [];
-      for (const pair of coordPairs) {
-        const [lonStr, latStr] = pair.split(/\s+/);
-        const lon = parseFloat(lonStr);
-        const lat = parseFloat(latStr);
-        
-        if (isNaN(lon) || isNaN(lat)) {
-          throw new Error('Invalid coordinate values');
+      // Handle MultiPolygon - return first polygon's outer ring
+      if ('polygons' in parsed) {
+        if (parsed.polygons.length === 0) {
+          throw new Error('MultiPolygon has no polygons');
         }
-        
-        // Validate coordinate ranges
-        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-          throw new Error('Coordinates out of valid range (lat: -90 to 90, lon: -180 to 180)');
-        }
-        
-        coordinates.push([lat, lon]); // Convert back to [lat, lng] for our internal format
+        return parsed.polygons[0].outer;
       }
       
-      if (coordinates.length < 3) {
-        throw new Error('Polygon must have at least 3 points');
-      }
-      
-      // Remove the last point if it's a duplicate of the first (closing point)
-      if (coordinates.length > 3) {
-        const first = coordinates[0];
-        const last = coordinates[coordinates.length - 1];
-        if (first[0] === last[0] && first[1] === last[1]) {
-          coordinates.pop();
+      // Handle PolygonWithHoles (including inverted polygons)
+      if ('holes' in parsed) {
+        // If there are holes, this is an inverted polygon
+        // Return the first hole as the actual polygon to edit
+        // (the outer ring is the world boundary in inverted polygons)
+        if (parsed.holes.length > 0) {
+          return parsed.holes[0];
         }
+        // No holes, just return the outer ring
+        return parsed.outer;
       }
       
-      return coordinates;
+      throw new Error('Unexpected geometry type');
     } catch (error) {
       throw error;
     }

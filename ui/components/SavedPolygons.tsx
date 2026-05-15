@@ -10,7 +10,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
-import { coordinatesToWKT } from '../utils/wktParser';
+import { coordinatesToWKT, parseWKTGeometry, PolygonWithHoles, MultiPolygon } from '../utils/wktParser';
 import { validatePolygonSize, getPolygonSizeStatus } from '../utils/geometryValidation';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
@@ -346,52 +346,32 @@ function ImportWKTDialog({ onImport }: ImportWKTDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [wktInput, setWktInput] = useState('');
 
-  const parseWKT = (wkt: string): [number, number][] | null => {
+  const parseWKT = (wkt: string): [number, number][] | [number, number][][] | null => {
     try {
-      // Remove extra whitespace and normalize
-      const normalized = wkt.trim().toUpperCase();
-      
-      // Match POLYGON pattern
-      const polygonMatch = normalized.match(/POLYGON\s*\(\s*\((.*?)\)\s*\)/);
-      if (!polygonMatch) {
-        throw new Error('Invalid WKT format. Expected: POLYGON((lon lat, lon lat, ...))');
+      const parsed = parseWKTGeometry(wkt);
+      if (!parsed) {
+        throw new Error('Failed to parse WKT geometry');
       }
 
-      const coordsString = polygonMatch[1];
-      const coordPairs = coordsString.split(',').map(pair => pair.trim());
-      
-      const coordinates: [number, number][] = [];
-      for (const pair of coordPairs) {
-        const [lonStr, latStr] = pair.split(/\s+/);
-        const lon = parseFloat(lonStr);
-        const lat = parseFloat(latStr);
-        
-        if (isNaN(lon) || isNaN(lat)) {
-          throw new Error('Invalid coordinate values');
-        }
-        
-        // Validate coordinate ranges
-        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-          throw new Error('Coordinates out of valid range (lat: -90 to 90, lon: -180 to 180)');
-        }
-        
-        coordinates.push([lat, lon]); // Convert back to [lat, lng] for our internal format
+      // Handle MultiPolygon
+      if ('polygons' in parsed) {
+        // For multipolygons, return array of polygons
+        return parsed.polygons.map(p => p.outer);
       }
       
-      if (coordinates.length < 3) {
-        throw new Error('Polygon must have at least 3 points');
-      }
-      
-      // Remove the last point if it's a duplicate of the first (closing point)
-      if (coordinates.length > 3) {
-        const first = coordinates[0];
-        const last = coordinates[coordinates.length - 1];
-        if (first[0] === last[0] && first[1] === last[1]) {
-          coordinates.pop();
+      // Handle PolygonWithHoles (including inverted polygons)
+      if ('holes' in parsed) {
+        // If there are holes, this is an inverted polygon
+        // Return the first hole as the actual polygon to edit
+        // (the outer ring is the world boundary in inverted polygons)
+        if (parsed.holes.length > 0) {
+          return parsed.holes[0];
         }
+        // No holes, just return the outer ring
+        return parsed.outer;
       }
       
-      return coordinates;
+      throw new Error('Unexpected geometry type');
     } catch (error) {
       throw error;
     }
@@ -399,10 +379,21 @@ function ImportWKTDialog({ onImport }: ImportWKTDialogProps) {
 
   const handleImport = () => {
     try {
-      const coordinates = parseWKT(wktInput);
-      if (coordinates) {
-        onImport(coordinates);
-        toast.success(`Polygon imported with ${coordinates.length} points`);
+      const result = parseWKT(wktInput);
+      if (result) {
+        // Check if it's a multipolygon (array of arrays)
+        const isMulti = Array.isArray(result[0]) && Array.isArray(result[0][0]);
+        
+        if (isMulti) {
+          onImport(result as [number, number][][], true);
+          const polygonCount = (result as [number, number][][]).length;
+          toast.success(`${polygonCount} polygon(s) imported`);
+        } else {
+          onImport(result as [number, number][]);
+          const pointCount = (result as [number, number][]).length;
+          toast.success(`Polygon imported with ${pointCount} points`);
+        }
+        
         setIsOpen(false);
         setWktInput('');
       }
