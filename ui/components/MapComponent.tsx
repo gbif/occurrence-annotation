@@ -14,7 +14,7 @@ import { LocationQualityPanel } from './LocationQualityPanel';
 import { isAdmin } from '../utils/authHelpers';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
-import { parseWKTGeometry } from '../utils/wktParser';
+import { parseWKTGeometry, PolygonWithHoles, MultiPolygon } from '../utils/wktParser';
 import { subtractOceanFromPolygon, bufferPolygon, bufferMultiPolygon, eraseFromPolygon } from '../utils/spatialOperations';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Input } from './ui/input';
@@ -2060,25 +2060,29 @@ export function MapComponent({
           // Color based on annotation type - use rule's project vocabulary if available
           const colorSet = getColorFromVocabulary(rule.annotation, rule);
           
+          // Normalize multiPolygon to array of PolygonWithHoles
+          const polygons: PolygonWithHoles[] = 'polygons' in rule.multiPolygon 
+            ? rule.multiPolygon.polygons 
+            : [rule.multiPolygon];
+          
           // Find the first coordinate to use as anchor point
-          const firstPolygon = rule.multiPolygon.polygons[0];
-          if (!firstPolygon || !firstPolygon.outer || firstPolygon.outer.length === 0) {
+          if (polygons.length === 0 || !polygons[0].outer || polygons[0].outer.length === 0) {
             return null;
           }
           
-          const [anchorLat, anchorLng] = firstPolygon.outer[0];
+          const [anchorLat, anchorLng] = polygons[0].outer[0];
           
           return (
             <Overlay key={`rule-overlay-${rule.id}`} anchor={[anchorLat, anchorLng]} offset={[0, 0]}>
               <div style={{ pointerEvents: 'none' }}>
                 <svg width="8000" height="8000" style={{ overflow: 'visible' }}>
                   {(() => {
-                    // Build SVG path for all polygons in the multipolygon using geographic coordinates
+                    // Build SVG path for all polygons using geographic coordinates
                     const [anchorPixelX, anchorPixelY] = latLngToPixel(anchorLat, anchorLng);
                     let path = '';
                     
                     // Render each polygon
-                    rule.multiPolygon!.polygons.forEach((polygonWithHoles) => {
+                    polygons.forEach((polygonWithHoles) => {
                       // Outer ring
                       const outerPixels = polygonWithHoles.outer.map(([lat, lng]) => {
                         const [pixelX, pixelY] = latLngToPixel(lat, lng);

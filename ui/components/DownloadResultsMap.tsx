@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { Map as PigeonMap, Overlay } from 'pigeon-maps';
 import type { AnnotationRule } from '../utils/downloadProcessor';
 import type { MapPoint, SpeciesHierarchy } from '../utils/mapDataFilter';
-import { parseWKTGeometry, type MultiPolygon } from '../utils/wktParser';
+import { parseWKTGeometry, type MultiPolygon, type PolygonWithHoles } from '../utils/wktParser';
 import { toast } from 'sonner';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 
@@ -212,32 +212,36 @@ export function DownloadResultsMap({
             if (!rule.geometry || !rule.id) return null;
 
             try {
-              // Parse WKT geometry to MultiPolygon format
-              const multiPolygon = parseWKTGeometry(rule.geometry);
+              // Parse WKT geometry
+              const parsedGeometry = parseWKTGeometry(rule.geometry);
               
-              if (!multiPolygon || !multiPolygon.polygons || multiPolygon.polygons.length === 0) {
+              if (!parsedGeometry) {
+                return null;
+              }
+
+              // Normalize to array of PolygonWithHoles
+              const polygons: PolygonWithHoles[] = 'polygons' in parsedGeometry 
+                ? parsedGeometry.polygons 
+                : [parsedGeometry];
+
+              if (polygons.length === 0 || !polygons[0].outer || polygons[0].outer.length === 0) {
                 return null;
               }
 
               // Find the first coordinate to use as anchor point
-              const firstPolygon = multiPolygon.polygons[0];
-              if (!firstPolygon || !firstPolygon.outer || firstPolygon.outer.length === 0) {
-                return null;
-              }
-
-              const [anchorLat, anchorLng] = firstPolygon.outer[0];
+              const [anchorLat, anchorLng] = polygons[0].outer[0];
               const color = ANNOTATION_COLORS[rule.annotation] || { fill: '#6b7280', stroke: '#475569' };
 
               return (
                 <Overlay key={`rule-${rule.id}`} anchor={[anchorLat, anchorLng]} offset={[0, 0]}>
                   <svg width="8000" height="8000" style={{ overflow: 'visible' }}>
                     {(() => {
-                      // Build SVG path for all polygons in the multipolygon
+                      // Build SVG path for all polygons
                       const [anchorPixelX, anchorPixelY] = latLngToPixel(anchorLat, anchorLng, zoom);
                       let path = '';
                       
                       // Render each polygon
-                      multiPolygon.polygons.forEach((polygonWithHoles) => {
+                      polygons.forEach((polygonWithHoles) => {
                         // Outer ring
                         const outerPixels = polygonWithHoles.outer.map(([lat, lng]) => {
                           const [pixelX, pixelY] = latLngToPixel(lat, lng, zoom);

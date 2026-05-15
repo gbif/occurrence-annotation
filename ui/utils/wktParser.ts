@@ -117,9 +117,9 @@ export function parseWKTMultiPolygon(wkt: string): MultiPolygon | null {
 
 /**
  * Parse any WKT geometry (POLYGON or MULTIPOLYGON)
- * Returns a MultiPolygon structure (single polygon becomes array of 1)
+ * Returns PolygonWithHoles for single POLYGON, MultiPolygon for MULTIPOLYGON
  */
-export function parseWKTGeometry(wkt: string): MultiPolygon | null {
+export function parseWKTGeometry(wkt: string): MultiPolygon | PolygonWithHoles | null {
   if (!wkt) return null;
   
   const trimmed = wkt.trim().toUpperCase();
@@ -127,8 +127,8 @@ export function parseWKTGeometry(wkt: string): MultiPolygon | null {
   if (trimmed.startsWith('MULTIPOLYGON')) {
     return parseWKTMultiPolygon(wkt);
   } else if (trimmed.startsWith('POLYGON')) {
-    const polygon = parseWKTPolygonWithHoles(wkt);
-    return polygon ? { polygons: [polygon] } : null;
+    // Return PolygonWithHoles directly - don't wrap in MultiPolygon
+    return parseWKTPolygonWithHoles(wkt);
   }
   
   return null;

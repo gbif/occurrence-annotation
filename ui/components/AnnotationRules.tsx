@@ -303,8 +303,8 @@ export interface AnnotationRule {
   createdBy: string;
   deleted: string | null;
   deletedBy: string | null;
-  // Parsed geometry (can be single or multi polygon)
-  multiPolygon?: MultiPolygon;
+  // Parsed geometry (can be single polygon with holes or multi polygon)
+  multiPolygon?: MultiPolygon | PolygonWithHoles;
   // Higher order metadata
   taxonomicLevel?: string;
   scientificName?: string;
@@ -555,20 +555,6 @@ export function AnnotationRules({
         // Parse WKT geometry for each paginated rule
         const rulesWithCoords = paginatedRules.map(rule => {
           const multiPolygon = parseWKTGeometry(rule.geometry);
-          
-          // DEBUG: Log coordinate information for the first few rules
-          if (multiPolygon && multiPolygon.polygons && multiPolygon.polygons.length > 0) {
-            const firstPolygon = multiPolygon.polygons[0];
-            console.log('DEBUG: Annotation Rule Coordinates', {
-              ruleId: rule.id,
-              annotation: rule.annotation,
-              originalWKT: rule.geometry.substring(0, 100) + '...', // First 100 chars
-              polygonCount: multiPolygon.polygons.length,
-              firstPolygonVertexCount: firstPolygon.outer.length,
-              firstThreeVertices: firstPolygon.outer.slice(0, 3),
-              hasHoles: firstPolygon.holes.length > 0
-            });
-          }
           
           return {
             ...rule,
