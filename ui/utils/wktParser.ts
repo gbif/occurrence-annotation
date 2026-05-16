@@ -47,6 +47,48 @@ export function removeClosingCoordinate(coords: [number, number][]): [number, nu
 }
 
 /**
+ * Fix dateline-crossing polygons by adjusting longitude values for continuity
+ * Finds the median longitude and adjusts any coordinates that are >180° away
+ */
+export function fixDatelineCrossing(coords: [number, number][]): [number, number][] {
+  if (coords.length < 2) return coords;
+  
+  // Calculate median longitude to find the "center" of the polygon
+  const lngs = coords.map(([_, lng]) => lng).sort((a, b) => a - b);
+  const medianLng = lngs[Math.floor(lngs.length / 2)];
+  
+  // Adjust coordinates that are far from the median
+  const fixed = coords.map(([lat, lng]) => {
+    let adjustedLng = lng;
+    const diff = lng - medianLng;
+    
+    // If a coordinate is more than 180° away from the median,
+    // it likely crossed the dateline and should be adjusted
+    if (diff > 180) {
+      adjustedLng = lng - 360;
+    } else if (diff < -180) {
+      adjustedLng = lng + 360;
+    }
+    
+    return [lat, adjustedLng] as [number, number];
+  });
+  
+  // Check if the resulting polygon spans too much longitude
+  const adjustedLngs = fixed.map(coord => coord[1]);
+  const minLng = Math.min(...adjustedLngs);
+  const maxLng = Math.max(...adjustedLngs);
+  const span = maxLng - minLng;
+  
+  // If span is very large (>270°), this might be a problematic geometry
+  // Return original coordinates to avoid worse rendering
+  if (span > 270) {
+    return coords;
+  }
+  
+  return fixed;
+}
+
+/**
  * Parse WKT POLYGON string to coordinates array
  * Handles POLYGON format: "POLYGON ((x1 y1, x2 y2, ...))"
  * And POLYGON with holes: "POLYGON ((outer ring), (hole1), (hole2))"
@@ -84,22 +126,17 @@ export function parseWKTPolygonWithHoles(wkt: string): PolygonWithHoles | null {
           // Clamp latitude to Web Mercator limits
           const clampedLat = Math.max(-WEB_MERCATOR_MAX_LAT, Math.min(WEB_MERCATOR_MAX_LAT, lat));
           
-          // Normalize longitude to -180 to 180 range
-          let clampedLng = lng;
-          while (clampedLng > 180) clampedLng -= 360;
-          while (clampedLng < -180) clampedLng += 360;
-          
-          // Log if clamping occurred
-          if (clampedLat !== lat || clampedLng !== lng) {
-            console.log(`DEBUG: Clamped coordinates from ${lat}, ${lng} to ${clampedLat}, ${clampedLng} (Web Mercator limit: ±${WEB_MERCATOR_MAX_LAT}° lat, ±180° lng)`);
-          }
+          // NOTE: Do NOT normalize longitude here - we need original values
+          // to properly detect dateline crossings. The fixDatelineCrossing
+          // function will handle continuity adjustments.
           
           // Map needs [latitude, longitude]
-          return [clampedLat, clampedLng] as [number, number];
+          return [clampedLat, lng] as [number, number];
         })
         .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng));
       
-      return coords;
+      // Fix dateline crossing issues (handles coordinate adjustments)
+      return fixDatelineCrossing(coords);
     };
     
     const outerRing = removeClosingCoordinate(parseRing(rings[0]));

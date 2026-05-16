@@ -8,6 +8,7 @@ import { Checkbox } from './ui/checkbox';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Globe } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface CountrySelectorProps {
   /** Callback when countries are selected and loaded */
@@ -18,7 +19,7 @@ interface CountrySelectorProps {
 
 export function CountrySelector({ 
   onCountriesSelected,
-  triggerText = "Select Countries"
+  triggerText = "Political"
 }: CountrySelectorProps) {
   const [countries, setCountries] = useState<CountryPolygon[]>([]);
   const [selectedCountries, setSelectedCountries] = useState<Set<string>>(new Set());
@@ -106,12 +107,18 @@ export function CountrySelector({
     if (allCoordinates.length > 0) {
       onCountriesSelected(allCoordinates);
       
+      toast.success(`Loaded ${selectedCount} ${selectedCount === 1 ? 'country' : 'countries'}`, {
+        description: `${allCoordinates.length} polygon${allCoordinates.length === 1 ? '' : 's'} added to the map`
+      });
+      
       // Reset state and close
       setSelectedCountries(new Set());
       setSearchTerm('');
       setIsOpen(false);
     } else {
-      setError('Failed to parse any country polygons');
+      const errorMsg = 'Failed to parse any country polygons';
+      setError(errorMsg);
+      toast.error(errorMsg);
     }
   };
 
@@ -121,21 +128,21 @@ export function CountrySelector({
   };
 
   const selectedCount = selectedCountries.size;
-  const selectedNames = countries
+  const selectedItems = countries
     .filter(c => selectedCountries.has(c.identifier))
-    .map(c => c.name)
-    .slice(0, 3); // Show first 3 names
+    .slice(0, 3)
+    .map((c, idx) => ({ name: c.name, key: `${c.identifier}-${idx}` }));
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <Globe className="w-4 h-4" />
+        <Button variant="outline" size="sm" className="h-6 px-2 gap-1.5 text-xs">
+          <Globe className="w-3.5 h-3.5" />
           {triggerText}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl h-[80vh] flex flex-col gap-4 p-6">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Select Countries</DialogTitle>
           <DialogDescription>
             Choose one or more countries to load their boundaries as polygons for your rule.
@@ -157,9 +164,9 @@ export function CountrySelector({
               <span className="text-sm text-muted-foreground">
                 Selected: {selectedCount} {selectedCount === 1 ? 'country' : 'countries'}
               </span>
-              {selectedNames.map(name => (
-                <Badge key={name} variant="secondary" className="text-xs">
-                  {name}
+              {selectedItems.map(item => (
+                <Badge key={item.key} variant="secondary" className="text-xs">
+                  {item.name}
                 </Badge>
               ))}
               {selectedCount > 3 && (
@@ -180,7 +187,7 @@ export function CountrySelector({
         </div>
 
         {/* Country list */}
-        <ScrollArea className="flex-1 border rounded-md">
+        <ScrollArea className="flex-1 min-h-0 border rounded-md">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="text-sm text-muted-foreground">Loading countries...</div>
@@ -197,11 +204,12 @@ export function CountrySelector({
             </div>
           ) : (
             <div className="p-2 space-y-1">
-              {filteredCountries.map((country) => {
+              {filteredCountries.map((country, index) => {
+                const uniqueKey = `${country.identifier}-${index}`;
                 const isSelected = selectedCountries.has(country.identifier);
                 return (
                   <div
-                    key={country.identifier}
+                    key={uniqueKey}
                     className="flex items-center gap-3 p-2 rounded-md hover:bg-accent cursor-pointer"
                     onClick={() => toggleCountry(country.identifier)}
                   >
@@ -227,7 +235,7 @@ export function CountrySelector({
           )}
         </ScrollArea>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0">
           <Button variant="outline" onClick={() => setIsOpen(false)}>
             Cancel
           </Button>

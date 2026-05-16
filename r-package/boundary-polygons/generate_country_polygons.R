@@ -200,6 +200,86 @@ apply_buffer <- function(countries) {
 }
 
 # ============================================================================
+# Step 3b: Fix Dateline Crossing
+# ============================================================================
+fix_dateline_crossing <- function(countries) {
+  message("[Step 3b] Fixing dateline-crossing geometries...")
+  
+  dateline_count <- 0
+  
+  for (i in seq_len(nrow(countries))) {
+    tryCatch({
+      geom <- st_geometry(countries)[i]
+      bbox <- st_bbox(geom)
+      lon_span <- bbox["xmax"] - bbox["xmin"]
+      
+      # Check if geometry crosses dateline (spans > 180 degrees)
+      if (lon_span > 180) {
+        dateline_count <- dateline_count + 1
+        
+        # Extract coordinates as matrix (columns: X, Y, L1, L2, L3, ...)
+        coords <- st_coordinates(geom)
+        
+        if (nrow(coords) > 0 && "X" %in% colnames(coords)) {
+          # Get longitude values
+          lngs <- coords[, "X"]
+          
+          # Calculate median longitude
+          median_lng <- median(lngs, na.rm = TRUE)
+          
+          # Normalize coordinates: shift values >180° away from median
+          adjusted_lngs <- lngs
+          diff <- lngs - median_lng
+          adjusted_lngs[diff > 180] <- lngs[diff > 180] - 360
+          adjusted_lngs[diff < -180] <- lngs[diff < -180] + 360
+          
+          # Update X coordinates
+          coords[, "X"] <- adjusted_lngs
+          
+          # Rebuild geometry based on type
+          geom_type <- st_geometry_type(geom)
+          
+          if (geom_type == "MULTIPOLYGON") {
+            # For MULTIPOLYGON, group by L1 (polygon) and L2 (ring)
+            polygons <- lapply(unique(coords[, "L1"]), function(poly_id) {
+              poly_coords <- coords[coords[, "L1"] == poly_id, , drop = FALSE]
+              rings <- lapply(unique(poly_coords[, "L2"]), function(ring_id) {
+                ring_coords <- poly_coords[poly_coords[, "L2"] == ring_id, c("X", "Y"), drop = FALSE]
+                ring_coords  # Return matrix directly
+              })
+              rings  # Return list of rings
+            })
+            fixed_geom <- st_multipolygon(polygons)
+            st_geometry(countries)[i] <- st_sfc(fixed_geom, crs = st_crs(geom))
+          } else if (geom_type == "POLYGON") {
+            # For POLYGON, group by L2 (ring)
+            rings <- lapply(unique(coords[, "L2"]), function(ring_id) {
+              ring_coords <- coords[coords[, "L2"] == ring_id, c("X", "Y"), drop = FALSE]
+              ring_coords
+            })
+            fixed_geom <- st_polygon(rings)
+            st_geometry(countries)[i] <- st_sfc(fixed_geom, crs = st_crs(geom))
+          }
+          # Note: If geom_type is neither MULTIPOLYGON nor POLYGON, keep original
+        }
+      }
+    }, error = function(e) {
+      # If fixing fails, keep original geometry (no change)
+      message(sprintf("    Warning: Failed to fix geometry %d: %s", i, e$message))
+    })
+    
+    if (i %% 50 == 0) {
+      message(sprintf("    Processed %d / %d countries...", i, nrow(countries)))
+    }
+  }
+  
+  message(sprintf("  ✓ Fixed %d dateline-crossing geometries", dateline_count))
+  message("  Note: Coordinates normalized to prevent cross-dateline straight lines\n")
+  
+  return(countries)
+}
+
+# ============================================================================
 # Step 4: Simplify Geometry
 # ============================================================================
 simplify_geometry <- function(countries) {
@@ -380,6 +460,35 @@ prepare_country_data <- function(countries, gbif_names = NULL) {
 }
 
 # ============================================================================
+# Step 5c: Union Overlapping Polygons
+# ============================================================================
+union_polygons <- function(countries) {
+  message("[Step 5c] Unioning overlapping polygons by ISO2 code...")
+  
+  initial_count <- nrow(countries)
+  
+  # Group by ISO2 code and union geometries
+  countries_unioned <- countries %>%
+    group_by(iso2_code, country_name) %>%
+    summarise(
+      geometry = st_union(geometry),
+      .groups = "drop"
+    )
+  
+  # Ensure it's an sf object
+  if (!inherits(countries_unioned, "sf")) {
+    countries_unioned <- st_as_sf(countries_unioned)
+  }
+  
+  message(sprintf("  Before union: %d records", initial_count))
+  message(sprintf("  After union: %d records", nrow(countries_unioned)))
+  message(sprintf("  Reduced by: %d duplicates", initial_count - nrow(countries_unioned)))
+  message("  ✓ Union complete\n")
+  
+  return(countries_unioned)
+}
+
+# ============================================================================
 # Step 6: Export to JSON
 # ============================================================================
 export_to_json <- function(countries) {
@@ -464,6 +573,9 @@ main <- function() {
     # Step 3: Apply buffer
     countries <- apply_buffer(countries)
     
+    # Step 3b: Fix dateline crossing
+    countries <- fix_dateline_crossing(countries)
+    
     # Step 4: Simplify geometry
     countries <- simplify_geometry(countries)
     
@@ -472,6 +584,9 @@ main <- function() {
     
     # Step 5b: Prepare data with GBIF names
     countries <- prepare_country_data(countries, gbif_names)
+    
+    # Step 5c: Union overlapping polygons
+    countries <- union_polygons(countries)
     
     # Step 6: Export to JSON
     country_data <- export_to_json(countries)

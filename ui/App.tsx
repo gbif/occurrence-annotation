@@ -663,8 +663,8 @@ export default function App() {
       annotation: currentAnnotation,
       isMultiPolygon: isMulti,
     };
-
-    setSavedPolygons([...savedPolygons, newPolygon]);
+    
+    setSavedPolygons(prev => [...prev, newPolygon]);
   }, [selectedSpecies, savedPolygons, currentAnnotation]);
 
   const handleSaveMultiplePolygons = useCallback((polygons: [number, number][][]) => {

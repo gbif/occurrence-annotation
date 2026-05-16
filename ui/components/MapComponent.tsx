@@ -2141,7 +2141,9 @@ export function MapComponent({
 
           // Use the first coordinate of the first part as anchor
           const firstPart = polygonParts[0];
-          if (!firstPart || firstPart.length === 0) return null;
+          if (!firstPart || firstPart.length === 0) {
+            return null;
+          }
           
           const [anchorLat, anchorLng] = firstPart[0];
           const isEditing = editingPolygonId === polygonData.id;
