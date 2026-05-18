@@ -208,6 +208,8 @@ export default function App() {
         }
       } catch (error) {
         console.error('Error loading last selected species from localStorage:', error);
+        // Clean up corrupted data
+        localStorage.removeItem('lastSelectedSpecies');
       }
     }
 
@@ -427,7 +429,15 @@ export default function App() {
   useEffect(() => {
     const saved = localStorage.getItem('savedPolygons');
     if (saved) {
-      setSavedPolygons(JSON.parse(saved));
+      try {
+        const parsed = JSON.parse(saved);
+        setSavedPolygons(parsed);
+      } catch (error) {
+        console.error('Failed to parse savedPolygons from localStorage:', error);
+        // Clean up corrupted data
+        localStorage.removeItem('savedPolygons');
+        toast.error('Saved polygons data was corrupted and has been reset');
+      }
     }
   }, []);
 
