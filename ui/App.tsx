@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { getGbifApiUrl, getAnnotationApiUrl } from './utils/apiConfig';
 import { parseWKTGeometry, PolygonWithHoles, MultiPolygon, isInvertedPolygon } from './utils/wktParser';
 import { unionPolygons } from './utils/spatialOperations';
+import { getSpeciesInfo } from './utils/speciesCache';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
@@ -341,28 +342,29 @@ export default function App() {
       if (response.ok) {
         const rules = await response.json();
         
-        // Extract unique taxa with their info
-        const taxaMap = new Map<number, {key: number, scientificName: string}>();
+        // Extract unique taxon keys
+        const uniqueTaxonKeys = Array.from(new Set(
+          rules.map((rule: any) => rule.taxonKey).filter((key: number | undefined) => key !== undefined)
+        )) as number[];
         
-        for (const rule of rules) {
-          if (rule.taxonKey && !taxaMap.has(rule.taxonKey)) {
-            // Fetch species info for this taxon
-            try {
-              const speciesResponse = await fetch(`https://api.gbif.org/v1/species/${rule.taxonKey}`);
-              if (speciesResponse.ok) {
-                const speciesData = await speciesResponse.json();
-                taxaMap.set(rule.taxonKey, {
-                  key: rule.taxonKey,
-                  scientificName: speciesData.scientificName || speciesData.canonicalName || `Taxon ${rule.taxonKey}`
-                });
-              }
-            } catch (err) {
-              console.error(`Error fetching species info for ${rule.taxonKey}:`, err);
-            }
+        // Fetch all species info in parallel using speciesCache
+        const speciesResults = await Promise.allSettled(
+          uniqueTaxonKeys.map(taxonKey => getSpeciesInfo(taxonKey))
+        );
+        
+        // Build taxa list from successful results
+        const uniqueTaxa: Array<{key: number, scientificName: string}> = [];
+        speciesResults.forEach((result, index) => {
+          if (result.status === 'fulfilled' && result.value) {
+            uniqueTaxa.push({
+              key: result.value.key,
+              scientificName: result.value.scientificName || result.value.canonicalName || `Taxon ${uniqueTaxonKeys[index]}`
+            });
+          } else if (result.status === 'rejected') {
+            console.error(`Error fetching species info for ${uniqueTaxonKeys[index]}:`, result.reason);
           }
-        }
+        });
         
-        const uniqueTaxa = Array.from(taxaMap.values());
         setProjectTaxa(uniqueTaxa);
         setCurrentProjectTaxonIndex(uniqueTaxa.length > 0 ? 0 : -1);
       }

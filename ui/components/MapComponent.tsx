@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { parseWKTGeometry, PolygonWithHoles, MultiPolygon } from '../utils/wktParser';
 import { subtractOceanFromPolygon, bufferPolygon, bufferMultiPolygon, eraseFromPolygon } from '../utils/spatialOperations';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { getDatasetInfo } from '../utils/datasetCache';
 import { Input } from './ui/input';
 
 interface VocabularyTerm {
@@ -649,28 +650,11 @@ export function MapComponent({
       // Show initial results count
       toast.success(`Found ${data.results.length} occurrence(s) for ${selectedSpecies.scientificName}. Loading details...`);
       
-      // Process occurrences one by one and update the dialog as we go
-      const enrichedOccurrences: any[] = [];
-      
-      for (let i = 0; i < data.results.length; i++) {
-        const occurrence = data.results[i];
-        
-        try {
-          // Fetch dataset info
-          const datasetResponse = await fetch(
-            `https://api.gbif.org/v1/dataset/${occurrence.datasetKey}`
-          );
-          
-          let datasetInfo = {};
-          if (datasetResponse.ok) {
-            const dataset = await datasetResponse.json();
-            datasetInfo = {
-              datasetTitle: dataset.title,
-              publisher: dataset.publishingOrganizationTitle || dataset.publisher
-            };
-          }
-          
-          const enrichedOccurrence = {
+      // Fetch all dataset info in parallel using datasetCache
+      const enrichmentResults = await Promise.allSettled(
+        data.results.map(async (occurrence: any) => {
+          const dataset = await getDatasetInfo(occurrence.datasetKey);
+          return {
             key: occurrence.key,
             scientificName: occurrence.scientificName,
             decimalLatitude: occurrence.decimalLatitude,
@@ -682,21 +666,25 @@ export function MapComponent({
             coordinateUncertaintyInMeters: occurrence.coordinateUncertaintyInMeters,
             locality: occurrence.locality,
             media: occurrence.media || [],
-            ...datasetInfo
+            datasetTitle: dataset?.title,
+            publisher: dataset?.publishingOrganizationTitle || dataset?.publisher
           };
-          
-          enrichedOccurrences.push(enrichedOccurrence);
-          
-          // Update results in real-time as each occurrence is processed
-          setInvestigateResults([...enrichedOccurrences]);
-          
-        } catch (err) {
-          console.error('Error fetching dataset info:', err);
-          // Add the occurrence without enriched data
-          enrichedOccurrences.push(occurrence);
-          setInvestigateResults([...enrichedOccurrences]);
-        }
-      }
+        })
+      );
+      
+      // Extract successful results
+      const enrichedOccurrences = enrichmentResults
+        .map((result, index) => {
+          if (result.status === 'fulfilled') {
+            return result.value;
+          } else {
+            console.error('Error enriching occurrence:', result.reason);
+            // Return occurrence without enriched data
+            return data.results[index];
+          }
+        });
+      
+      setInvestigateResults(enrichedOccurrences);
       
     } catch (error) {
       console.error('Error investigating area:', error);
