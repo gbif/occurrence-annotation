@@ -53,39 +53,97 @@ export function removeClosingCoordinate(coords: [number, number][]): [number, nu
 export function fixDatelineCrossing(coords: [number, number][]): [number, number][] {
   if (coords.length < 2) return coords;
   
-  // Calculate median longitude to find the "center" of the polygon
-  const lngs = coords.map(([_, lng]) => lng).sort((a, b) => a - b);
-  const medianLng = lngs[Math.floor(lngs.length / 2)];
+  // Check if this is a world-spanning polygon (e.g., ocean boundary)
+  // World-spanning polygons have longitude range close to 360° and touch both ±180 boundaries
+  const longitudes = coords.map(([_, lng]) => lng);
+  const minLng = Math.min(...longitudes);
+  const maxLng = Math.max(...longitudes);
+  const lngSpan = maxLng - minLng;
   
-  // Adjust coordinates that are far from the median
-  const fixed = coords.map(([lat, lng]) => {
-    let adjustedLng = lng;
-    const diff = lng - medianLng;
-    
-    // If a coordinate is more than 180° away from the median,
-    // it likely crossed the dateline and should be adjusted
-    if (diff > 180) {
-      adjustedLng = lng - 360;
-    } else if (diff < -180) {
-      adjustedLng = lng + 360;
-    }
-    
-    return [lat, adjustedLng] as [number, number];
-  });
-  
-  // Check if the resulting polygon spans too much longitude
-  const adjustedLngs = fixed.map(coord => coord[1]);
-  const minLng = Math.min(...adjustedLngs);
-  const maxLng = Math.max(...adjustedLngs);
-  const span = maxLng - minLng;
-  
-  // If span is very large (>270°), this might be a problematic geometry
-  // Return original coordinates to avoid worse rendering
-  if (span > 270) {
+  // If polygon spans close to 360° and touches both boundaries, it's world-spanning
+  // Don't apply dateline fix to avoid collapsing the polygon
+  const isWorldSpanning = lngSpan > 350 && minLng < -170 && maxLng > 170;
+  if (isWorldSpanning) {
     return coords;
   }
   
-  return fixed;
+  // Detect if polygon crosses dateline by checking for large longitude jumps
+  let hasDatelineCrossing = false;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const jump = Math.abs(coords[i + 1][1] - coords[i][1]);
+    if (jump > 180) {
+      hasDatelineCrossing = true;
+      break;
+    }
+  }
+  
+  // Check wrap-around from last to first
+  if (!hasDatelineCrossing) {
+    const wrapJump = Math.abs(coords[0][1] - coords[coords.length - 1][1]);
+    if (wrapJump > 180) {
+      hasDatelineCrossing = true;
+    }
+  }
+  
+  // If no dateline crossing detected, return original
+  if (!hasDatelineCrossing) {
+    return coords;
+  }
+  
+  // For dateline-crossing polygons, normalize to 0-360° range
+  // This keeps all coordinates on the same "side" and avoids straight lines
+  const normalized = coords.map(([lat, lng]) => {
+    // Convert -180 to 180 range to 0 to 360 range
+    const normalizedLng = lng < 0 ? lng + 360 : lng;
+    return [lat, normalizedLng] as [number, number];
+  });
+  
+  return normalized;
+}
+
+/**
+ * Split a polygon at the dateline by detecting large longitude jumps
+ * Returns coordinates for the "primary" polygon piece
+ * @deprecated - Use fixDatelineCrossing with 0-360 normalization instead
+ */
+export function splitAtDateline(coords: [number, number][]): [number, number][] {
+  if (coords.length < 3) return coords;
+  
+  // Find the largest consecutive longitude jump
+  let maxJump = 0;
+  let splitIndex = -1;
+  
+  for (let i = 0; i < coords.length - 1; i++) {
+    const jump = Math.abs(coords[i + 1][1] - coords[i][1]);
+    if (jump > maxJump && jump > 180) {
+      maxJump = jump;
+      splitIndex = i;
+    }
+  }
+  
+  // Also check wrap-around from last to first
+  const wrapJump = Math.abs(coords[0][1] - coords[coords.length - 1][1]);
+  if (wrapJump > maxJump && wrapJump > 180) {
+    maxJump = wrapJump;
+    splitIndex = coords.length - 1;
+  }
+  
+  // If no significant jump found, return original
+  if (splitIndex === -1) {
+    return coords;
+  }
+  
+  // Determine which side of the dateline to keep
+  // Keep the side with more coordinates
+  const part1 = coords.slice(0, splitIndex + 1);
+  const part2 = coords.slice(splitIndex + 1);
+  
+  // Return the larger part (typically the "main" landmass)
+  if (part1.length >= part2.length) {
+    return part1;
+  } else {
+    return part2;
+  }
 }
 
 /**
