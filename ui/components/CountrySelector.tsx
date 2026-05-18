@@ -280,7 +280,7 @@ export function CountrySelector({
             onClick={handleLoadCountries}
             disabled={selectedCount === 0}
           >
-            Load {selectedCount > 0 ? `${selectedCount} ${selectedCount === 1 ? 'Country' : 'Countries'}` : 'Countries'}
+            Load {selectedCount > 0 ? `${selectedCount} ${selectedCount === 1 ? 'Polygon' : 'Polygons'}` : 'Polygons'}
           </Button>
         </DialogFooter>
       </DialogContent>
