@@ -79,29 +79,51 @@ export function CountrySelector({
       selectedCountries.has(c.identifier)
     );
 
-    // Parse WKT to coordinates for each country
+    // Parse WKT to coordinates and check for holes
     const allCoordinates: [number, number][][] = [];
+    const countriesWithHoles: string[] = [];
+    let totalHolesCount = 0;
     
     for (const country of selectedCountryObjects) {
       try {
         const parsed = parseWKTGeometry(country.wkt);
         if (parsed) {
           if ('polygons' in parsed) {
-            // MultiPolygon - add all polygons
+            // MultiPolygon - check each polygon for holes
             for (const poly of parsed.polygons) {
+              if (poly.holes && poly.holes.length > 0) {
+                totalHolesCount += poly.holes.length;
+                if (!countriesWithHoles.includes(country.name)) {
+                  countriesWithHoles.push(country.name);
+                }
+              }
               allCoordinates.push(poly.outer);
-              // Note: Currently ignoring holes for simplicity
-              // Could be enhanced to handle holes if needed
             }
           } else {
-            // Single polygon
+            // Single polygon - check for holes
+            if (parsed.holes && parsed.holes.length > 0) {
+              totalHolesCount += parsed.holes.length;
+              countriesWithHoles.push(country.name);
+            }
             allCoordinates.push(parsed.outer);
-            // Note: Currently ignoring holes
           }
         }
       } catch (err) {
-        console.error(`Failed to parse WKT for country ${country.name}:`, err);
+        console.error(`Failed to parse WKT for political boundary ${country.name}:`, err);
       }
+    }
+
+    // Warn if any boundaries have holes (e.g., South Africa has Lesotho as interior hole)
+    if (countriesWithHoles.length > 0) {
+      const boundaryText = countriesWithHoles.length === 1 ? 'boundary has' : 'boundaries have';
+      const holeText = totalHolesCount === 1 ? 'hole' : 'holes';
+      toast.warning(
+        `${countriesWithHoles.length} ${boundaryText} interior ${holeText} that will be ignored`,
+        {
+          description: `${countriesWithHoles.join(', ')} - Interior regions (e.g., enclaves) will be included in the rule area`,
+          duration: 8000,
+        }
+      );
     }
 
     if (allCoordinates.length > 0) {
