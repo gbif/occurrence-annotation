@@ -665,6 +665,15 @@ export default function App() {
     };
     
     setSavedPolygons(prev => [...prev, newPolygon]);
+    
+    // Set as current polygon for immediate editing (enables ocean subtraction, buffering, etc.)
+    // For multi-polygons, set the first polygon piece as editable
+    if (isMulti && Array.isArray(coordinates) && coordinates.length > 0) {
+      setCurrentPolygon(coordinates[0] as [number, number][]);
+    } else if (!isMulti) {
+      setCurrentPolygon(coordinates as [number, number][]);
+    }
+    setEditingPolygonId(newPolygon.id);
   }, [selectedSpecies, savedPolygons, currentAnnotation]);
 
   const handleSaveMultiplePolygons = useCallback((polygons: [number, number][][]) => {
