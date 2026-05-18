@@ -632,15 +632,11 @@ simplify_geometry <- function(countries) {
   
   for (i in seq_len(nrow(countries))) {
     tryCatch({
-      # Skip simplification for Antarctica (AQ) - preserve MULTIPOLYGON structure
-      iso2 <- as.character(countries$iso2_code[i])
-      if (!is.na(iso2) && iso2 == "AQ") {
-        simplified_geoms[[i]] <- countries$geometry[i]
-      } else {
-        simplified_geoms[[i]] <- st_simplify(countries$geometry[i], 
-                                            dTolerance = SIMPLIFY_TOLERANCE, 
-                                            preserveTopology = TRUE)
-      }
+      # Apply simplification to all countries (including Antarctica)
+      # st_simplify handles MULTIPOLYGON correctly - simplifies each piece individually
+      simplified_geoms[[i]] <- st_simplify(countries$geometry[i], 
+                                          dTolerance = SIMPLIFY_TOLERANCE, 
+                                          preserveTopology = TRUE)
     }, error = function(e) {
       # If simplification fails, use original geometry
       simplified_geoms[[i]] <- countries$geometry[i]
