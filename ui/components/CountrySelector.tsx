@@ -113,31 +113,37 @@ export function CountrySelector({
       }
     }
 
-    // Warn if any boundaries have holes (e.g., South Africa has Lesotho as interior hole)
-    if (countriesWithHoles.length > 0) {
-      const boundaryText = countriesWithHoles.length === 1 ? 'boundary has' : 'boundaries have';
-      const holeText = totalHolesCount === 1 ? 'hole' : 'holes';
-      toast.warning(
-        `${countriesWithHoles.length} ${boundaryText} interior ${holeText} that will be ignored`,
-        {
-          description: `${countriesWithHoles.join(', ')} - Interior regions (e.g., enclaves) will be included in the rule area`,
-          duration: 8000,
-        }
-      );
-    }
-
     if (allCoordinates.length > 0) {
       onCountriesSelected(allCoordinates);
       
-      toast.success(`Loaded ${selectedCount} ${selectedCount === 1 ? 'political boundary' : 'political boundaries'}`, {
-        description: `${allCoordinates.length} polygon${allCoordinates.length === 1 ? '' : 's'} added to the map`
-      });
-      
-      // Remind users to edit boundaries for biological accuracy
-      toast.info('Edit boundaries for biological accuracy', {
-        description: 'Species distributions rarely align with political borders. Please refine the polygons to match real-world distributions.',
-        duration: 6000,
-      });
+      // Show single consolidated toast based on whether holes were detected
+      if (countriesWithHoles.length > 0) {
+        const boundaryText = countriesWithHoles.length === 1 ? 'boundary has' : 'boundaries have';
+        const holeText = totalHolesCount === 1 ? 'hole' : 'holes';
+        
+        // Limit displayed names to prevent overflow
+        const displayNames = countriesWithHoles.slice(0, 3).join(', ');
+        const remainingCount = countriesWithHoles.length - 3;
+        const namesList = remainingCount > 0 
+          ? `${displayNames} (and ${remainingCount} more)` 
+          : displayNames;
+        
+        toast.warning(
+          `Loaded ${selectedCount} boundaries - ${totalHolesCount} interior ${holeText} ignored`,
+          {
+            description: `${namesList} have interior regions (e.g., enclaves) that will be included in rule area. Edit boundaries to match biological distributions.`,
+            duration: 8000,
+          }
+        );
+      } else {
+        toast.success(
+          `Loaded ${selectedCount} ${selectedCount === 1 ? 'political boundary' : 'political boundaries'}`,
+          {
+            description: `${allCoordinates.length} polygon${allCoordinates.length === 1 ? '' : 's'} added. Edit boundaries to match biological distributions - species rarely follow political borders.`,
+            duration: 6000,
+          }
+        );
+      }
       
       // Reset state and close
       setSelectedCountries(new Set());
