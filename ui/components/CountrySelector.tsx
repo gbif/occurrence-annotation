@@ -107,7 +107,7 @@ export function CountrySelector({
     if (allCoordinates.length > 0) {
       onCountriesSelected(allCoordinates);
       
-      toast.success(`Loaded ${selectedCount} ${selectedCount === 1 ? 'country' : 'countries'}`, {
+      toast.success(`Loaded ${selectedCount} ${selectedCount === 1 ? 'political boundary' : 'political boundaries'}`, {
         description: `${allCoordinates.length} polygon${allCoordinates.length === 1 ? '' : 's'} added to the map`
       });
       
@@ -116,7 +116,7 @@ export function CountrySelector({
       setSearchTerm('');
       setIsOpen(false);
     } else {
-      const errorMsg = 'Failed to parse any country polygons';
+      const errorMsg = 'Failed to parse any political boundary polygons';
       setError(errorMsg);
       toast.error(errorMsg);
     }
@@ -143,16 +143,16 @@ export function CountrySelector({
       </DialogTrigger>
       <DialogContent className="max-w-2xl h-[80vh] flex flex-col gap-4 p-6">
         <DialogHeader className="flex-shrink-0">
-          <DialogTitle>Select Countries</DialogTitle>
+          <DialogTitle>Select Political Boundaries</DialogTitle>
           <DialogDescription>
-            Choose one or more countries to load their boundaries as polygons for your rule.
+            Choose one or more political boundaries to load as polygons for your rule.
           </DialogDescription>
         </DialogHeader>
 
         {/* Search input */}
         <div className="flex-shrink-0 space-y-2">
           <Input
-            placeholder="Search countries..."
+            placeholder="Search political boundaries..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full"
@@ -162,7 +162,7 @@ export function CountrySelector({
           {selectedCount > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm text-muted-foreground">
-                Selected: {selectedCount} {selectedCount === 1 ? 'country' : 'countries'}
+                Selected: {selectedCount} {selectedCount === 1 ? 'political boundary' : 'political boundaries'}
               </span>
               {selectedItems.map(item => (
                 <Badge key={item.key} variant="secondary" className="text-xs">
@@ -190,7 +190,7 @@ export function CountrySelector({
         <ScrollArea className="flex-1 min-h-0 border rounded-md">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-sm text-muted-foreground">Loading countries...</div>
+              <div className="text-sm text-muted-foreground">Loading political boundaries...</div>
             </div>
           ) : error ? (
             <div className="flex items-center justify-center py-8">
@@ -199,7 +199,7 @@ export function CountrySelector({
           ) : filteredCountries.length === 0 ? (
             <div className="flex items-center justify-center py-8">
               <div className="text-sm text-muted-foreground">
-                {searchTerm ? 'No countries found' : 'No countries available'}
+                {searchTerm ? 'No political boundaries found' : 'No political boundaries available'}
               </div>
             </div>
           ) : (

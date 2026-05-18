@@ -2050,7 +2050,7 @@ export function SavedPolygons({
         </div>
         <div className="text-center py-8">
           <p className="text-gray-500">No active rules yet</p>
-          <p className="text-gray-400 text-sm mt-1">Draw a polygon on the map, select countries, or import WKT</p>
+          <p className="text-gray-400 text-sm mt-1">Draw a polygon on the map, select political boundaries, or import WKT</p>
         </div>
       </div>
     );
