@@ -133,6 +133,12 @@ export function CountrySelector({
         description: `${allCoordinates.length} polygon${allCoordinates.length === 1 ? '' : 's'} added to the map`
       });
       
+      // Remind users to edit boundaries for biological accuracy
+      toast.info('Edit boundaries for biological accuracy', {
+        description: 'Species distributions rarely align with political borders. Please refine the polygons to match real-world distributions.',
+        duration: 6000,
+      });
+      
       // Reset state and close
       setSelectedCountries(new Set());
       setSearchTerm('');
@@ -166,8 +172,11 @@ export function CountrySelector({
       <DialogContent className="max-w-2xl h-[80vh] flex flex-col gap-4 p-6">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>Select Political Boundaries</DialogTitle>
-          <DialogDescription>
-            Choose one or more political boundaries to load as polygons for your rule.
+          <DialogDescription className="space-y-2">
+            <p>Choose one or more political boundaries to load as polygons for your rule.</p>
+            <p className="text-amber-600 dark:text-amber-500 font-medium">
+              ⚠️ Note: The living world does not follow political boundaries. Please edit the loaded polygons to more accurately reflect real species distributions.
+            </p>
           </DialogDescription>
         </DialogHeader>
 
