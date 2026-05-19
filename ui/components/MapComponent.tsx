@@ -475,16 +475,17 @@ export function MapComponent({
 
   // Update GBIF tiles when map moves or species changes
   useEffect(() => {
-    if (!selectedSpecies || mapSize.width === 0 || isZooming) {
-      if (isZooming) {
-        setGbifTiles([]);
+    // Early exit but don't clear tiles during zoom animation to prevent flicker
+    if (!selectedSpecies || mapSize.width === 0) {
+      setGbifTiles([]);
+      if (!selectedSpecies) {
+        console.log('🧹 SPECIES CLEARED - GBIF tiles removed');
       }
-      if (!selectedSpecies || mapSize.width === 0) {
-        setGbifTiles([]);
-        if (!selectedSpecies) {
-          console.log('🧹 SPECIES CLEARED - GBIF tiles removed');
-        }
-      }
+      return;
+    }
+    
+    // Skip tile updates during zoom animation - tiles stay in state but are hidden visually
+    if (isZooming) {
       return;
     }
 
@@ -519,12 +520,27 @@ export function MapComponent({
       }
     }
     
-    setGbifTiles(newTiles);
-    console.log('📍 GBIF TILES LOADED:', {
-      tileCount: newTiles.length,
-      species: selectedSpecies?.name || 'Unknown',
-      zoom: zoom,
-      status: '🔍 Check coordinate alignment NOW'
+    // Only update tiles if they actually changed (prevents unnecessary re-renders)
+    setGbifTiles(prevTiles => {
+      // Check if tile set changed (same tiles at same positions)
+      if (prevTiles.length === newTiles.length) {
+        const allMatch = newTiles.every(newTile => 
+          prevTiles.some(prevTile => 
+            prevTile.x === newTile.x && prevTile.y === newTile.y && prevTile.z === newTile.z
+          )
+        );
+        if (allMatch) {
+          return prevTiles; // No change needed
+        }
+      }
+      
+      console.log('📍 GBIF TILES UPDATED:', {
+        tileCount: newTiles.length,
+        species: selectedSpecies?.name || 'Unknown',
+        zoom: zoom,
+        status: '🔍 Tile grid changed'
+      });
+      return newTiles;
     });
   }, [zoom, center, mapSize, selectedSpecies, isZooming, occurrenceFilters, baseMapStyle]);
 
@@ -545,11 +561,8 @@ export function MapComponent({
     };
   }, [onNavigateToLocation]);
 
-  // Clear GBIF tiles when zoom level changes significantly to reduce flicker
-  useEffect(() => {
-    // Clear tiles on significant zoom changes to improve performance
-    setGbifTiles([]);
-  }, [zoom]);
+  // Removed: Aggressive tile clearing on zoom changes caused flicker
+  // Tiles now persist during zoom and are only hidden visually via isZooming flag
 
   // Reset erase mode when exiting edit mode
   useEffect(() => {
