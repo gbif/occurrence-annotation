@@ -205,7 +205,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
 
   // Load logged-in user and auto-fill username
   useEffect(() => {
-    const savedUser = localStorage.getItem('gbifUser');
+    const savedUser = sessionStorage.getItem('gbifUser');
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser) as GBIFUser;
@@ -557,7 +557,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
       const url = `https://api.gbif.org/v1/occurrence/download/user/${username}?limit=20`;
       
       // Get auth credentials from localStorage
-      const authCredentials = localStorage.getItem('gbifAuth');
+      const authCredentials = sessionStorage.getItem('gbifAuth');
       const headers: HeadersInit = {};
       if (authCredentials) {
         headers['Authorization'] = `Basic ${authCredentials}`;

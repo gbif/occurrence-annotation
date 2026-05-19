@@ -11,6 +11,7 @@ import { getGbifApiUrl, getAnnotationApiUrl } from './utils/apiConfig';
 import { parseWKTGeometry, PolygonWithHoles, MultiPolygon, isInvertedPolygon } from './utils/wktParser';
 import { unionPolygons } from './utils/spatialOperations';
 import { getSpeciesInfo } from './utils/speciesCache';
+import { refreshUserProfile } from './utils/authHelpers';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
@@ -111,6 +112,15 @@ export default function App() {
       setSearchParams({}, { replace: true });
     }
   };
+
+  // Refresh user profile from server on app boot to prevent role manipulation
+  // Security: Overwrites any client-side modifications to roles in sessionStorage
+  useEffect(() => {
+    refreshUserProfile().catch((error) => {
+      console.error('Failed to refresh user profile on boot:', error);
+      // Non-critical error, app continues to work for unauthenticated users
+    });
+  }, []); // Empty deps = run once on mount
 
   // Fetch vocabulary based on selected project
   useEffect(() => {
@@ -302,8 +312,8 @@ export default function App() {
   const fetchProjects = async () => {
     setLoadingProjects(true);
     try {
-      // Get current user from localStorage
-      const savedUser = localStorage.getItem('gbifUser');
+      // Get current user from sessionStorage
+      const savedUser = sessionStorage.getItem('gbifUser');
       if (!savedUser) {
         setProjects([]);
         toast.info('Please log in to see your projects');
@@ -1235,7 +1245,7 @@ export default function App() {
                   <Network className={`h-4 w-4 ${showHigherOrderRules ? 'text-blue-700' : ''}`} />
                 </Button>
               )}
-              {annotationRules.length > 0 && localStorage.getItem('gbifUser') && (
+              {annotationRules.length > 0 && sessionStorage.getItem('gbifUser') && (
                 <Button
                   variant="ghost"
                   size="sm"

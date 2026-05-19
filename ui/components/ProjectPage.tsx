@@ -125,7 +125,7 @@ export function ProjectPage() {
   // Check if current user is a member (can edit)
   const getCurrentUser = () => {
     try {
-      const userStr = localStorage.getItem('gbifUser');
+      const userStr = sessionStorage.getItem('gbifUser');
       if (userStr) {
         const user = JSON.parse(userStr);
         return user.userName;
@@ -142,7 +142,7 @@ export function ProjectPage() {
   };
 
   const isLoggedIn = () => {
-    return !!localStorage.getItem('gbifAuth');
+    return !!sessionStorage.getItem('gbifAuth');
   };
 
   const formatDateTime = (dateString: string) => {
@@ -238,7 +238,7 @@ export function ProjectPage() {
 
   const handleViewProjectAPI = () => {
     if (projectId) {
-      window.open(getAnnotationApiUrl(`/project/${projectId}`), '_blank');
+      window.open(getAnnotationApiUrl(`/project/${projectId}`), '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -258,7 +258,7 @@ export function ProjectPage() {
       return;
     }
 
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to add members');
       return;
@@ -318,7 +318,7 @@ export function ProjectPage() {
       return;
     }
 
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to remove members');
       return;

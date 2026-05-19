@@ -219,10 +219,10 @@ export function MapComponent({
   // Check if current user is admin
   const userIsAdmin = isAdmin();
   
-  // Get current user from localStorage
+  // Get current user from sessionStorage
   const getCurrentUser = () => {
     try {
-      const userStr = localStorage.getItem('gbifUser');
+      const userStr = sessionStorage.getItem('gbifUser');
       if (userStr) {
         const user = JSON.parse(userStr);
         return user.userName;

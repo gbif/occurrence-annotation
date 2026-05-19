@@ -51,7 +51,7 @@ export function ProjectsPage() {
 
   // Check if user is logged in
   const isLoggedIn = () => {
-    return !!localStorage.getItem('gbifAuth');
+    return !!sessionStorage.getItem('gbifAuth');
   };
 
   // Helper function to get back-to-map URL with last species context
@@ -116,7 +116,7 @@ export function ProjectsPage() {
   }, []);
 
   const handleViewProjectAPI = (projectId: number) => {
-    window.open(getAnnotationApiUrl(`/project/${projectId}`), '_blank');
+    window.open(getAnnotationApiUrl(`/project/${projectId}`), '_blank', 'noopener,noreferrer');
   };
 
   const handleCreateProject = async (e: React.FormEvent) => {
@@ -127,7 +127,7 @@ export function ProjectsPage() {
       return;
     }
 
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to create a project');
       return;

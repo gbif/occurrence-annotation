@@ -399,8 +399,8 @@ export function AnnotationRules({
   // Check login status and get current user
   useEffect(() => {
     const checkLoginStatus = () => {
-      const gbifAuth = localStorage.getItem('gbifAuth');
-      const gbifUser = localStorage.getItem('gbifUser');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
+      const gbifUser = sessionStorage.getItem('gbifUser');
       
       setIsLoggedIn(!!gbifAuth);
       
@@ -883,7 +883,7 @@ export function AnnotationRules({
     }
 
     // Check if user is logged in
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to add comments');
       return;
@@ -938,7 +938,7 @@ export function AnnotationRules({
 
   const handleDeleteComment = async (ruleId: number, commentId: number) => {
     // Check if user is logged in
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to delete comments');
       return;
@@ -993,7 +993,7 @@ export function AnnotationRules({
 
   const handleDeleteRule = async (ruleId: number) => {
     // Check if user is logged in
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to delete annotation rules');
       return;
@@ -1045,7 +1045,7 @@ export function AnnotationRules({
 
   // Helper to get Basic Auth header from GBIF login
   function getBasicAuthHeader() {
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) return null;
     return 'Basic ' + gbifAuth;
   }
@@ -1064,7 +1064,7 @@ export function AnnotationRules({
     
     try {
       // Check if user is logged in
-      const gbifAuth = localStorage.getItem('gbifAuth');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
       if (!gbifAuth) {
         toast.error('Please login to GBIF to edit annotation rules');
         setIsLoadingForEdit(false);
