@@ -1158,6 +1158,9 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
       <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>Save Rule to GBIF</DialogTitle>
+          <DialogDescription>
+            Configure rule options and annotation type
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 overflow-y-auto flex-1 pr-2">
           {/* Warning Messages */}

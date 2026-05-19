@@ -238,10 +238,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
   }, [report]);
 
   // Block SPA navigation when results exist (React Router)
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      report !== null && currentLocation.pathname !== nextLocation.pathname
-  );
+  const blocker = useBlocker(report !== null);
 
   // Notify parent component when results change
   useEffect(() => {

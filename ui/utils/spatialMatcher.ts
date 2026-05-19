@@ -1,7 +1,7 @@
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
-import { point, polygon, multiPolygon } from '@turf/helpers';
-import type { Position, Polygon, MultiPolygon } from 'geojson';
-import { parseWKTPolygon, parseWKTPolygonWithHoles, parseWKTMultiPolygon } from './wktParser';
+import { point, polygon } from '@turf/helpers';
+import type { Position } from 'geojson';
+import { parseWKTPolygonWithHoles, parseWKTMultiPolygon } from './wktParser';
 
 export interface ParsedGeometry {
   type: 'Polygon' | 'MultiPolygon';
@@ -136,7 +136,6 @@ export function testPointInPolygon(
       const testGeometry = polygon(geometry.coordinates as Position[][]);
       return booleanPointInPolygon(testPoint, testGeometry);
     } else {
-      const testGeometry = multiPolygon(geometry.coordinates as Position[][][]);
       // For MultiPolygon, check each polygon
       return (geometry.coordinates as Position[][][]).some(polyCoords => {
         const poly = polygon(polyCoords);
