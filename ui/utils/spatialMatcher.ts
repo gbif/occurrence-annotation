@@ -24,7 +24,7 @@ export function detectInvertedPolygon(wkt: string): boolean {
     
     // Check outer ring span
     const outerRing = parsed.outer;
-    const lons = outerRing.map((coord: [number, number]) => coord[1]); // WKT uses [lat, lon]
+    const lons = outerRing.map((coord: [number, number]) => coord[1]); // Parser returns [lat, lon]
     const lats = outerRing.map((coord: [number, number]) => coord[0]);
     
     const lonRange = Math.max(...lons) - Math.min(...lons);
