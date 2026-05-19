@@ -1046,7 +1046,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
                     </div>
                     <div className="ml-4 flex-shrink-0">
                       <button
-                        onClick={() => window.open(`https://api.gbif.org/v1/occurrence/download/request/${download.key}.zip`, '_blank')}
+                        onClick={() => window.open(`https://api.gbif.org/v1/occurrence/download/request/${download.key}.zip`, '_blank', 'noopener,noreferrer')}
                         className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
                         title="Download from GBIF"
                       >

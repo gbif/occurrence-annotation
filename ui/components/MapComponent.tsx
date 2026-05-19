@@ -3780,7 +3780,7 @@ export function MapComponent({
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs"
-                            onClick={() => window.open(`https://www.gbif.org/occurrence/${occurrence.key}`, '_blank')}
+                            onClick={() => window.open(`https://www.gbif.org/occurrence/${occurrence.key}`, '_blank', 'noopener,noreferrer')}
                           >
                             <ExternalLink className="w-3 h-3 mr-1" />
                             View on GBIF
@@ -3790,7 +3790,7 @@ export function MapComponent({
                               size="sm"
                               variant="outline"
                               className="h-7 text-xs"
-                              onClick={() => window.open(`https://www.gbif.org/dataset/${occurrence.datasetKey}`, '_blank')}
+                              onClick={() => window.open(`https://www.gbif.org/dataset/${occurrence.datasetKey}`, '_blank', 'noopener,noreferrer')}
                             >
                               <Database className="w-3 h-3 mr-1" />
                               Dataset
