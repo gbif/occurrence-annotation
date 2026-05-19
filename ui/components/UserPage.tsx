@@ -1593,8 +1593,8 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                       />
                     </PaginationItem>
                     
-                    {getPageNumbers().map((pageNum, index) => (
-                      <PaginationItem key={index}>
+                    {getPageNumbers().map((pageNum) => (
+                      <PaginationItem key={pageNum}>
                         {pageNum === 'ellipsis-start' || pageNum === 'ellipsis-end' ? (
                           <PaginationEllipsis />
                         ) : (
