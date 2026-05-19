@@ -129,3 +129,61 @@ export const clearAuthCredentials = (): void => {
     console.error('Failed to clear auth credentials:', error);
   }
 };
+
+/**
+ * Refresh user profile from GBIF server using stored credentials.
+ * 
+ * Security: This function re-fetches the authoritative user profile from the
+ * server on app boot, overwriting any client-side modifications to roles in
+ * sessionStorage. This prevents users from granting themselves admin privileges
+ * via DevTools.
+ * 
+ * Should be called on app initialization if credentials exist.
+ * 
+ * @returns Updated GBIFUser object if credentials exist and refresh succeeds, null otherwise
+ */
+export const refreshUserProfile = async (): Promise<GBIFUser | null> => {
+  try {
+    const credentials = getAuthCredentials();
+    
+    if (!credentials) {
+      // No stored credentials, nothing to refresh
+      return null;
+    }
+
+    const response = await fetch('https://api.gbif.org/v1/user/login', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      // Credentials are invalid or expired, clear everything
+      console.warn('Failed to refresh user profile, clearing stale session');
+      clearUser();
+      clearAuthCredentials();
+      return null;
+    }
+
+    const userData = await response.json();
+    
+    const userInfo: GBIFUser = {
+      userName: userData.userName,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      email: userData.email,
+      roles: userData.roles || [],
+    };
+
+    // Overwrite stored profile with authoritative server response
+    setUser(userInfo);
+    
+    return userInfo;
+  } catch (error) {
+    console.error('Error refreshing user profile:', error);
+    // Don't clear credentials on network errors, user might be offline temporarily
+    return null;
+  }
+};
