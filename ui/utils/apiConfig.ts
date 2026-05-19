@@ -48,10 +48,12 @@ export const getGbifApiUrl = (endpoint: string): string => {
 const OPENAI_KEY_STORAGE_KEY = 'gbif_openai_api_key';
 
 /**
- * Get OpenAI API key - checks localStorage first, then falls back to env variable
+ * Get OpenAI API key from user-provided localStorage only
+ * 
+ * SECURITY: No fallback to environment variables to prevent key exposure in client bundle.
+ * Users must provide their own OpenAI API keys via the UI settings.
  */
 export const getOpenAIApiKey = (): string | undefined => {
-  // First check if user has provided their own key
   try {
     const userKey = localStorage.getItem(OPENAI_KEY_STORAGE_KEY);
     if (userKey && userKey.trim()) {
@@ -62,8 +64,8 @@ export const getOpenAIApiKey = (): string | undefined => {
     console.warn('Failed to access localStorage for OpenAI key:', error);
   }
   
-  // Fall back to environment variable (admin/shared key)
-  return import.meta.env.VITE_OPENAI_API_KEY;
+  // No fallback - users must provide their own keys for security
+  return undefined;
 };
 
 /**
