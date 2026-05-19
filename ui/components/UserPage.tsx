@@ -364,7 +364,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   // Check if current user is viewing their own profile
   const getCurrentUser = () => {
     try {
-      const userStr = localStorage.getItem('gbifUser');
+      const userStr = sessionStorage.getItem('gbifUser');
       if (userStr) {
         const user = JSON.parse(userStr);
         return user.userName;
@@ -386,7 +386,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   // Check if current user is an admin
   const isAdmin = () => {
     try {
-      const userStr = localStorage.getItem('gbifUser');
+      const userStr = sessionStorage.getItem('gbifUser');
       if (userStr) {
         const user = JSON.parse(userStr);
         return user.roles && user.roles.includes('REGISTRY_ADMIN');

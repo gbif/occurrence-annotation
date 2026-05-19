@@ -205,7 +205,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
 
   // Load logged-in user and auto-fill username
   useEffect(() => {
-    const savedUser = localStorage.getItem('gbifUser');
+    const savedUser = sessionStorage.getItem('gbifUser');
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser) as GBIFUser;

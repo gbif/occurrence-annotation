@@ -934,7 +934,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
     
     // Check if user is logged in
     const gbifAuth = sessionStorage.getItem('gbifAuth');
-    const gbifUser = localStorage.getItem('gbifUser');
+    const gbifUser = sessionStorage.getItem('gbifUser');
     
     if (!gbifAuth || !gbifUser) {
       console.log('SaveToGBIF: No GBIF auth found');
@@ -1024,7 +1024,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
         if (response.status === 401) {
           toast.error('Authentication failed. Please login again.');
           sessionStorage.removeItem('gbifAuth');
-          localStorage.removeItem('gbifUser');
+          sessionStorage.removeItem('gbifUser');
         } else if (response.status === 403) {
           toast.error('Access denied. Check your permissions for this project.');
         } else {
@@ -1087,7 +1087,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
 
   const getLoginStatus = () => {
     const gbifAuth = sessionStorage.getItem('gbifAuth');
-    const gbifUser = localStorage.getItem('gbifUser');
+    const gbifUser = sessionStorage.getItem('gbifUser');
     return !!(gbifAuth && gbifUser);
   };
 

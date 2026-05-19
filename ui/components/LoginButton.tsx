@@ -23,15 +23,19 @@ export function LoginButton() {
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState<GBIFUser | null>(null);
 
-  // Load user from localStorage on mount
+  // Load user from sessionStorage on mount. Purge any legacy copy in
+  // localStorage left behind by older builds.
   useEffect(() => {
-    const savedUser = localStorage.getItem('gbifUser');
+    if (localStorage.getItem('gbifUser') !== null) {
+      localStorage.removeItem('gbifUser');
+    }
+    const savedUser = sessionStorage.getItem('gbifUser');
     if (savedUser) {
       try {
         setUser(JSON.parse(savedUser));
       } catch (error) {
         console.error('Error loading user:', error);
-        localStorage.removeItem('gbifUser');
+        sessionStorage.removeItem('gbifUser');
       }
     }
   }, []);
@@ -78,7 +82,7 @@ export function LoginButton() {
       };
 
       setUser(userInfo);
-      localStorage.setItem('gbifUser', JSON.stringify(userInfo));
+      sessionStorage.setItem('gbifUser', JSON.stringify(userInfo));
       sessionStorage.setItem('gbifAuth', credentials);
       
       toast.success(`Welcome, ${userInfo.firstName || userInfo.userName}!`);
@@ -95,8 +99,11 @@ export function LoginButton() {
 
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('gbifUser');
+    sessionStorage.removeItem('gbifUser');
     sessionStorage.removeItem('gbifAuth');
+    // Also clear any legacy copies in localStorage.
+    localStorage.removeItem('gbifUser');
+    localStorage.removeItem('gbifAuth');
     toast.success('Logged out successfully');
   };
 

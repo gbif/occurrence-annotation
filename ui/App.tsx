@@ -302,8 +302,8 @@ export default function App() {
   const fetchProjects = async () => {
     setLoadingProjects(true);
     try {
-      // Get current user from localStorage
-      const savedUser = localStorage.getItem('gbifUser');
+      // Get current user from sessionStorage
+      const savedUser = sessionStorage.getItem('gbifUser');
       if (!savedUser) {
         setProjects([]);
         toast.info('Please log in to see your projects');
@@ -1235,7 +1235,7 @@ export default function App() {
                   <Network className={`h-4 w-4 ${showHigherOrderRules ? 'text-blue-700' : ''}`} />
                 </Button>
               )}
-              {annotationRules.length > 0 && localStorage.getItem('gbifUser') && (
+              {annotationRules.length > 0 && sessionStorage.getItem('gbifUser') && (
                 <Button
                   variant="ghost"
                   size="sm"

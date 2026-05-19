@@ -9,19 +9,52 @@ export interface GBIFUser {
 }
 
 /**
- * Get the current logged-in user from localStorage
+ * Get the current logged-in user from sessionStorage.
+ *
+ * Stored in sessionStorage (not localStorage) so the profile is cleared
+ * when the tab is closed, matching the lifetime of the credentials in
+ * `gbifAuth`. Any legacy value left in localStorage is purged on read.
+ *
  * @returns GBIFUser object or null if not logged in
  */
 export const getUser = (): GBIFUser | null => {
   try {
-    const userStr = localStorage.getItem('gbifUser');
+    // Purge any legacy profile left in localStorage by older builds.
+    if (localStorage.getItem('gbifUser') !== null) {
+      localStorage.removeItem('gbifUser');
+    }
+    const userStr = sessionStorage.getItem('gbifUser');
     if (userStr) {
       return JSON.parse(userStr) as GBIFUser;
     }
   } catch (error) {
-    console.error('Failed to parse user from localStorage:', error);
+    console.error('Failed to parse user from sessionStorage:', error);
   }
   return null;
+};
+
+/**
+ * Persist the GBIF user profile in sessionStorage.
+ */
+export const setUser = (user: GBIFUser): void => {
+  try {
+    sessionStorage.setItem('gbifUser', JSON.stringify(user));
+    localStorage.removeItem('gbifUser');
+  } catch (error) {
+    console.error('Failed to store user:', error);
+  }
+};
+
+/**
+ * Remove the GBIF user profile from session and (legacy) local storage.
+ */
+export const clearUser = (): void => {
+  try {
+    sessionStorage.removeItem('gbifUser');
+    localStorage.removeItem('gbifUser');
+  } catch (error) {
+    console.error('Failed to clear user:', error);
+  }
 };
 
 /**

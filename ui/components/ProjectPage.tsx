@@ -125,7 +125,7 @@ export function ProjectPage() {
   // Check if current user is a member (can edit)
   const getCurrentUser = () => {
     try {
-      const userStr = localStorage.getItem('gbifUser');
+      const userStr = sessionStorage.getItem('gbifUser');
       if (userStr) {
         const user = JSON.parse(userStr);
         return user.userName;

@@ -400,7 +400,7 @@ export function AnnotationRules({
   useEffect(() => {
     const checkLoginStatus = () => {
       const gbifAuth = sessionStorage.getItem('gbifAuth');
-      const gbifUser = localStorage.getItem('gbifUser');
+      const gbifUser = sessionStorage.getItem('gbifUser');
       
       setIsLoggedIn(!!gbifAuth);
       
