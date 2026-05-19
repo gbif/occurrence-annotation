@@ -86,6 +86,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [searchingProjects, setSearchingProjects] = useState(false);
   const projectSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const projectSearchAbortRef = useRef<AbortController | null>(null);
   const [speciesFilter, setSpeciesFilter] = useState<SelectedSpecies | null>(null);
   const [myRulesOnly, setMyRulesOnly] = useState(false);
   const [includeHigherOrder, setIncludeHigherOrder] = useState(true); // Default true to include all taxonomic ranks
@@ -235,8 +236,14 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
 
   // Debounced project search
   useEffect(() => {
+    // Clear previous timeout
     if (projectSearchRef.current) {
       clearTimeout(projectSearchRef.current);
+    }
+    
+    // Abort previous fetch request
+    if (projectSearchAbortRef.current) {
+      projectSearchAbortRef.current.abort();
     }
 
     if (!projectSearchTerm.trim()) {
@@ -247,10 +254,16 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
 
     projectSearchRef.current = setTimeout(async () => {
       setSearchingProjects(true);
+      
+      // Create new abort controller for this request
+      const abortController = new AbortController();
+      projectSearchAbortRef.current = abortController;
+      
       try {
         // Search projects by name
         const response = await fetch(
-          getAnnotationApiUrl(`/project?name=${encodeURIComponent(projectSearchTerm)}&limit=20`)
+          getAnnotationApiUrl(`/project?name=${encodeURIComponent(projectSearchTerm)}&limit=20`),
+          { signal: abortController.signal }
         );
         
         if (response.ok) {
@@ -264,16 +277,26 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
           setProjectSearchResults(filteredResults);
           setShowProjectDropdown(filteredResults.length > 0);
         }
-      } catch (error) {
-        console.error('Error searching projects:', error);
+      } catch (error: any) {
+        // Ignore abort errors (expected when user types quickly)
+        if (error.name !== 'AbortError') {
+          console.error('Error searching projects:', error);
+        }
       } finally {
-        setSearchingProjects(false);
+        // Only clear loading state if this request wasn't aborted
+        if (!abortController.signal.aborted) {
+          setSearchingProjects(false);
+        }
       }
     }, 300); // 300ms debounce
 
     return () => {
       if (projectSearchRef.current) {
         clearTimeout(projectSearchRef.current);
+      }
+      // Abort ongoing request on unmount or when search term changes
+      if (projectSearchAbortRef.current) {
+        projectSearchAbortRef.current.abort();
       }
     };
   }, [projectSearchTerm, selectedProjects]);
