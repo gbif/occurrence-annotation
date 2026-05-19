@@ -657,7 +657,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     setIsCreating(true);
     
     try {
-      const gbifAuth = localStorage.getItem('gbifAuth');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
       
       const response = await fetch(getAnnotationApiUrl('/project'), {
         method: 'POST',
@@ -718,7 +718,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     setIsDeleting(true);
     
     try {
-      const gbifAuth = localStorage.getItem('gbifAuth');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
       
       const response = await fetch(getAnnotationApiUrl(`/project/${projectToDelete.id}`), {
         method: 'DELETE',
@@ -762,7 +762,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     setIsEditingProject(true);
 
     try {
-      const gbifAuth = localStorage.getItem('gbifAuth');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
 
       const response = await fetch(getAnnotationApiUrl(`/project/${projectToEdit.id}`), {
         method: 'PUT',
@@ -866,7 +866,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   const handleDeleteRule = async (ruleId: number) => {
     console.log('Attempting to delete rule:', ruleId);
     
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to delete annotation rules');
       return;
@@ -923,7 +923,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   };
 
   const handleBulkDelete = async () => {
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to delete annotation rules');
       return;
@@ -1001,7 +1001,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   };
 
   const handleBulkEdit = async () => {
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to edit annotation rules');
       return;

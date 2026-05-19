@@ -79,7 +79,7 @@ export function LoginButton() {
 
       setUser(userInfo);
       localStorage.setItem('gbifUser', JSON.stringify(userInfo));
-      localStorage.setItem('gbifAuth', credentials);
+      sessionStorage.setItem('gbifAuth', credentials);
       
       toast.success(`Welcome, ${userInfo.firstName || userInfo.userName}!`);
       setIsOpen(false);
@@ -96,7 +96,7 @@ export function LoginButton() {
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('gbifUser');
-    localStorage.removeItem('gbifAuth');
+    sessionStorage.removeItem('gbifAuth');
     toast.success('Logged out successfully');
   };
 

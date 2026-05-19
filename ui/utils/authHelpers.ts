@@ -49,14 +49,50 @@ export const isLoggedIn = (): boolean => {
 };
 
 /**
- * Get GBIF authentication credentials from localStorage
+ * Get GBIF authentication credentials from sessionStorage.
+ *
+ * Credentials are stored in sessionStorage (not localStorage) so they are
+ * cleared when the browser tab is closed, reducing exposure if XSS occurs
+ * or the device is shared. Any legacy value left in localStorage is purged
+ * on read.
+ *
  * @returns Base64 encoded auth string or null if not found
  */
 export const getAuthCredentials = (): string | null => {
   try {
-    return localStorage.getItem('gbifAuth');
+    // Purge any legacy credential left in localStorage by older builds.
+    if (localStorage.getItem('gbifAuth') !== null) {
+      localStorage.removeItem('gbifAuth');
+    }
+    return sessionStorage.getItem('gbifAuth');
   } catch (error) {
     console.error('Failed to get auth credentials:', error);
     return null;
+  }
+};
+
+/**
+ * Persist GBIF authentication credentials in sessionStorage.
+ * Credentials never touch localStorage.
+ */
+export const setAuthCredentials = (credentials: string): void => {
+  try {
+    sessionStorage.setItem('gbifAuth', credentials);
+    // Ensure no legacy copy lingers in localStorage.
+    localStorage.removeItem('gbifAuth');
+  } catch (error) {
+    console.error('Failed to store auth credentials:', error);
+  }
+};
+
+/**
+ * Remove GBIF authentication credentials from session and (legacy) local storage.
+ */
+export const clearAuthCredentials = (): void => {
+  try {
+    sessionStorage.removeItem('gbifAuth');
+    localStorage.removeItem('gbifAuth');
+  } catch (error) {
+    console.error('Failed to clear auth credentials:', error);
   }
 };

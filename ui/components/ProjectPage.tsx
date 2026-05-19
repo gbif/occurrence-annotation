@@ -142,7 +142,7 @@ export function ProjectPage() {
   };
 
   const isLoggedIn = () => {
-    return !!localStorage.getItem('gbifAuth');
+    return !!sessionStorage.getItem('gbifAuth');
   };
 
   const formatDateTime = (dateString: string) => {
@@ -258,7 +258,7 @@ export function ProjectPage() {
       return;
     }
 
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to add members');
       return;
@@ -318,7 +318,7 @@ export function ProjectPage() {
       return;
     }
 
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to remove members');
       return;

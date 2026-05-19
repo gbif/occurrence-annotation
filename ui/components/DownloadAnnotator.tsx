@@ -557,7 +557,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
       const url = `https://api.gbif.org/v1/occurrence/download/user/${username}?limit=20`;
       
       // Get auth credentials from localStorage
-      const authCredentials = localStorage.getItem('gbifAuth');
+      const authCredentials = sessionStorage.getItem('gbifAuth');
       const headers: HeadersInit = {};
       if (authCredentials) {
         headers['Authorization'] = `Basic ${authCredentials}`;
