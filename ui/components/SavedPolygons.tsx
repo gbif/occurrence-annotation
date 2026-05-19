@@ -17,6 +17,7 @@ import { getAnnotationApiUrl } from '../utils/apiConfig';
 import { getSelectedProjectName } from '../utils/projectSelection';
 import { Checkbox } from './ui/checkbox';
 import { CountrySelector } from './CountrySelector';
+import { useDebouncedCallback } from '../utils/useDebounce';
 
 // Vocabulary term interface
 interface VocabularyTerm {
@@ -305,15 +306,6 @@ function BasisOfRecordMultiSelect({
       </div>
     </div>
   );
-}
-
-// Simple debounce function
-function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
-  let timeout: number;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = window.setTimeout(() => func(...args), wait);
-  };
 }
 
 interface SavedPolygonsProps {
@@ -779,8 +771,8 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
   }, [showDatasetSuggestions]);
 
   // Function to search datasets with debouncing
-  const searchDatasetsDebounced = useCallback(
-    debounce(async (query: string) => {
+  const searchDatasetsDebounced = useDebouncedCallback(
+    async (query: string) => {
       if (!query.trim()) {
         setDatasetSuggestions([]);
         setShowDatasetSuggestions(false);
@@ -797,8 +789,8 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
       } catch (error) {
         console.warn('Failed to fetch dataset suggestions:', error);
       }
-    }, 300),
-    []
+    },
+    300
   );
 
   // Function to search datasets (immediate call for focus)
