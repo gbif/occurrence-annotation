@@ -238,7 +238,7 @@ export function ProjectPage() {
 
   const handleViewProjectAPI = () => {
     if (projectId) {
-      window.open(getAnnotationApiUrl(`/project/${projectId}`), '_blank');
+      window.open(getAnnotationApiUrl(`/project/${projectId}`), '_blank', 'noopener,noreferrer');
     }
   };
 

@@ -116,7 +116,7 @@ export function ProjectsPage() {
   }, []);
 
   const handleViewProjectAPI = (projectId: number) => {
-    window.open(getAnnotationApiUrl(`/project/${projectId}`), '_blank');
+    window.open(getAnnotationApiUrl(`/project/${projectId}`), '_blank', 'noopener,noreferrer');
   };
 
   const handleCreateProject = async (e: React.FormEvent) => {
