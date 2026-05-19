@@ -297,12 +297,12 @@ export default function App() {
     toast.info('Project selection cleared');
   };
   
-  // Fetch project taxa when component mounts (if project already selected)
+  // Fetch project taxa when selectedProjectId changes
   useEffect(() => {
     if (selectedProjectId) {
       fetchProjectTaxa(selectedProjectId);
     }
-  }, []); // Only run on mount
+  }, [selectedProjectId]); // Re-fetch when project selection changes
 
   // Fetch projects when dialog opens
   const fetchProjects = async () => {
@@ -383,8 +383,7 @@ export default function App() {
     localStorage.setItem('selectedProjectName', projectName);
     setIsProjectDialogOpen(false);
     toast.success(`Selected project: ${projectName}`);
-    // Fetch taxa for the project
-    fetchProjectTaxa(projectId);
+    // Taxa will be fetched automatically by the useEffect that watches selectedProjectId
   };
   
   // Navigate to previous/next taxon in project
