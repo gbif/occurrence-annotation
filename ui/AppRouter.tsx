@@ -1,10 +1,10 @@
-import { HashRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { createHashRouter, RouterProvider, useNavigate } from 'react-router-dom';
 import App from './App';
 import { UserPage } from './components/UserPage';
 import { ProjectsPage } from './components/ProjectsPage';
 import { ProjectPage } from './components/ProjectPage';
 
-function AppWithNavigation() {
+function UserPageWrapper() {
   const navigate = useNavigate();
 
   const handleNavigateToRule = (rule: any) => {
@@ -23,23 +23,28 @@ function AppWithNavigation() {
     navigate(`/?${params.toString()}`);
   };
 
-  return (
-    <Routes>
-      <Route path="/" element={<App />} />
-      <Route 
-        path="/user/:username" 
-        element={<UserPage onNavigateToRule={handleNavigateToRule} />} 
-      />
-      <Route path="/projects" element={<ProjectsPage />} />
-      <Route path="/project/:projectId" element={<ProjectPage />} />
-    </Routes>
-  );
+  return <UserPage onNavigateToRule={handleNavigateToRule} />;
 }
 
+const router = createHashRouter([
+  {
+    path: "/",
+    element: <App />,
+  },
+  {
+    path: "/user/:username",
+    element: <UserPageWrapper />,
+  },
+  {
+    path: "/projects",
+    element: <ProjectsPage />,
+  },
+  {
+    path: "/project/:projectId",
+    element: <ProjectPage />,
+  },
+]);
+
 export default function AppRouter() {
-  return (
-    <Router>
-      <AppWithNavigation />
-    </Router>
-  );
+  return <RouterProvider router={router} />;
 }

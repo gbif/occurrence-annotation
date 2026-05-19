@@ -1,6 +1,16 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useBlocker } from 'react-router-dom';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { Upload, FileDown, Download, Loader2, AlertCircle, CheckCircle2, User, List, ChevronDown, Filter, X, Map as MapIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SpeciesSelector, type SelectedSpecies } from './SpeciesSelector';
 import {
@@ -210,7 +220,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
     }
   }, []);
 
-  // Warn before navigating away when results exist
+  // Warn before navigating away when results exist (page reload/close)
   useEffect(() => {
     if (!report) return;
 
@@ -226,6 +236,12 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [report]);
+
+  // Block SPA navigation when results exist (React Router)
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      report !== null && currentLocation.pathname !== nextLocation.pathname
+  );
 
   // Notify parent component when results change
   useEffect(() => {
@@ -1686,6 +1702,30 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
 
         </div>
       )}
+
+      {/* Navigation blocker confirmation dialog */}
+      <AlertDialog open={blocker.state === "blocked"}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard annotation report?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have an annotation report with {report?.totalRecords.toLocaleString()} records. 
+              If you navigate away, all results will be lost. Are you sure you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => blocker.reset?.()}>
+              Stay on page
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => blocker.proceed?.()} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Discard and leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
