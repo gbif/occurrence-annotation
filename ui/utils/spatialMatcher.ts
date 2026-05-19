@@ -40,6 +40,27 @@ export function detectInvertedPolygon(wkt: string): boolean {
 }
 
 /**
+ * Ensure a polygon ring is closed (first coordinate equals last coordinate)
+ * GeoJSON/Turf.js requires closed rings for valid polygons
+ */
+function ensureRingClosed(ring: Position[]): Position[] {
+  if (ring.length < 3) {
+    throw new Error('Polygon ring must have at least 3 coordinates');
+  }
+  
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  
+  // Check if ring is already closed (first equals last)
+  if (first[0] === last[0] && first[1] === last[1]) {
+    return ring; // Already closed
+  }
+  
+  // Close the ring by appending first coordinate
+  return [...ring, first];
+}
+
+/**
  * Parse WKT geometry into GeoJSON format for Turf.js
  */
 export function parseWKTGeometry(wkt: string): ParsedGeometry {
@@ -53,13 +74,14 @@ export function parseWKTGeometry(wkt: string): ParsedGeometry {
         throw new Error('Failed to parse MULTIPOLYGON');
       }
       
-      // Convert from [lat, lon] to [lon, lat] for GeoJSON
+      // Convert from [lat, lon] to [lon, lat] for GeoJSON and ensure rings are closed
       const geoJsonCoords = multiPoly.polygons.map((polygon: any) => {
         const outerRing = polygon.outer.map((coord: [number, number]) => [coord[1], coord[0]] as Position);
         const holes = (polygon.holes || []).map((hole: [number, number][]) =>
           hole.map((coord: [number, number]) => [coord[1], coord[0]] as Position)
         );
-        return [outerRing, ...holes];
+        // Ensure all rings are closed (first coordinate equals last)
+        return [ensureRingClosed(outerRing), ...holes.map(ensureRingClosed)];
       });
       
       return {
@@ -75,13 +97,14 @@ export function parseWKTGeometry(wkt: string): ParsedGeometry {
       throw new Error('Failed to parse POLYGON');
     }
     
-    // Convert from [lat, lon] to [lon, lat] for GeoJSON
+    // Convert from [lat, lon] to [lon, lat] for GeoJSON and ensure rings are closed
     const outerRing = parsed.outer.map((coord: [number, number]) => [coord[1], coord[0]] as Position);
     const holes = (parsed.holes || []).map((hole: [number, number][]) =>
       hole.map((coord: [number, number]) => [coord[1], coord[0]] as Position)
     );
     
-    const geoJsonCoords = [outerRing, ...holes];
+    // Ensure all rings are closed (first coordinate equals last)
+    const geoJsonCoords = [ensureRingClosed(outerRing), ...holes.map(ensureRingClosed)];
     
     return {
       type: 'Polygon',
