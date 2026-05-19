@@ -61,16 +61,6 @@ export function InvestigateArea({
   
   // Check if user is admin
   const userIsAdmin = isAdmin();
-  
-  // Debug logging (dev only)
-  useEffect(() => {
-    if (import.meta.env.DEV) {
-      console.log('🔍 InvestigateArea: Admin check:', {
-        userIsAdmin,
-        userFromStorage: localStorage.getItem('gbifUser'),
-      });
-    }
-  }, [userIsAdmin]);
 
   // Notify parent of radius changes
   useEffect(() => {
@@ -89,8 +79,6 @@ export function InvestigateArea({
     setOccurrences([]); // Clear previous results
     setOffset(0); // Reset pagination
     
-    console.log('🔍 InvestigateArea: Starting search with radius:', searchRadius);
-    
     await fetchOccurrences(lat, lng, 0, false);
   }, [selectedSpecies, isInvestigateMode, searchRadius]);
 
@@ -107,8 +95,6 @@ export function InvestigateArea({
       const east = lng + lngAdjustment;
       const west = lng - lngAdjustment;
       
-      console.log('🔍 InvestigateArea: Search bounds:', { north, south, east, west, radiusKm: searchRadius/1000, offset: currentOffset });
-      
       // Search for occurrences within the bounding box with pagination
       const apiUrl = `https://api.gbif.org/v1/occurrence/search?` +
         `taxonKey=${selectedSpecies?.key}&` +
@@ -118,11 +104,7 @@ export function InvestigateArea({
         `limit=20&` +
         `offset=${currentOffset}`;
       
-      console.log('🔍 InvestigateArea: API URL:', apiUrl);
-      
       const response = await fetch(apiUrl);
-      
-      console.log('🔍 InvestigateArea: API response status:', response.status);
       
       if (!response.ok) {
         throw new Error('Failed to fetch GBIF occurrences');
@@ -213,10 +195,8 @@ export function InvestigateArea({
   // Expose the investigation function globally so MapComponent can call it
   useEffect(() => {
     if (isInvestigateMode) {
-      console.log('🔍 InvestigateArea: Setting up global investigate function');
       (window as any).__investigateArea = investigateArea;
     } else {
-      console.log('🔍 InvestigateArea: Removing global investigate function');
       (window as any).__investigateArea = null;
     }
     
@@ -265,7 +245,6 @@ export function InvestigateArea({
           size="icon"
           onClick={() => {
             const newMode = !isInvestigateMode;
-            console.log('🔍 InvestigateArea: Toggle investigate mode to:', newMode);
             onToggleInvestigateMode(newMode);
           }}
           disabled={!selectedSpecies}
@@ -471,7 +450,6 @@ export function InvestigateArea({
                                     variant="outline"
                                     className="h-7 text-xs"
                                     onClick={() => {
-                                      console.log('🤖 AI Check clicked for occurrence:', occurrence.key);
                                       setSelectedOccurrenceForQualityCheck(occurrence.key);
                                     }}
                                   >

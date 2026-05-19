@@ -1004,8 +1004,6 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
         payload.yearRange = yearRange.trim();
       }
 
-      // console.log('Saving to GBIF:', payload);
-
       // Make the API request
       const response = await fetch(
         getAnnotationApiUrl('/rule'),
@@ -1570,12 +1568,6 @@ function PolygonPreview({
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    console.log('🖼️ POLYGON PREVIEW RENDERING (Canvas):', {
-      annotation,
-      isMultiPolygon,
-      polygonCount: isMultiPolygon ? (coordinates as [number, number][][]).length : 1
-    });
-
     const canvas = canvasRef.current;
     if (!canvas) return;
     

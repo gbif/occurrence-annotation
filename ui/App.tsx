@@ -177,7 +177,6 @@ export default function App() {
             kingdomKey: speciesData.kingdomKey,
           };
           setSelectedSpecies(species);
-          console.log('🔗 Loaded species from URL:', species.scientificName);
           toast.success(`Loaded species: ${species.scientificName}`);
         } else {
           console.warn('Failed to load species from URL, taxon key not found:', taxonKey);
@@ -194,7 +193,6 @@ export default function App() {
         if (lastSpeciesStr) {
           const lastSpecies = JSON.parse(lastSpeciesStr);
           setSelectedSpecies(lastSpecies);
-          console.log('🔗 Restored last selected species:', lastSpecies.scientificName);
           // Don't show a toast for restored species to avoid noise on page load
         }
       } catch (error) {
@@ -867,7 +865,6 @@ export default function App() {
     // Remove the saved polygon from the local list since it's now saved to GBIF
     if (savedPolygonId) {
       setSavedPolygons(prev => prev.filter(p => p.id !== savedPolygonId));
-      console.log('🗑️ Removed saved polygon from local list:', savedPolygonId);
     }
     
     // Trigger refresh of annotation rules to show the new rule on the map
@@ -878,8 +875,6 @@ export default function App() {
       description: 'Your polygon has been successfully saved as an annotation rule and will appear on the map.',
       duration: 3000,
     });
-    
-    console.log('📤 Rule saved to GBIF - current polygon cleared and annotation rules will refresh');
   }, []);
 
   const handleLoadRuleForEditing = useCallback(async (rule: AnnotationRule) => {
@@ -1218,10 +1213,6 @@ export default function App() {
             currentPolygon={currentPolygon}
             isCurrentInverted={isInverted}
             onCurrentAnnotationChange={(newAnnotation) => {
-              console.log('🔄 ANNOTATION CHANGED IN APP:', {
-                from: currentAnnotation,
-                to: newAnnotation
-              });
               setCurrentAnnotation(newAnnotation);
             }}
             currentAnnotation={currentAnnotation}
@@ -1334,10 +1325,6 @@ export default function App() {
         isCurrentInverted={isInverted}
         currentAnnotation={currentAnnotation}
         onPolygonChange={(coords) => {
-          console.log('📍 POLYGON CHANGED IN APP:', {
-            currentAnnotation,
-            pointsCount: coords?.length || 0
-          });
           setCurrentPolygon(coords);
         }}
         annotationRules={annotationRules}

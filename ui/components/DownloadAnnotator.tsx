@@ -451,9 +451,6 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
     const taxonKeys: Set<number> = new Set();
     const filters: string[] = [];
 
-    // Debug: log the predicate structure
-    // console.log('Extracting filters from predicate:', JSON.stringify(predicate, null, 2));
-
     const traverse = (pred: any) => {
       if (!pred || typeof pred !== 'object') return;
 
@@ -519,9 +516,6 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
     };
 
     traverse(predicate);
-    
-    // console.log('Extracted taxon keys:', Array.from(taxonKeys));
-    // console.log('Extracted filters:', filters);
     
     return {
       taxonKeys: Array.from(taxonKeys),
@@ -627,7 +621,6 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
         }
       });
       
-      // console.log(`DEBUG: Fetched hierarchy for ${taxonKey}:`, parentKeys);
       return parentKeys;
     } catch (error) {
       console.error(`Error fetching taxonomy for ${taxonKey}:`, error);
