@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { MapComponent } from './components/MapComponent';
 import { SpeciesSelector, SelectedSpecies } from './components/SpeciesSelector';
 import { SavedPolygons } from './components/SavedPolygons';
@@ -50,7 +50,6 @@ export interface PolygonData {
 
 export default function App() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const [selectedSpecies, setSelectedSpecies] = useState<SelectedSpecies | null>(null);
   const [savedPolygons, setSavedPolygons] = useState<PolygonData[]>([]);
   const [currentPolygon, setCurrentPolygon] = useState<[number, number][] | null>(null);
@@ -141,15 +140,6 @@ export default function App() {
 
     fetchVocabulary();
   }, [selectedProjectId]); // Re-fetch when project changes
-  
-  // Generate shareable URL for current state
-  const getShareableURL = () => {
-    const base = window.location.origin + window.location.pathname;
-    if (selectedSpecies) {
-      return `${base}#/?taxonKey=${selectedSpecies.key}`;
-    }
-    return `${base}#/`;
-  };
 
   // Copy shareable URL to clipboard (currently unused)
   // const copyShareableURL = async () => {
@@ -969,22 +959,24 @@ export default function App() {
       let species = selectedSpecies;
       if (!species || species.key !== rule.taxonKey) {
         try {
-          const speciesResponse = await fetch(`${getGbifApiUrl()}/species/${rule.taxonKey}`);
+          const speciesResponse = await fetch(getGbifApiUrl(`/species/${rule.taxonKey}`));
           if (speciesResponse.ok) {
             const speciesData = await speciesResponse.json();
             species = {
               key: rule.taxonKey,
               scientificName: speciesData.scientificName || rule.scientificName || 'Unknown',
-              rank: speciesData.rank || 'UNKNOWN'
+              name: speciesData.scientificName || rule.scientificName || 'Unknown'
             };
             setSelectedSpecies(species);
-            toast.info(`Switched to species: ${species.scientificName}`);
+            if (species) {
+              toast.info(`Switched to species: ${species.scientificName}`);
+            }
           } else {
             // Fallback to rule's scientific name if available
             species = {
               key: rule.taxonKey,
               scientificName: rule.scientificName || 'Unknown',
-              rank: rule.taxonomicLevel?.toUpperCase() || 'UNKNOWN'
+              name: rule.scientificName || 'Unknown'
             };
             setSelectedSpecies(species);
           }
@@ -994,7 +986,7 @@ export default function App() {
           species = {
             key: rule.taxonKey,
             scientificName: rule.scientificName || 'Unknown',
-            rank: rule.taxonomicLevel?.toUpperCase() || 'UNKNOWN'
+            name: rule.scientificName || 'Unknown'
           };
           setSelectedSpecies(species);
         }
