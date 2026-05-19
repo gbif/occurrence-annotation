@@ -224,7 +224,13 @@ export default function App() {
 
           // Add to local annotationRules so MapComponent will render it
           const ruleWithCoords = { ...ruleData, multiPolygon } as AnnotationRule;
-          setAnnotationRules(prev => [ruleWithCoords, ...prev]);
+          setAnnotationRules(prev => {
+            // Prevent duplicates in StrictMode (React runs effects twice in dev)
+            if (prev.some(r => r.id === ruleData.id)) {
+              return prev;
+            }
+            return [ruleWithCoords, ...prev];
+          });
           setShowAnnotationRules(true);
 
           // Note: Removed automatic zoom to rule - mini map preview shows location
