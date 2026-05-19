@@ -804,15 +804,6 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     }
   };
 
-  // Debounce function for dataset search
-  const debounce = <T extends (...args: any[]) => any>(func: T, wait: number): ((...args: Parameters<T>) => void) => {
-    let timeout: number;
-    return (...args: Parameters<T>) => {
-      clearTimeout(timeout);
-      timeout = window.setTimeout(() => func(...args), wait);
-    };
-  };
-
   // Prefetch species info for visible rules
   useEffect(() => {
     console.log('useEffect running - allRules:', allRules.length, 'cache size:', speciesCache.size);
@@ -1602,8 +1593,8 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                       />
                     </PaginationItem>
                     
-                    {getPageNumbers().map((pageNum, index) => (
-                      <PaginationItem key={index}>
+                    {getPageNumbers().map((pageNum) => (
+                      <PaginationItem key={pageNum}>
                         {pageNum === 'ellipsis-start' || pageNum === 'ellipsis-end' ? (
                           <PaginationEllipsis />
                         ) : (

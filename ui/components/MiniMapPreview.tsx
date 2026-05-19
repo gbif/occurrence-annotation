@@ -6,7 +6,7 @@ import {
 import { geoMercator } from 'd3-geo';
 
 // Use a reliable CDN URL for world map data
-const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+const geoUrl = "/countries-110m.json";
 
 interface VocabularyTerm {
   term: string;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { MapComponent } from './components/MapComponent';
 import { SpeciesSelector, SelectedSpecies } from './components/SpeciesSelector';
 import { SavedPolygons } from './components/SavedPolygons';
@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { getGbifApiUrl, getAnnotationApiUrl } from './utils/apiConfig';
 import { parseWKTGeometry, PolygonWithHoles, MultiPolygon, isInvertedPolygon } from './utils/wktParser';
 import { unionPolygons } from './utils/spatialOperations';
+import { getSpeciesInfo } from './utils/speciesCache';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
@@ -49,7 +50,6 @@ export interface PolygonData {
 
 export default function App() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const [selectedSpecies, setSelectedSpecies] = useState<SelectedSpecies | null>(null);
   const [savedPolygons, setSavedPolygons] = useState<PolygonData[]>([]);
   const [currentPolygon, setCurrentPolygon] = useState<[number, number][] | null>(null);
@@ -140,15 +140,6 @@ export default function App() {
 
     fetchVocabulary();
   }, [selectedProjectId]); // Re-fetch when project changes
-  
-  // Generate shareable URL for current state
-  const getShareableURL = () => {
-    const base = window.location.origin + window.location.pathname;
-    if (selectedSpecies) {
-      return `${base}#/?taxonKey=${selectedSpecies.key}`;
-    }
-    return `${base}#/`;
-  };
 
   // Copy shareable URL to clipboard (currently unused)
   // const copyShareableURL = async () => {
@@ -186,7 +177,6 @@ export default function App() {
             kingdomKey: speciesData.kingdomKey,
           };
           setSelectedSpecies(species);
-          console.log('🔗 Loaded species from URL:', species.scientificName);
           toast.success(`Loaded species: ${species.scientificName}`);
         } else {
           console.warn('Failed to load species from URL, taxon key not found:', taxonKey);
@@ -203,11 +193,12 @@ export default function App() {
         if (lastSpeciesStr) {
           const lastSpecies = JSON.parse(lastSpeciesStr);
           setSelectedSpecies(lastSpecies);
-          console.log('🔗 Restored last selected species:', lastSpecies.scientificName);
           // Don't show a toast for restored species to avoid noise on page load
         }
       } catch (error) {
         console.error('Error loading last selected species from localStorage:', error);
+        // Clean up corrupted data
+        localStorage.removeItem('lastSelectedSpecies');
       }
     }
 
@@ -221,7 +212,13 @@ export default function App() {
 
           // Add to local annotationRules so MapComponent will render it
           const ruleWithCoords = { ...ruleData, multiPolygon } as AnnotationRule;
-          setAnnotationRules(prev => [ruleWithCoords, ...prev]);
+          setAnnotationRules(prev => {
+            // Prevent duplicates in StrictMode (React runs effects twice in dev)
+            if (prev.some(r => r.id === ruleData.id)) {
+              return prev;
+            }
+            return [ruleWithCoords, ...prev];
+          });
           setShowAnnotationRules(true);
 
           // Note: Removed automatic zoom to rule - mini map preview shows location
@@ -294,12 +291,12 @@ export default function App() {
     toast.info('Project selection cleared');
   };
   
-  // Fetch project taxa when component mounts (if project already selected)
+  // Fetch project taxa when selectedProjectId changes
   useEffect(() => {
     if (selectedProjectId) {
       fetchProjectTaxa(selectedProjectId);
     }
-  }, []); // Only run on mount
+  }, [selectedProjectId]); // Re-fetch when project selection changes
 
   // Fetch projects when dialog opens
   const fetchProjects = async () => {
@@ -339,28 +336,29 @@ export default function App() {
       if (response.ok) {
         const rules = await response.json();
         
-        // Extract unique taxa with their info
-        const taxaMap = new Map<number, {key: number, scientificName: string}>();
+        // Extract unique taxon keys
+        const uniqueTaxonKeys = Array.from(new Set(
+          rules.map((rule: any) => rule.taxonKey).filter((key: number | undefined) => key !== undefined)
+        )) as number[];
         
-        for (const rule of rules) {
-          if (rule.taxonKey && !taxaMap.has(rule.taxonKey)) {
-            // Fetch species info for this taxon
-            try {
-              const speciesResponse = await fetch(`https://api.gbif.org/v1/species/${rule.taxonKey}`);
-              if (speciesResponse.ok) {
-                const speciesData = await speciesResponse.json();
-                taxaMap.set(rule.taxonKey, {
-                  key: rule.taxonKey,
-                  scientificName: speciesData.scientificName || speciesData.canonicalName || `Taxon ${rule.taxonKey}`
-                });
-              }
-            } catch (err) {
-              console.error(`Error fetching species info for ${rule.taxonKey}:`, err);
-            }
+        // Fetch all species info in parallel using speciesCache
+        const speciesResults = await Promise.allSettled(
+          uniqueTaxonKeys.map(taxonKey => getSpeciesInfo(taxonKey))
+        );
+        
+        // Build taxa list from successful results
+        const uniqueTaxa: Array<{key: number, scientificName: string}> = [];
+        speciesResults.forEach((result, index) => {
+          if (result.status === 'fulfilled' && result.value) {
+            uniqueTaxa.push({
+              key: result.value.key,
+              scientificName: result.value.scientificName || result.value.canonicalName || `Taxon ${uniqueTaxonKeys[index]}`
+            });
+          } else if (result.status === 'rejected') {
+            console.error(`Error fetching species info for ${uniqueTaxonKeys[index]}:`, result.reason);
           }
-        }
+        });
         
-        const uniqueTaxa = Array.from(taxaMap.values());
         setProjectTaxa(uniqueTaxa);
         setCurrentProjectTaxonIndex(uniqueTaxa.length > 0 ? 0 : -1);
       }
@@ -379,8 +377,7 @@ export default function App() {
     localStorage.setItem('selectedProjectName', projectName);
     setIsProjectDialogOpen(false);
     toast.success(`Selected project: ${projectName}`);
-    // Fetch taxa for the project
-    fetchProjectTaxa(projectId);
+    // Taxa will be fetched automatically by the useEffect that watches selectedProjectId
   };
   
   // Navigate to previous/next taxon in project
@@ -427,7 +424,15 @@ export default function App() {
   useEffect(() => {
     const saved = localStorage.getItem('savedPolygons');
     if (saved) {
-      setSavedPolygons(JSON.parse(saved));
+      try {
+        const parsed = JSON.parse(saved);
+        setSavedPolygons(parsed);
+      } catch (error) {
+        console.error('Failed to parse savedPolygons from localStorage:', error);
+        // Clean up corrupted data
+        localStorage.removeItem('savedPolygons');
+        toast.error('Saved polygons data was corrupted and has been reset');
+      }
     }
   }, []);
 
@@ -860,7 +865,6 @@ export default function App() {
     // Remove the saved polygon from the local list since it's now saved to GBIF
     if (savedPolygonId) {
       setSavedPolygons(prev => prev.filter(p => p.id !== savedPolygonId));
-      console.log('🗑️ Removed saved polygon from local list:', savedPolygonId);
     }
     
     // Trigger refresh of annotation rules to show the new rule on the map
@@ -871,8 +875,6 @@ export default function App() {
       description: 'Your polygon has been successfully saved as an annotation rule and will appear on the map.',
       duration: 3000,
     });
-    
-    console.log('📤 Rule saved to GBIF - current polygon cleared and annotation rules will refresh');
   }, []);
 
   const handleLoadRuleForEditing = useCallback(async (rule: AnnotationRule) => {
@@ -952,22 +954,24 @@ export default function App() {
       let species = selectedSpecies;
       if (!species || species.key !== rule.taxonKey) {
         try {
-          const speciesResponse = await fetch(`${getGbifApiUrl()}/species/${rule.taxonKey}`);
+          const speciesResponse = await fetch(getGbifApiUrl(`/species/${rule.taxonKey}`));
           if (speciesResponse.ok) {
             const speciesData = await speciesResponse.json();
             species = {
               key: rule.taxonKey,
               scientificName: speciesData.scientificName || rule.scientificName || 'Unknown',
-              rank: speciesData.rank || 'UNKNOWN'
+              name: speciesData.scientificName || rule.scientificName || 'Unknown'
             };
             setSelectedSpecies(species);
-            toast.info(`Switched to species: ${species.scientificName}`);
+            if (species) {
+              toast.info(`Switched to species: ${species.scientificName}`);
+            }
           } else {
             // Fallback to rule's scientific name if available
             species = {
               key: rule.taxonKey,
               scientificName: rule.scientificName || 'Unknown',
-              rank: rule.taxonomicLevel?.toUpperCase() || 'UNKNOWN'
+              name: rule.scientificName || 'Unknown'
             };
             setSelectedSpecies(species);
           }
@@ -977,7 +981,7 @@ export default function App() {
           species = {
             key: rule.taxonKey,
             scientificName: rule.scientificName || 'Unknown',
-            rank: rule.taxonomicLevel?.toUpperCase() || 'UNKNOWN'
+            name: rule.scientificName || 'Unknown'
           };
           setSelectedSpecies(species);
         }
@@ -1209,10 +1213,6 @@ export default function App() {
             currentPolygon={currentPolygon}
             isCurrentInverted={isInverted}
             onCurrentAnnotationChange={(newAnnotation) => {
-              console.log('🔄 ANNOTATION CHANGED IN APP:', {
-                from: currentAnnotation,
-                to: newAnnotation
-              });
               setCurrentAnnotation(newAnnotation);
             }}
             currentAnnotation={currentAnnotation}
@@ -1325,10 +1325,6 @@ export default function App() {
         isCurrentInverted={isInverted}
         currentAnnotation={currentAnnotation}
         onPolygonChange={(coords) => {
-          console.log('📍 POLYGON CHANGED IN APP:', {
-            currentAnnotation,
-            pointsCount: coords?.length || 0
-          });
           setCurrentPolygon(coords);
         }}
         annotationRules={annotationRules}

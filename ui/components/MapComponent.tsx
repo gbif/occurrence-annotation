@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { parseWKTGeometry, PolygonWithHoles, MultiPolygon } from '../utils/wktParser';
 import { subtractOceanFromPolygon, bufferPolygon, bufferMultiPolygon, eraseFromPolygon } from '../utils/spatialOperations';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { getDatasetInfo } from '../utils/datasetCache';
 import { Input } from './ui/input';
 
 interface VocabularyTerm {
@@ -285,7 +286,6 @@ export function MapComponent({
     if (isInvestigateMode) {
       const newRadius = calculateRadiusForZoom(zoom);
       setInvestigateRadius(newRadius);
-      console.log(`🔍 Auto-adjusted investigation radius: ${newRadius}m (${(newRadius/1000).toFixed(1)}km) for zoom level ${zoom}`);
     }
   }, [zoom, isInvestigateMode]);
   
@@ -474,25 +474,16 @@ export function MapComponent({
 
   // Update GBIF tiles when map moves or species changes
   useEffect(() => {
-    if (!selectedSpecies || mapSize.width === 0 || isZooming) {
-      if (isZooming) {
-        setGbifTiles([]);
-      }
-      if (!selectedSpecies || mapSize.width === 0) {
-        setGbifTiles([]);
-        if (!selectedSpecies) {
-          console.log('🧹 SPECIES CLEARED - GBIF tiles removed');
-        }
-      }
+    // Early exit but don't clear tiles during zoom animation to prevent flicker
+    if (!selectedSpecies || mapSize.width === 0) {
+      setGbifTiles([]);
       return;
     }
-
-    console.log('🐾 SPECIES LOADED:', {
-      name: selectedSpecies.name,
-      scientificName: selectedSpecies.scientificName,
-      key: selectedSpecies.key,
-      status: '⏳ Loading GBIF occurrence tiles...'
-    });
+    
+    // Skip tile updates during zoom animation - tiles stay in state but are hidden visually
+    if (isZooming) {
+      return;
+    }
 
     const tileZoom = Math.max(0, Math.min(14, Math.floor(zoom)));
     const [centerX, centerY] = latLngToTileWebMercator(center[0], center[1], tileZoom);
@@ -518,12 +509,21 @@ export function MapComponent({
       }
     }
     
-    setGbifTiles(newTiles);
-    console.log('📍 GBIF TILES LOADED:', {
-      tileCount: newTiles.length,
-      species: selectedSpecies?.name || 'Unknown',
-      zoom: zoom,
-      status: '🔍 Check coordinate alignment NOW'
+    // Only update tiles if they actually changed (prevents unnecessary re-renders)
+    setGbifTiles(prevTiles => {
+      // Check if tile set changed (same tiles at same positions)
+      if (prevTiles.length === newTiles.length) {
+        const allMatch = newTiles.every(newTile => 
+          prevTiles.some(prevTile => 
+            prevTile.x === newTile.x && prevTile.y === newTile.y && prevTile.z === newTile.z
+          )
+        );
+        if (allMatch) {
+          return prevTiles; // No change needed
+        }
+      }
+      
+      return newTiles;
     });
   }, [zoom, center, mapSize, selectedSpecies, isZooming, occurrenceFilters, baseMapStyle]);
 
@@ -544,11 +544,8 @@ export function MapComponent({
     };
   }, [onNavigateToLocation]);
 
-  // Clear GBIF tiles when zoom level changes significantly to reduce flicker
-  useEffect(() => {
-    // Clear tiles on significant zoom changes to improve performance
-    setGbifTiles([]);
-  }, [zoom]);
+  // Removed: Aggressive tile clearing on zoom changes caused flicker
+  // Tiles now persist during zoom and are only hidden visually via isZooming flag
 
   // Reset erase mode when exiting edit mode
   useEffect(() => {
@@ -570,8 +567,6 @@ export function MapComponent({
     setInvestigateResults([]); // Clear previous results
     setIsInvestigateDialogOpen(true); // Open dialog immediately
     
-    console.log('🔍 Starting area investigation at:', { lat, lng, radius: investigateRadius });
-    
     try {
       // Use a simple bounding box for the search
       const radiusInDegrees = investigateRadius / 111000; // Rough conversion: 1 degree ≈ 111km
@@ -585,8 +580,6 @@ export function MapComponent({
       
       // Store bounds for later use
       setInvestigationBounds({ north, south, east, west });
-      
-      console.log('🔍 Search bounds:', { north, south, east, west, radiusKm: investigateRadius/1000 });
       
       // Build API URL with occurrence filters
       const params = new URLSearchParams({
@@ -628,7 +621,6 @@ export function MapComponent({
       }
 
       const apiUrl = `https://api.gbif.org/v1/occurrence/search?${params.toString()}`;
-      console.log('🔍 Investigate URL with filters:', apiUrl);
       
       const response = await fetch(apiUrl);
       
@@ -637,7 +629,6 @@ export function MapComponent({
       }
       
       const data = await response.json();
-      console.log('🔍 GBIF response:', data);
       
       if (data.results.length === 0) {
         // No results found
@@ -649,28 +640,11 @@ export function MapComponent({
       // Show initial results count
       toast.success(`Found ${data.results.length} occurrence(s) for ${selectedSpecies.scientificName}. Loading details...`);
       
-      // Process occurrences one by one and update the dialog as we go
-      const enrichedOccurrences: any[] = [];
-      
-      for (let i = 0; i < data.results.length; i++) {
-        const occurrence = data.results[i];
-        
-        try {
-          // Fetch dataset info
-          const datasetResponse = await fetch(
-            `https://api.gbif.org/v1/dataset/${occurrence.datasetKey}`
-          );
-          
-          let datasetInfo = {};
-          if (datasetResponse.ok) {
-            const dataset = await datasetResponse.json();
-            datasetInfo = {
-              datasetTitle: dataset.title,
-              publisher: dataset.publishingOrganizationTitle || dataset.publisher
-            };
-          }
-          
-          const enrichedOccurrence = {
+      // Fetch all dataset info in parallel using datasetCache
+      const enrichmentResults = await Promise.allSettled(
+        data.results.map(async (occurrence: any) => {
+          const dataset = await getDatasetInfo(occurrence.datasetKey);
+          return {
             key: occurrence.key,
             scientificName: occurrence.scientificName,
             decimalLatitude: occurrence.decimalLatitude,
@@ -682,21 +656,25 @@ export function MapComponent({
             coordinateUncertaintyInMeters: occurrence.coordinateUncertaintyInMeters,
             locality: occurrence.locality,
             media: occurrence.media || [],
-            ...datasetInfo
+            datasetTitle: dataset?.title,
+            publisher: dataset?.publishingOrganizationTitle || dataset?.publisher
           };
-          
-          enrichedOccurrences.push(enrichedOccurrence);
-          
-          // Update results in real-time as each occurrence is processed
-          setInvestigateResults([...enrichedOccurrences]);
-          
-        } catch (err) {
-          console.error('Error fetching dataset info:', err);
-          // Add the occurrence without enriched data
-          enrichedOccurrences.push(occurrence);
-          setInvestigateResults([...enrichedOccurrences]);
-        }
-      }
+        })
+      );
+      
+      // Extract successful results
+      const enrichedOccurrences = enrichmentResults
+        .map((result, index) => {
+          if (result.status === 'fulfilled') {
+            return result.value;
+          } else {
+            console.error('Error enriching occurrence:', result.reason);
+            // Return occurrence without enriched data
+            return data.results[index];
+          }
+        });
+      
+      setInvestigateResults(enrichedOccurrences);
       
     } catch (error) {
       console.error('Error investigating area:', error);
@@ -804,30 +782,20 @@ export function MapComponent({
     const [lat, lng] = latLng;
     const timeSinceMouseDown = Date.now() - dragStartTime;
     
-    console.log('🗺️ MapComponent: handleMapClick called with:', { 
-      lat, lng, isInvestigateMode, dialogOpen: isInvestigateDialogOpen, 
-      isDragging, timeSinceMouseDown 
-    });
-    
     // Don't trigger investigation if this was a drag event or held too long (>500ms)
     if (isDragging || timeSinceMouseDown > 500) {
-      console.log('🗺️ MapComponent: Ignoring click - was a drag event or held too long');
       return;
     }
     
     // Don't trigger investigation if dialog is open
     if (isInvestigateDialogOpen) {
-      console.log('🗺️ MapComponent: Ignoring click - dialog is open');
       return;
     }
     
     // Handle investigate mode - search for occurrences in clicked area
     if (isInvestigateMode) {
-      console.log('🗺️ MapComponent: Investigate mode click detected at:', { lat, lng });
-      
       // Prevent multiple clicks while investigation is in progress
       if (isInvestigateLoading) {
-        console.log('🗺️ MapComponent: Investigation already in progress, ignoring click');
         toast.info('Investigation already in progress...');
         return;
       }
@@ -836,27 +804,12 @@ export function MapComponent({
       return;
     }
     
-    // Only log clicks near the map edges where coordinate issues occur
-    if (Math.abs(lat) > 80) {
-      const [ourScreenX, ourScreenY] = latLngToPixel(lat, lng);
-      const roundTripLatLng = pixelToCurrentLatLng(ourScreenX, ourScreenY);
-      const latError = Math.abs(lat - roundTripLatLng[0]);
-      
-      console.log('🖱️ EDGE CLICK TEST:', {
-        clicked: `${lat.toFixed(2)}°, ${lng.toFixed(2)}°`,
-        coordinateError: latError.toFixed(4) + '°',
-        status: latError > 0.1 ? '❌ MISALIGNED' : '✅ ALIGNED'
-      });
-    }
-    
     if (!isDrawing) {
-      console.log('🗺️ MapComponent: Not in drawing mode, ignoring click');
       return;
     }
     
     // Check if coordinates are within valid map bounds before adding to drawing points
     if (!isWithinBounds(lat, lng)) {
-      console.log('🚫 Click outside valid map bounds, ignoring:', { lat, lng });
       toast.error('Cannot draw outside map boundaries');
       return;
     }
@@ -1432,11 +1385,6 @@ export function MapComponent({
     const mercatorY = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
     const worldY = (1 - mercatorY / Math.PI) / 2 * scale;
     
-    // Debug logging for coordinate transformation
-    if (Math.abs(lat - clampedLat) > 0.001) {
-      console.log('🌐 Coordinate clamping:', { original: lat, clamped: clampedLat, limit: WEB_MERCATOR_MAX_LAT });
-    }
-    
     return [worldX, worldY];
   };
 
@@ -1775,10 +1723,6 @@ export function MapComponent({
     const y = e.clientY - rect.top;
     const [lat, lng] = pixelToCurrentLatLng(x, y);
     
-    // console.log('Click at pixel:', x, y);
-    // console.log('Converted to lat/lng:', lat, lng);
-    // console.log('Current center:', center, 'zoom:', zoom);
-    
     setDrawingPoints([...drawingPoints, [lat, lng]]);
   };
 
@@ -1841,33 +1785,24 @@ export function MapComponent({
         }
       }}
       onMouseUp={handleMouseUp}
-      onMouseDown={() => {
-        console.log('🗺️ Map interaction started - polygons will move synchronously');
-      }}
+      onMouseDown={() => {}}
       onMouseLeave={() => {
         setMousePosition(null);
         handleMouseUp();
-        console.log('🗺️ Map interaction ended via mouse leave');
       }}
       onClick={(e) => {
-        console.log('🗺️ Container div clicked! isInvestigateMode:', isInvestigateMode, 'dialogOpen:', isInvestigateDialogOpen, 'event:', e);
-        
         // Don't process clicks when dialog is open
         if (isInvestigateDialogOpen) {
-          console.log('🗺️ Ignoring container click - dialog is open');
           return;
         }
         
         if (isInvestigateMode) {
-          console.log('🗺️ Processing investigate mode click');
           // Calculate approximate lat/lng from pixel coordinates
           const rect = mapContainerRef.current?.getBoundingClientRect();
           if (rect) {
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-            console.log('🗺️ Click coordinates:', { x, y, rect });
             const latLng = pixelToCurrentLatLng(x, y);
-            console.log('🗺️ Container calculated coordinates:', latLng);
             handleMapClick({ latLng });
           }
         }
@@ -1905,20 +1840,10 @@ export function MapComponent({
             center[1] // Longitude can wrap around
           ];
           
-          // Log if clamping occurred
-          if (Math.abs(center[0] - clampedCenter[0]) > 0.001) {
-            console.log('🗺️ Map center clamped:', { 
-              original: center[0], 
-              clamped: clampedCenter[0], 
-              reason: 'Web Mercator latitude limit' 
-            });
-          }
-          
           setCenter(clampedCenter);
           setZoom(newZoom);
         }}
         onClick={(event) => {
-          console.log('🗺️ Map onClick event triggered:', event);
           handleMapClick(event);
         }}
         provider={gbifTileProvider}
@@ -3779,7 +3704,7 @@ export function MapComponent({
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs"
-                            onClick={() => window.open(`https://www.gbif.org/occurrence/${occurrence.key}`, '_blank')}
+                            onClick={() => window.open(`https://www.gbif.org/occurrence/${occurrence.key}`, '_blank', 'noopener,noreferrer')}
                           >
                             <ExternalLink className="w-3 h-3 mr-1" />
                             View on GBIF
@@ -3789,7 +3714,7 @@ export function MapComponent({
                               size="sm"
                               variant="outline"
                               className="h-7 text-xs"
-                              onClick={() => window.open(`https://www.gbif.org/dataset/${occurrence.datasetKey}`, '_blank')}
+                              onClick={() => window.open(`https://www.gbif.org/dataset/${occurrence.datasetKey}`, '_blank', 'noopener,noreferrer')}
                             >
                               <Database className="w-3 h-3 mr-1" />
                               Dataset

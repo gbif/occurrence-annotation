@@ -1,6 +1,16 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useBlocker } from 'react-router-dom';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { Upload, FileDown, Download, Loader2, AlertCircle, CheckCircle2, User, List, ChevronDown, Filter, X, Map as MapIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SpeciesSelector, type SelectedSpecies } from './SpeciesSelector';
 import {
@@ -86,6 +96,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [searchingProjects, setSearchingProjects] = useState(false);
   const projectSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const projectSearchAbortRef = useRef<AbortController | null>(null);
   const [speciesFilter, setSpeciesFilter] = useState<SelectedSpecies | null>(null);
   const [myRulesOnly, setMyRulesOnly] = useState(false);
   const [includeHigherOrder, setIncludeHigherOrder] = useState(true); // Default true to include all taxonomic ranks
@@ -209,7 +220,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
     }
   }, []);
 
-  // Warn before navigating away when results exist
+  // Warn before navigating away when results exist (page reload/close)
   useEffect(() => {
     if (!report) return;
 
@@ -226,6 +237,9 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
     };
   }, [report]);
 
+  // Block SPA navigation when results exist (React Router)
+  const blocker = useBlocker(report !== null);
+
   // Notify parent component when results change
   useEffect(() => {
     if (onResultsChange) {
@@ -235,8 +249,14 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
 
   // Debounced project search
   useEffect(() => {
+    // Clear previous timeout
     if (projectSearchRef.current) {
       clearTimeout(projectSearchRef.current);
+    }
+    
+    // Abort previous fetch request
+    if (projectSearchAbortRef.current) {
+      projectSearchAbortRef.current.abort();
     }
 
     if (!projectSearchTerm.trim()) {
@@ -247,10 +267,16 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
 
     projectSearchRef.current = setTimeout(async () => {
       setSearchingProjects(true);
+      
+      // Create new abort controller for this request
+      const abortController = new AbortController();
+      projectSearchAbortRef.current = abortController;
+      
       try {
         // Search projects by name
         const response = await fetch(
-          getAnnotationApiUrl(`/project?name=${encodeURIComponent(projectSearchTerm)}&limit=20`)
+          getAnnotationApiUrl(`/project?name=${encodeURIComponent(projectSearchTerm)}&limit=20`),
+          { signal: abortController.signal }
         );
         
         if (response.ok) {
@@ -264,16 +290,26 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
           setProjectSearchResults(filteredResults);
           setShowProjectDropdown(filteredResults.length > 0);
         }
-      } catch (error) {
-        console.error('Error searching projects:', error);
+      } catch (error: any) {
+        // Ignore abort errors (expected when user types quickly)
+        if (error.name !== 'AbortError') {
+          console.error('Error searching projects:', error);
+        }
       } finally {
-        setSearchingProjects(false);
+        // Only clear loading state if this request wasn't aborted
+        if (!abortController.signal.aborted) {
+          setSearchingProjects(false);
+        }
       }
     }, 300); // 300ms debounce
 
     return () => {
       if (projectSearchRef.current) {
         clearTimeout(projectSearchRef.current);
+      }
+      // Abort ongoing request on unmount or when search term changes
+      if (projectSearchAbortRef.current) {
+        projectSearchAbortRef.current.abort();
       }
     };
   }, [projectSearchTerm, selectedProjects]);
@@ -415,9 +451,6 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
     const taxonKeys: Set<number> = new Set();
     const filters: string[] = [];
 
-    // Debug: log the predicate structure
-    // console.log('Extracting filters from predicate:', JSON.stringify(predicate, null, 2));
-
     const traverse = (pred: any) => {
       if (!pred || typeof pred !== 'object') return;
 
@@ -483,9 +516,6 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
     };
 
     traverse(predicate);
-    
-    // console.log('Extracted taxon keys:', Array.from(taxonKeys));
-    // console.log('Extracted filters:', filters);
     
     return {
       taxonKeys: Array.from(taxonKeys),
@@ -591,7 +621,6 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
         }
       });
       
-      // console.log(`DEBUG: Fetched hierarchy for ${taxonKey}:`, parentKeys);
       return parentKeys;
     } catch (error) {
       console.error(`Error fetching taxonomy for ${taxonKey}:`, error);
@@ -1023,7 +1052,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
                     </div>
                     <div className="ml-4 flex-shrink-0">
                       <button
-                        onClick={() => window.open(`https://api.gbif.org/v1/occurrence/download/request/${download.key}.zip`, '_blank')}
+                        onClick={() => window.open(`https://api.gbif.org/v1/occurrence/download/request/${download.key}.zip`, '_blank', 'noopener,noreferrer')}
                         className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
                         title="Download from GBIF"
                       >
@@ -1663,6 +1692,30 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
 
         </div>
       )}
+
+      {/* Navigation blocker confirmation dialog */}
+      <AlertDialog open={blocker.state === "blocked"}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard annotation report?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have an annotation report with {report?.totalRecords.toLocaleString()} records. 
+              If you navigate away, all results will be lost. Are you sure you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => blocker.reset?.()}>
+              Stay on page
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => blocker.proceed?.()} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Discard and leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
