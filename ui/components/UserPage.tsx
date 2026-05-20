@@ -305,8 +305,8 @@ function BasisOfRecordMultiSelect({
 export function UserPage({ onNavigateToRule }: UserPageProps) {
   const { username } = useParams<{ username: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [rules] = useState<UserRule[]>([]);
   const [allRules, setAllRules] = useState<UserRule[]>([]); // Store all rules for client-side pagination
+  const rules = allRules; // Derived value for compatibility with existing code
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
