@@ -4,14 +4,13 @@ import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Trash2, ChevronLeft, ChevronRight, MessageSquare, Loader2, Pencil, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp, Folder, Plus } from 'lucide-react';
-import { Checkbox } from './ui/checkbox';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+// import { Checkbox } from './ui/checkbox'; // Unused
+// import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'; // Unused
 import { parseWKTGeometry, MultiPolygon, PolygonWithHoles } from '../utils/wktParser';
 import { toast } from 'sonner';
 import { SelectedSpecies } from './SpeciesSelector';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
-import { Input } from './ui/input';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl, getGbifApiUrl } from '../utils/apiConfig';
 
@@ -33,13 +32,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from './ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from './ui/dialog';
 
 // Helper function to generate species page URL
 const getSpeciesPageUrl = (taxonKey: number): string => {
@@ -47,6 +39,8 @@ const getSpeciesPageUrl = (taxonKey: number): string => {
 };
 
 // Searchable multi-select component for Basis of Record
+// Currently unused - commented out to avoid build warnings
+/*
 function BasisOfRecordMultiSelect({ 
   options, 
   selected, 
@@ -227,6 +221,7 @@ function BasisOfRecordMultiSelect({
     </div>
   );
 }
+*/
 
 // Component for fetching and displaying dataset title
 const DatasetTitleDisplay = ({ datasetKey }: { datasetKey: string }) => {
@@ -326,7 +321,7 @@ interface AnnotationRulesProps {
 export function AnnotationRules({ 
   selectedSpecies, 
   showHigherOrderRules = false,
-  onShowHigherOrderChange,
+  // onShowHigherOrderChange, // Unused
   onRulesLoad,
   refreshTrigger,
   filterProjectId,
@@ -379,15 +374,15 @@ export function AnnotationRules({
   const [ruleToEdit, setRuleToEdit] = useState<AnnotationRule | null>(null);
   const [isLoadingForEdit, setIsLoadingForEdit] = useState(false);
   
-  const basisOfRecordOptions = [
-    'HUMAN_OBSERVATION',
-    'PRESERVED_SPECIMEN',
-    'FOSSIL_SPECIMEN',
-    'LIVING_SPECIMEN',
-    'MACHINE_OBSERVATION',
-    'MATERIAL_SAMPLE',
-    'OCCURRENCE'
-  ];
+  // const basisOfRecordOptions = [
+  //   'HUMAN_OBSERVATION',
+  //   'PRESERVED_SPECIMEN',
+  //   'FOSSIL_SPECIMEN',
+  //   'LIVING_SPECIMEN',
+  //   'MACHINE_OBSERVATION',
+  //   'MATERIAL_SAMPLE',
+  //   'OCCURRENCE'
+  // ];
   
   const onRulesLoadRef = useRef(onRulesLoad);
 

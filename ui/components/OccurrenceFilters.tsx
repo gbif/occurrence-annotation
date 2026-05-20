@@ -132,6 +132,8 @@ export function OccurrenceFilters({ filters, onFiltersChange }: OccurrenceFilter
     setIsOpen(false);
   };
 
+  // Unused - commented out to avoid build warning
+  /*
   const handleClearFilters = () => {
     const cleared: OccurrenceFilterOptions = {};
     setLocalFilters(cleared);
@@ -139,6 +141,7 @@ export function OccurrenceFilters({ filters, onFiltersChange }: OccurrenceFilter
     setSelectedDataset(null);
     setDatasetQuery('');
   };
+  */
 
   const handleResetToDefault = () => {
     const defaults: OccurrenceFilterOptions = {

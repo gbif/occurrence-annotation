@@ -28,7 +28,7 @@ export interface CountryPolygon {
  * @returns Promise resolving to array of country polygons
  */
 export async function fetchCountryPolygons(): Promise<CountryPolygon[]> {
-  const response = await fetch('/country_polygons.json');
+  const response = await fetch(`${import.meta.env.BASE_URL}country_polygons.json`);
   if (!response.ok) {
     throw new Error(`Failed to fetch country polygons: ${response.statusText}`);
   }

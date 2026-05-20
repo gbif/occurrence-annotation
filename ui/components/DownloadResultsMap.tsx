@@ -1,9 +1,8 @@
-import React, { useState, useMemo, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { Map as PigeonMap, Overlay } from 'pigeon-maps';
 import type { AnnotationRule } from '../utils/downloadProcessor';
 import type { MapPoint, SpeciesHierarchy } from '../utils/mapDataFilter';
-import { parseWKTGeometry, type MultiPolygon, type PolygonWithHoles } from '../utils/wktParser';
-import { toast } from 'sonner';
+import { parseWKTGeometry, type PolygonWithHoles } from '../utils/wktParser';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 
 interface DownloadResultsMapProps {

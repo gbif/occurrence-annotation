@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { 
   Drawer, 
   DrawerContent, 
@@ -21,7 +21,6 @@ import {
   ExternalLink,
   Bot,
   RefreshCw,
-  Settings,
   Key
 } from 'lucide-react';
 import { evaluateLocationQuality, LocationQualityReport, isOpenAIConfigured } from '../utils/openaiService';

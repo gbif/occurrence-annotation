@@ -8,17 +8,17 @@ import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Sparkles, Layers, ThumbsDown, Waves, Bot, Combine, GitMerge, Split, Maximize2, Eraser } from 'lucide-react';
+import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Layers, Waves, Bot, Combine, GitMerge, Split, Maximize2, Eraser } from 'lucide-react';
 import { AnnotationRule } from './AnnotationRules';
 import { LocationQualityPanel } from './LocationQualityPanel';
 import { isAdmin } from '../utils/authHelpers';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
-import { parseWKTGeometry, PolygonWithHoles, MultiPolygon } from '../utils/wktParser';
+import { PolygonWithHoles } from '../utils/wktParser';
 import { subtractOceanFromPolygon, bufferPolygon, bufferMultiPolygon, eraseFromPolygon } from '../utils/spatialOperations';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { getDatasetInfo } from '../utils/datasetCache';
-import { Input } from './ui/input';
+
 
 interface VocabularyTerm {
   term: string;
@@ -139,12 +139,12 @@ export function MapComponent({
   const [isDraggingShape, setIsDraggingShape] = useState(false);
   const [dragStart, setDragStart] = useState<[number, number] | null>(null);
   const [dragCurrent, setDragCurrent] = useState<[number, number] | null>(null);
-  const [isEditingCurrent, setIsEditingCurrent] = useState(false);
+  // const [isEditingCurrent, setIsEditingCurrent] = useState(false); // Unused
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingMode, setDrawingMode] = useState<'polygon' | 'rectangle' | 'latband' | 'erase'>('polygon');
   const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
-  const [latBandStart, setLatBandStart] = useState<number | null>(null);
+  // const [latBandStart, setLatBandStart] = useState<number | null>(null); // Unused
   
   // Base map style state - load from localStorage or use default
   const [baseMapStyle, setBaseMapStyle] = useState<string>(() => {
@@ -164,7 +164,7 @@ export function MapComponent({
   const [isErasing, setIsErasing] = useState(false);
   
   // ArcGIS API Key from environment
-  const arcgisApiKey = import.meta.env.VITE_ARCGIS_API_KEY || '';
+  // const arcgisApiKey = import.meta.env.VITE_ARCGIS_API_KEY || ''; // Unused
   
   // Base map tile provider - supports both GBIF and ArcGIS - Web Mercator (EPSG:3857)
   const baseTileProvider = (x: number, y: number, z: number) => {
@@ -492,7 +492,7 @@ export function MapComponent({
     const tilesX = Math.min(6, Math.ceil(mapSize.width / 256) + 1);
     const tilesY = Math.min(6, Math.ceil(mapSize.height / 256) + 1);
     
-    const newTiles = [];
+    const newTiles: Array<{ x: number; y: number; z: number; anchor: [number, number]; url: string }> = [];
     for (let dx = -Math.floor(tilesX / 2); dx <= Math.ceil(tilesX / 2); dx++) {
       for (let dy = -Math.floor(tilesY / 2); dy <= Math.ceil(tilesY / 2); dy++) {
         const x = centerX + dx;
@@ -1012,7 +1012,7 @@ export function MapComponent({
 
   const clearCurrentPolygon = () => {
     onPolygonChange(null);
-    setIsEditingCurrent(false);
+    // setIsEditingCurrent(false); // Variable commented out
     setShowLatBandControls(false);
     setPolygonBeforeSubtract(null);
   };
@@ -1298,11 +1298,14 @@ export function MapComponent({
   }, [isMoveToolActive, draggingPolygon]);
 
   // Handlers for current polygon editing
+  // Unused - commented out to avoid build warning
+  /*
   const handleCurrentVertexMouseDown = (e: React.MouseEvent, vertexIndex: number) => {
     e.stopPropagation();
     e.preventDefault();
     setDraggingVertex({ polygonId: 'current', index: vertexIndex });
   };
+  */
 
   const handleCurrentEdgeClick = (e: React.MouseEvent, edgeStartIndex: number) => {
     e.stopPropagation();
@@ -1350,17 +1353,23 @@ export function MapComponent({
   };
 
   // Clamp longitude to valid range (-180 to 180) (for existing systems)
+  // Unused - commented out to avoid build warning
+  /*
   const clampLongitude = (lng: number): number => {
     // Normalize longitude to -180 to 180 range
     while (lng > 180) lng -= 360;
     while (lng < -180) lng += 360;
     return lng;
   };
+  */
 
   // Clamp coordinates to valid map bounds (kept for legacy/import systems)
+  // Unused - commented out to avoid build warning
+  /*
   const clampCoordinates = (lat: number, lng: number): [number, number] => {
     return [clampLatitude(lat), clampLongitude(lng)];
   };
+  */
 
   // Check if coordinates are within valid bounds
   const isWithinBounds = (lat: number, lng: number): boolean => {
@@ -3232,7 +3241,7 @@ export function MapComponent({
                                 current.length > largest.length ? current : largest
                               , polygons[0]);
                               
-                              onUpdatePolygon(editingPolygonId, largestPolygon);
+                              onUpdatePolygon?.(editingPolygonId, largestPolygon);
                               
                               if (polygons.length > 1) {
                                 toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`);
@@ -3242,7 +3251,7 @@ export function MapComponent({
                             }
                           } else {
                             const polygon = result as [number, number][];
-                            onUpdatePolygon(editingPolygonId, polygon);
+                            onUpdatePolygon?.(editingPolygonId, polygon);
                             toast.success('Ocean subtracted successfully');
                           }
                         } catch (error) {

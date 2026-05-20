@@ -1,4 +1,4 @@
-import { Button } from './ui/button';
+
 import { Card, CardContent } from './ui/card';
 import { Input } from './ui/input';
 import { X, Loader2 } from 'lucide-react';
@@ -141,11 +141,14 @@ export function UserPageFilters({
     };
   }, [userSearchTerm, userFilter]);
 
+  // Unused - commented out to avoid build warning
+  /*
   const clearAllFilters = () => {
     onSpeciesFilterChange(null);
     onProjectFilterChange(null);
     onUserFilterChange([]);
   };
+  */
 
   const handleSelectProject = (project: Project) => {
     onProjectFilterChange(project.id);
@@ -168,7 +171,7 @@ export function UserPageFilters({
     onUserFilterChange(userFilter.filter(u => u !== username));
   };
 
-  const hasActiveFilters = speciesFilter || projectFilter || userFilter.length > 0;
+  // const hasActiveFilters = speciesFilter || projectFilter || userFilter.length > 0; // Unused
 
   return (
     <div className="space-y-2">

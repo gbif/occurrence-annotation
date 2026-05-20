@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { CountryPolygon, fetchCountryPolygons } from '../utils/countryPolygons';
 import { parseWKTGeometry } from '../utils/wktParser';
 import { Button } from './ui/button';
@@ -118,7 +118,7 @@ export function CountrySelector({
       
       // Show single consolidated toast based on whether holes were detected
       if (countriesWithHoles.length > 0) {
-        const boundaryText = countriesWithHoles.length === 1 ? 'boundary has' : 'boundaries have';
+        // const boundaryText = countriesWithHoles.length === 1 ? 'boundary has' : 'boundaries have';
         const holeText = totalHolesCount === 1 ? 'hole' : 'holes';
         
         // Limit displayed names to prevent overflow
