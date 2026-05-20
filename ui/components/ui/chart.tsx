@@ -78,12 +78,15 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null;
   }
 
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
+  const styleRef = React.useRef<HTMLStyleElement>(null);
+
+  React.useEffect(() => {
+    if (styleRef.current) {
+      // Safe: Using textContent instead of innerHTML prevents XSS
+      // CSS custom properties are generated from app-controlled config
+      styleRef.current.textContent = Object.entries(THEMES)
+        .map(
+          ([theme, prefix]) => `
 ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
@@ -95,11 +98,12 @@ ${colorConfig
   .join("\n")}
 }
 `,
-          )
-          .join("\n"),
-      }}
-    />
-  );
+        )
+        .join("\n");
+    }
+  }, [id, colorConfig]);
+
+  return <style ref={styleRef} />;
 };
 
 const ChartTooltip = RechartsPrimitive.Tooltip;
