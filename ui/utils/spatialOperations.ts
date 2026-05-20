@@ -481,10 +481,9 @@ export function unionPolygons(
     );
 
     // Compute union using polygon-clipping
-    // union(...polygons) merges all provided polygons
-    const result = polyClippingPolygons.length === 1 
-      ? polyClippingPolygons[0] as any
-      : polygonClipping.union(polyClippingPolygons[0], ...polyClippingPolygons.slice(1));
+    // union(polygon1, ...rest) merges all provided polygons into a MultiPolygon
+    // We know there are at least 2 polygons because of the early return above
+    const result = polygonClipping.union(polyClippingPolygons[0], ...polyClippingPolygons.slice(1));
     
     if (!result || result.length === 0) {
       console.error('Union operation returned empty result');
