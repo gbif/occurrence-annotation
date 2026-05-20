@@ -396,6 +396,11 @@ export function AnnotationRules({
     onRulesLoadRef.current = onRulesLoad;
   }, [onRulesLoad]);
 
+  // Sync rules to parent whenever they change (prevents setState-in-render warnings)
+  useEffect(() => {
+    onRulesLoadRef.current?.(rules);
+  }, [rules]);
+
   // Check login status and get current user
   useEffect(() => {
     const checkLoginStatus = () => {
@@ -436,7 +441,6 @@ export function AnnotationRules({
     if (!selectedSpecies) {
       setRules([]);
       setError(null);
-      onRulesLoadRef.current?.([]);
       return;
     }
 
@@ -634,11 +638,9 @@ export function AnnotationRules({
         setRules(rulesWithVocabulary);
         setTotalCount(totalRulesCount);
         setHasNextPage((page + 1) * pageSize < totalRulesCount);
-        onRulesLoadRef.current?.(rulesWithVocabulary);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
         setRules([]);
-        onRulesLoadRef.current?.([]);
       } finally {
         setLoading(false);
       }
@@ -1025,11 +1027,7 @@ export function AnnotationRules({
       }
 
       // Remove the deleted rule from state
-      setRules(prevRules => {
-        const updatedRules = prevRules.filter(r => r.id !== ruleId);
-        onRulesLoadRef.current?.(updatedRules);
-        return updatedRules;
-      });
+      setRules(prevRules => prevRules.filter(r => r.id !== ruleId));
 
       // Update total count
       setTotalCount(prevCount => prevCount - 1);
@@ -1096,11 +1094,7 @@ export function AnnotationRules({
       }
 
       // Step 2: Remove from local state
-      setRules(prevRules => {
-        const updatedRules = prevRules.filter(r => r.id !== ruleToEdit.id);
-        onRulesLoadRef.current?.(updatedRules);
-        return updatedRules;
-      });
+      setRules(prevRules => prevRules.filter(r => r.id !== ruleToEdit.id));
       setTotalCount(prevCount => prevCount - 1);
 
       // Step 3: Load the rule for editing
@@ -1167,22 +1161,18 @@ export function AnnotationRules({
         setUserVotes(prev => new Map(prev.set(ruleId, action)));
         
         // Update rule counts in the rules array
-        setRules(prevRules => {
-          const updatedRules = prevRules.map(rule => {
-            if (rule.id === ruleId) {
-              const updatedRule = { ...rule };
-              if (action === 'support') {
-                updatedRule.supportedBy = [...rule.supportedBy, currentUser?.userName || 'anonymous'];
-              } else {
-                updatedRule.contestedBy = [...rule.contestedBy, currentUser?.userName || 'anonymous'];
-              }
-              return updatedRule;
+        setRules(prevRules => prevRules.map(rule => {
+          if (rule.id === ruleId) {
+            const updatedRule = { ...rule };
+            if (action === 'support') {
+              updatedRule.supportedBy = [...rule.supportedBy, currentUser?.userName || 'anonymous'];
+            } else {
+              updatedRule.contestedBy = [...rule.contestedBy, currentUser?.userName || 'anonymous'];
             }
-            return rule;
-          });
-          onRulesLoadRef.current?.(updatedRules);
-          return updatedRules;
-        });
+            return updatedRule;
+          }
+          return rule;
+        }));
 
         toast.success(`Rule ${action === 'support' ? 'supported' : 'contested'} successfully`);
       } else {
@@ -1243,23 +1233,19 @@ export function AnnotationRules({
         setUserVotes(prev => new Map(prev.set(ruleId, null)));
         
         // Update rule counts in the rules array
-        setRules(prevRules => {
-          const updatedRules = prevRules.map(rule => {
-            if (rule.id === ruleId) {
-              const updatedRule = { ...rule };
-              const currentUserName = currentUser?.userName || 'anonymous';
-              if (action === 'support') {
-                updatedRule.supportedBy = rule.supportedBy.filter(user => user !== currentUserName);
-              } else {
-                updatedRule.contestedBy = rule.contestedBy.filter(user => user !== currentUserName);
-              }
-              return updatedRule;
+        setRules(prevRules => prevRules.map(rule => {
+          if (rule.id === ruleId) {
+            const updatedRule = { ...rule };
+            const currentUserName = currentUser?.userName || 'anonymous';
+            if (action === 'support') {
+              updatedRule.supportedBy = rule.supportedBy.filter(user => user !== currentUserName);
+            } else {
+              updatedRule.contestedBy = rule.contestedBy.filter(user => user !== currentUserName);
             }
-            return rule;
-          });
-          onRulesLoadRef.current?.(updatedRules);
-          return updatedRules;
-        });
+            return updatedRule;
+          }
+          return rule;
+        }));
 
         toast.success(`${action === 'support' ? 'Support' : 'Contest'} removed successfully`);
       } else {
