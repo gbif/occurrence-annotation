@@ -70,23 +70,23 @@ function ChartContainer({
 }
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
-  const colorConfig = Object.entries(config).filter(
-    ([, config]) => config.theme || config.color,
+  // Memoize colorConfig to avoid recreating on every render
+  const colorConfig = React.useMemo(
+    () => Object.entries(config).filter(
+      ([, config]) => config.theme || config.color,
+    ),
+    [config]
   );
 
-  if (!colorConfig.length) {
-    return null;
-  }
+  // Memoize CSS string to avoid regenerating unless id or config changes
+  const cssContent = React.useMemo(() => {
+    if (!colorConfig.length) {
+      return '';
+    }
 
-  const styleRef = React.useRef<HTMLStyleElement>(null);
-
-  React.useEffect(() => {
-    if (styleRef.current) {
-      // Safe: Using textContent instead of innerHTML prevents XSS
-      // CSS custom properties are generated from app-controlled config
-      styleRef.current.textContent = Object.entries(THEMES)
-        .map(
-          ([theme, prefix]) => `
+    return Object.entries(THEMES)
+      .map(
+        ([theme, prefix]) => `
 ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
@@ -98,12 +98,16 @@ ${colorConfig
   .join("\n")}
 }
 `,
-        )
-        .join("\n");
-    }
+      )
+      .join("\n");
   }, [id, colorConfig]);
 
-  return <style ref={styleRef} />;
+  if (!cssContent) {
+    return null;
+  }
+
+  // Render CSS as text child of <style> - safe without dangerouslySetInnerHTML
+  return <style>{cssContent}</style>;
 };
 
 const ChartTooltip = RechartsPrimitive.Tooltip;
