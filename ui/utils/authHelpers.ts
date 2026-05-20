@@ -9,19 +9,52 @@ export interface GBIFUser {
 }
 
 /**
- * Get the current logged-in user from localStorage
+ * Get the current logged-in user from sessionStorage.
+ *
+ * Stored in sessionStorage (not localStorage) so the profile is cleared
+ * when the tab is closed, matching the lifetime of the credentials in
+ * `gbifAuth`. Any legacy value left in localStorage is purged on read.
+ *
  * @returns GBIFUser object or null if not logged in
  */
 export const getUser = (): GBIFUser | null => {
   try {
-    const userStr = localStorage.getItem('gbifUser');
+    // Purge any legacy profile left in localStorage by older builds.
+    if (localStorage.getItem('gbifUser') !== null) {
+      localStorage.removeItem('gbifUser');
+    }
+    const userStr = sessionStorage.getItem('gbifUser');
     if (userStr) {
       return JSON.parse(userStr) as GBIFUser;
     }
   } catch (error) {
-    console.error('Failed to parse user from localStorage:', error);
+    console.error('Failed to parse user from sessionStorage:', error);
   }
   return null;
+};
+
+/**
+ * Persist the GBIF user profile in sessionStorage.
+ */
+export const setUser = (user: GBIFUser): void => {
+  try {
+    sessionStorage.setItem('gbifUser', JSON.stringify(user));
+    localStorage.removeItem('gbifUser');
+  } catch (error) {
+    console.error('Failed to store user:', error);
+  }
+};
+
+/**
+ * Remove the GBIF user profile from session and (legacy) local storage.
+ */
+export const clearUser = (): void => {
+  try {
+    sessionStorage.removeItem('gbifUser');
+    localStorage.removeItem('gbifUser');
+  } catch (error) {
+    console.error('Failed to clear user:', error);
+  }
 };
 
 /**
@@ -49,14 +82,108 @@ export const isLoggedIn = (): boolean => {
 };
 
 /**
- * Get GBIF authentication credentials from localStorage
+ * Get GBIF authentication credentials from sessionStorage.
+ *
+ * Credentials are stored in sessionStorage (not localStorage) so they are
+ * cleared when the browser tab is closed, reducing exposure if XSS occurs
+ * or the device is shared. Any legacy value left in localStorage is purged
+ * on read.
+ *
  * @returns Base64 encoded auth string or null if not found
  */
 export const getAuthCredentials = (): string | null => {
   try {
-    return localStorage.getItem('gbifAuth');
+    // Purge any legacy credential left in localStorage by older builds.
+    if (localStorage.getItem('gbifAuth') !== null) {
+      localStorage.removeItem('gbifAuth');
+    }
+    return sessionStorage.getItem('gbifAuth');
   } catch (error) {
     console.error('Failed to get auth credentials:', error);
+    return null;
+  }
+};
+
+/**
+ * Persist GBIF authentication credentials in sessionStorage.
+ * Credentials never touch localStorage.
+ */
+export const setAuthCredentials = (credentials: string): void => {
+  try {
+    sessionStorage.setItem('gbifAuth', credentials);
+    // Ensure no legacy copy lingers in localStorage.
+    localStorage.removeItem('gbifAuth');
+  } catch (error) {
+    console.error('Failed to store auth credentials:', error);
+  }
+};
+
+/**
+ * Remove GBIF authentication credentials from session and (legacy) local storage.
+ */
+export const clearAuthCredentials = (): void => {
+  try {
+    sessionStorage.removeItem('gbifAuth');
+    localStorage.removeItem('gbifAuth');
+  } catch (error) {
+    console.error('Failed to clear auth credentials:', error);
+  }
+};
+
+/**
+ * Refresh user profile from GBIF server using stored credentials.
+ * 
+ * Security: This function re-fetches the authoritative user profile from the
+ * server on app boot, overwriting any client-side modifications to roles in
+ * sessionStorage. This prevents users from granting themselves admin privileges
+ * via DevTools.
+ * 
+ * Should be called on app initialization if credentials exist.
+ * 
+ * @returns Updated GBIFUser object if credentials exist and refresh succeeds, null otherwise
+ */
+export const refreshUserProfile = async (): Promise<GBIFUser | null> => {
+  try {
+    const credentials = getAuthCredentials();
+    
+    if (!credentials) {
+      // No stored credentials, nothing to refresh
+      return null;
+    }
+
+    const response = await fetch('https://api.gbif.org/v1/user/login', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      // Credentials are invalid or expired, clear everything
+      console.warn('Failed to refresh user profile, clearing stale session');
+      clearUser();
+      clearAuthCredentials();
+      return null;
+    }
+
+    const userData = await response.json();
+    
+    const userInfo: GBIFUser = {
+      userName: userData.userName,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      email: userData.email,
+      roles: userData.roles || [],
+    };
+
+    // Overwrite stored profile with authoritative server response
+    setUser(userInfo);
+    
+    return userInfo;
+  } catch (error) {
+    console.error('Error refreshing user profile:', error);
+    // Don't clear credentials on network errors, user might be offline temporarily
     return null;
   }
 };

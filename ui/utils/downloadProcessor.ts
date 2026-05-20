@@ -251,7 +251,7 @@ export async function processDownload(
 ): Promise<AnnotationMatch[]> {
   const matches: AnnotationMatch[] = [];
   const totalRecords = records.length;
-  const totalRules = rules.length;
+  // const totalRules = rules.length; // Unused
   
   // Filter out deleted rules
   const activeRules = rules.filter(rule => !rule.deleted);

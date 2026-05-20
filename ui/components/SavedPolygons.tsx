@@ -1,16 +1,16 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { PolygonData } from '../App';
 import { Button } from './ui/button';
-import { Upload, Loader2, Trash2, MessageSquare } from 'lucide-react';
+import { Upload, Loader2, Trash2 } from 'lucide-react';
 import { Card } from './ui/card';
-import { Badge } from './ui/badge';
+// import { Badge } from './ui/badge'; // Unused
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
-import { coordinatesToWKT, parseWKTGeometry, PolygonWithHoles, MultiPolygon, isInvertedPolygon } from '../utils/wktParser';
+import { coordinatesToWKT, parseWKTGeometry, isInvertedPolygon } from '../utils/wktParser';
 import { validatePolygonSize, getPolygonSizeStatus } from '../utils/geometryValidation';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
@@ -475,6 +475,8 @@ function ImportWKTDialog({ onImport }: ImportWKTDialogProps) {
 }
 
 // Small GBIF logo component
+// Currently unused - commented out to avoid build warning
+/*
 function GBIFLogoSmall() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -483,6 +485,7 @@ function GBIFLogoSmall() {
     </svg>
   );
 }
+*/
 
 function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, autoOpen = false }: SaveToGBIFDialogProps) {
   console.log('SaveToGBIFDialog rendering with polygon:', polygon);
@@ -548,7 +551,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
   const [datasetTitle, setDatasetTitle] = useState<string>('');
   
   // WKT editing state
-  const [showWktEditor, setShowWktEditor] = useState(false);
+  // const [showWktEditor, setShowWktEditor] = useState(false); // Unused
 
   // Comment state
   const [ruleComment, setRuleComment] = useState('');
@@ -933,8 +936,8 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
     }
     
     // Check if user is logged in
-    const gbifAuth = localStorage.getItem('gbifAuth');
-    const gbifUser = localStorage.getItem('gbifUser');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
+    const gbifUser = sessionStorage.getItem('gbifUser');
     
     if (!gbifAuth || !gbifUser) {
       console.log('SaveToGBIF: No GBIF auth found');
@@ -1023,8 +1026,8 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
         
         if (response.status === 401) {
           toast.error('Authentication failed. Please login again.');
-          localStorage.removeItem('gbifAuth');
-          localStorage.removeItem('gbifUser');
+          sessionStorage.removeItem('gbifAuth');
+          sessionStorage.removeItem('gbifUser');
         } else if (response.status === 403) {
           toast.error('Access denied. Check your permissions for this project.');
         } else {
@@ -1086,8 +1089,8 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
   };
 
   const getLoginStatus = () => {
-    const gbifAuth = localStorage.getItem('gbifAuth');
-    const gbifUser = localStorage.getItem('gbifUser');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
+    const gbifUser = sessionStorage.getItem('gbifUser');
     return !!(gbifAuth && gbifUser);
   };
 
@@ -1552,6 +1555,9 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
   );
 }
 
+// Polygon preview component
+// Currently unused - commented out to avoid build warning
+/*
 function PolygonPreview({ 
   coordinates, 
   annotation = 'SUSPICIOUS', 
@@ -1677,20 +1683,21 @@ function PolygonPreview({
     />
   );
 }
+*/
 
 function PolygonCard({ 
   polygon, 
   onDelete, 
-  onToggleInvert,
-  onUpdateAnnotation,
+  // onToggleInvert, // Unused
+  // onUpdateAnnotation, // Unused
   onNavigateToPolygon,
   onRuleSavedToGBIF,
   vocabulary
 }: { 
   polygon: PolygonData; 
   onDelete: (id: string) => void;
-  onToggleInvert: (id: string) => void;
-  onUpdateAnnotation?: (id: string, annotation: string) => void;
+  // onToggleInvert: (id: string) => void; // Unused
+  // onUpdateAnnotation?: (id: string, annotation: string) => void; // Unused
   onNavigateToPolygon?: (lat: number, lng: number) => void;
   onRuleSavedToGBIF?: () => void;
   vocabulary?: VocabularyTerm[];
@@ -1698,11 +1705,14 @@ function PolygonCard({
   const annotation = polygon.annotation || 'SUSPICIOUS'; // Use polygon annotation or default to SUSPICIOUS
   
   // Comment functionality state
-  const [showCommentSection, setShowCommentSection] = useState(false);
-  const [newComment, setNewComment] = useState('');
-  const [submittingComment, setSubmittingComment] = useState(false);
+  // Unused - commented out to avoid build warning
+  // const [newComment, setNewComment] = useState('');
+  // const [showCommentSection, setShowCommentSection] = useState(false);
+  // const [submittingComment, setSubmittingComment] = useState(false);
 
   // Handle adding comments to polygons
+  // Unused - commented out to avoid build warning
+  /*
   const handleAddComment = async () => {
     console.log('handleAddComment called');
     
@@ -1728,7 +1738,7 @@ function PolygonCard({
       
       // Try to get username if logged in, but don't require it
       try {
-        const gbifAuthStr = localStorage.getItem('gbifAuth');
+        const gbifAuthStr = sessionStorage.getItem('gbifAuth');
         if (gbifAuthStr) {
           const gbifAuth = JSON.parse(gbifAuthStr);
           if (gbifAuth.userName) {
@@ -1790,8 +1800,11 @@ function PolygonCard({
       setSubmittingComment(false);
     }
   };
+  */
 
   // Get comment count for a polygon
+  // Unused - commented out to avoid build warning
+  /*
   const getCommentCount = (): number => {
     try {
       const existingComments = JSON.parse(localStorage.getItem('polygonComments') || '[]');
@@ -1800,8 +1813,11 @@ function PolygonCard({
       return 0;
     }
   };
+  */
 
   // Get pending comment count
+  // Unused - commented out to avoid build warning
+  /*
   const getPendingCommentCount = (): number => {
     try {
       const existingComments = JSON.parse(localStorage.getItem('polygonComments') || '[]');
@@ -1812,6 +1828,7 @@ function PolygonCard({
       return 0;
     }
   };
+  */
 
   const polygonCount = polygon.isMultiPolygon 
     ? (polygon.coordinates as [number, number][][]).length 
@@ -1956,14 +1973,14 @@ function calculatePolygonCenter(coordinates: [number, number][] | [number, numbe
 export function SavedPolygons({ 
   polygons, 
   onDelete, 
-  editingPolygonId, 
-  onToggleInvert, 
+  // editingPolygonId, // Unused
+  // onToggleInvert, // Unused
   onImportWKT, 
-  onUpdateAnnotation,
-  currentPolygon = null,
-  isCurrentInverted = false,
-  onCurrentAnnotationChange,
-  currentAnnotation = 'SUSPICIOUS',
+  // onUpdateAnnotation, // Unused
+  // currentPolygon = null, // Unused
+  // isCurrentInverted = false, // Unused
+  // onCurrentAnnotationChange, // Unused
+  // currentAnnotation = 'SUSPICIOUS', // Unused
   onNavigateToPolygon,
   onRuleSavedToGBIF,
 }: SavedPolygonsProps) {
@@ -2061,8 +2078,6 @@ export function SavedPolygons({
               key={polygon.id}
               polygon={polygon}
               onDelete={onDelete}
-              onToggleInvert={onToggleInvert}
-              onUpdateAnnotation={onUpdateAnnotation}
               onNavigateToPolygon={onNavigateToPolygon}
               onRuleSavedToGBIF={onRuleSavedToGBIF}
               vocabulary={vocabulary}

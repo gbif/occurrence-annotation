@@ -1,5 +1,7 @@
 import polygonClipping from 'polygon-clipping';
-import { parseWKTGeometry, PolygonWithHoles, MultiPolygon } from './wktParser';
+import { parseWKTGeometry, PolygonWithHoles } from './wktParser';
+// MultiPolygon imported as WKTMultiPolygon to avoid conflict, but currently unused
+// import { MultiPolygon as WKTMultiPolygon } from './wktParser';
 import buffer from '@turf/buffer';
 import simplify from '@turf/simplify';
 import { polygon as turfPolygon } from '@turf/helpers';
@@ -23,7 +25,7 @@ async function loadOceanPolygon(): Promise<MultiPolygon | null> {
   }
 
   try {
-    const response = await fetch('/ocean_polygon.json');
+    const response = await fetch(`${import.meta.env.BASE_URL}ocean_polygon.json`);
     
     if (!response.ok) {
       console.error(`Failed to fetch ocean polygon: ${response.status} ${response.statusText} - ${response.url}`);
@@ -479,8 +481,9 @@ export function unionPolygons(
     );
 
     // Compute union using polygon-clipping
-    // union(...polygons) merges all provided polygons
-    const result = polygonClipping.union(...polyClippingPolygons);
+    // union(polygon1, ...rest) merges all provided polygons into a MultiPolygon
+    // We know there are at least 2 polygons because of the early return above
+    const result = polygonClipping.union(polyClippingPolygons[0], ...polyClippingPolygons.slice(1));
     
     if (!result || result.length === 0) {
       console.error('Union operation returned empty result');

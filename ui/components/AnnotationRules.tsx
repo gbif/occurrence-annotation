@@ -4,14 +4,13 @@ import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Trash2, ChevronLeft, ChevronRight, MessageSquare, Loader2, Pencil, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp, Folder, Plus } from 'lucide-react';
-import { Checkbox } from './ui/checkbox';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+// import { Checkbox } from './ui/checkbox'; // Unused
+// import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'; // Unused
 import { parseWKTGeometry, MultiPolygon, PolygonWithHoles } from '../utils/wktParser';
 import { toast } from 'sonner';
 import { SelectedSpecies } from './SpeciesSelector';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
-import { Input } from './ui/input';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl, getGbifApiUrl } from '../utils/apiConfig';
 
@@ -33,13 +32,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from './ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from './ui/dialog';
 
 // Helper function to generate species page URL
 const getSpeciesPageUrl = (taxonKey: number): string => {
@@ -47,6 +39,8 @@ const getSpeciesPageUrl = (taxonKey: number): string => {
 };
 
 // Searchable multi-select component for Basis of Record
+// Currently unused - commented out to avoid build warnings
+/*
 function BasisOfRecordMultiSelect({ 
   options, 
   selected, 
@@ -227,6 +221,7 @@ function BasisOfRecordMultiSelect({
     </div>
   );
 }
+*/
 
 // Component for fetching and displaying dataset title
 const DatasetTitleDisplay = ({ datasetKey }: { datasetKey: string }) => {
@@ -326,7 +321,7 @@ interface AnnotationRulesProps {
 export function AnnotationRules({ 
   selectedSpecies, 
   showHigherOrderRules = false,
-  onShowHigherOrderChange,
+  // onShowHigherOrderChange, // Unused
   onRulesLoad,
   refreshTrigger,
   filterProjectId,
@@ -379,15 +374,15 @@ export function AnnotationRules({
   const [ruleToEdit, setRuleToEdit] = useState<AnnotationRule | null>(null);
   const [isLoadingForEdit, setIsLoadingForEdit] = useState(false);
   
-  const basisOfRecordOptions = [
-    'HUMAN_OBSERVATION',
-    'PRESERVED_SPECIMEN',
-    'FOSSIL_SPECIMEN',
-    'LIVING_SPECIMEN',
-    'MACHINE_OBSERVATION',
-    'MATERIAL_SAMPLE',
-    'OCCURRENCE'
-  ];
+  // const basisOfRecordOptions = [
+  //   'HUMAN_OBSERVATION',
+  //   'PRESERVED_SPECIMEN',
+  //   'FOSSIL_SPECIMEN',
+  //   'LIVING_SPECIMEN',
+  //   'MACHINE_OBSERVATION',
+  //   'MATERIAL_SAMPLE',
+  //   'OCCURRENCE'
+  // ];
   
   const onRulesLoadRef = useRef(onRulesLoad);
 
@@ -396,11 +391,16 @@ export function AnnotationRules({
     onRulesLoadRef.current = onRulesLoad;
   }, [onRulesLoad]);
 
+  // Sync rules to parent whenever they change (prevents setState-in-render warnings)
+  useEffect(() => {
+    onRulesLoadRef.current?.(rules);
+  }, [rules]);
+
   // Check login status and get current user
   useEffect(() => {
     const checkLoginStatus = () => {
-      const gbifAuth = localStorage.getItem('gbifAuth');
-      const gbifUser = localStorage.getItem('gbifUser');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
+      const gbifUser = sessionStorage.getItem('gbifUser');
       
       setIsLoggedIn(!!gbifAuth);
       
@@ -436,7 +436,6 @@ export function AnnotationRules({
     if (!selectedSpecies) {
       setRules([]);
       setError(null);
-      onRulesLoadRef.current?.([]);
       return;
     }
 
@@ -634,11 +633,9 @@ export function AnnotationRules({
         setRules(rulesWithVocabulary);
         setTotalCount(totalRulesCount);
         setHasNextPage((page + 1) * pageSize < totalRulesCount);
-        onRulesLoadRef.current?.(rulesWithVocabulary);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
         setRules([]);
-        onRulesLoadRef.current?.([]);
       } finally {
         setLoading(false);
       }
@@ -883,7 +880,7 @@ export function AnnotationRules({
     }
 
     // Check if user is logged in
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to add comments');
       return;
@@ -938,7 +935,7 @@ export function AnnotationRules({
 
   const handleDeleteComment = async (ruleId: number, commentId: number) => {
     // Check if user is logged in
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to delete comments');
       return;
@@ -993,7 +990,7 @@ export function AnnotationRules({
 
   const handleDeleteRule = async (ruleId: number) => {
     // Check if user is logged in
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to delete annotation rules');
       return;
@@ -1025,11 +1022,7 @@ export function AnnotationRules({
       }
 
       // Remove the deleted rule from state
-      setRules(prevRules => {
-        const updatedRules = prevRules.filter(r => r.id !== ruleId);
-        onRulesLoadRef.current?.(updatedRules);
-        return updatedRules;
-      });
+      setRules(prevRules => prevRules.filter(r => r.id !== ruleId));
 
       // Update total count
       setTotalCount(prevCount => prevCount - 1);
@@ -1045,7 +1038,7 @@ export function AnnotationRules({
 
   // Helper to get Basic Auth header from GBIF login
   function getBasicAuthHeader() {
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) return null;
     return 'Basic ' + gbifAuth;
   }
@@ -1064,7 +1057,7 @@ export function AnnotationRules({
     
     try {
       // Check if user is logged in
-      const gbifAuth = localStorage.getItem('gbifAuth');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
       if (!gbifAuth) {
         toast.error('Please login to GBIF to edit annotation rules');
         setIsLoadingForEdit(false);
@@ -1096,11 +1089,7 @@ export function AnnotationRules({
       }
 
       // Step 2: Remove from local state
-      setRules(prevRules => {
-        const updatedRules = prevRules.filter(r => r.id !== ruleToEdit.id);
-        onRulesLoadRef.current?.(updatedRules);
-        return updatedRules;
-      });
+      setRules(prevRules => prevRules.filter(r => r.id !== ruleToEdit.id));
       setTotalCount(prevCount => prevCount - 1);
 
       // Step 3: Load the rule for editing
@@ -1167,22 +1156,18 @@ export function AnnotationRules({
         setUserVotes(prev => new Map(prev.set(ruleId, action)));
         
         // Update rule counts in the rules array
-        setRules(prevRules => {
-          const updatedRules = prevRules.map(rule => {
-            if (rule.id === ruleId) {
-              const updatedRule = { ...rule };
-              if (action === 'support') {
-                updatedRule.supportedBy = [...rule.supportedBy, currentUser?.userName || 'anonymous'];
-              } else {
-                updatedRule.contestedBy = [...rule.contestedBy, currentUser?.userName || 'anonymous'];
-              }
-              return updatedRule;
+        setRules(prevRules => prevRules.map(rule => {
+          if (rule.id === ruleId) {
+            const updatedRule = { ...rule };
+            if (action === 'support') {
+              updatedRule.supportedBy = [...rule.supportedBy, currentUser?.userName || 'anonymous'];
+            } else {
+              updatedRule.contestedBy = [...rule.contestedBy, currentUser?.userName || 'anonymous'];
             }
-            return rule;
-          });
-          onRulesLoadRef.current?.(updatedRules);
-          return updatedRules;
-        });
+            return updatedRule;
+          }
+          return rule;
+        }));
 
         toast.success(`Rule ${action === 'support' ? 'supported' : 'contested'} successfully`);
       } else {
@@ -1243,23 +1228,19 @@ export function AnnotationRules({
         setUserVotes(prev => new Map(prev.set(ruleId, null)));
         
         // Update rule counts in the rules array
-        setRules(prevRules => {
-          const updatedRules = prevRules.map(rule => {
-            if (rule.id === ruleId) {
-              const updatedRule = { ...rule };
-              const currentUserName = currentUser?.userName || 'anonymous';
-              if (action === 'support') {
-                updatedRule.supportedBy = rule.supportedBy.filter(user => user !== currentUserName);
-              } else {
-                updatedRule.contestedBy = rule.contestedBy.filter(user => user !== currentUserName);
-              }
-              return updatedRule;
+        setRules(prevRules => prevRules.map(rule => {
+          if (rule.id === ruleId) {
+            const updatedRule = { ...rule };
+            const currentUserName = currentUser?.userName || 'anonymous';
+            if (action === 'support') {
+              updatedRule.supportedBy = rule.supportedBy.filter(user => user !== currentUserName);
+            } else {
+              updatedRule.contestedBy = rule.contestedBy.filter(user => user !== currentUserName);
             }
-            return rule;
-          });
-          onRulesLoadRef.current?.(updatedRules);
-          return updatedRules;
-        });
+            return updatedRule;
+          }
+          return rule;
+        }));
 
         toast.success(`${action === 'support' ? 'Support' : 'Contest'} removed successfully`);
       } else {

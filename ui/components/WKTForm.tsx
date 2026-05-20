@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Copy, Check, RefreshCw, Repeat } from 'lucide-react';
 import { Card } from './ui/card';
 import { toast } from 'sonner';
-import { parseWKTGeometry, PolygonWithHoles, MultiPolygon, isInvertedPolygon } from '../utils/wktParser';
+import { parseWKTGeometry, isInvertedPolygon } from '../utils/wktParser';
 
 interface WKTFormProps {
   currentPolygon: [number, number][] | null;

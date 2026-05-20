@@ -155,7 +155,7 @@ export function VocabularyManager({ projectId, isUserMember }: VocabularyManager
         suspiciousLocked: updatedVocabulary.find(t => t.term === 'SUSPICIOUS')?.locked
       });
 
-      const gbifAuth = localStorage.getItem('gbifAuth');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
       if (!gbifAuth) {
         toast.error('Please log in to add vocabulary terms');
         return;
@@ -245,7 +245,7 @@ export function VocabularyManager({ projectId, isUserMember }: VocabularyManager
 
     try {
       setIsSaving(true);
-      const gbifAuth = localStorage.getItem('gbifAuth');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
       if (!gbifAuth) {
         toast.error('Please log in to edit vocabulary terms');
         return;
@@ -309,7 +309,7 @@ export function VocabularyManager({ projectId, isUserMember }: VocabularyManager
 
     try {
       setIsSaving(true);
-      const gbifAuth = localStorage.getItem('gbifAuth');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
       if (!gbifAuth) {
         toast.error('Please log in to delete vocabulary terms');
         return;
@@ -348,7 +348,7 @@ export function VocabularyManager({ projectId, isUserMember }: VocabularyManager
   const handleResetToDefault = async () => {
     try {
       setIsSaving(true);
-      const gbifAuth = localStorage.getItem('gbifAuth');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
       if (!gbifAuth) {
         toast.error('Please log in to reset vocabulary');
         setIsSaving(false);

@@ -34,15 +34,15 @@ import {
 } from './ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { TooltipProvider } from './ui/tooltip';
-import { Checkbox } from './ui/checkbox';
+// import { TooltipProvider } from './ui/tooltip'; // Unused
+// import { Checkbox } from './ui/checkbox'; // Unused
 import { ArrowLeft, User, MapPin, Eye, ExternalLink, Loader2, Trash2, Folder, Users, Plus, Edit, Check, Pencil, Download, TrendingUp, ThumbsUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { LoginButton } from './LoginButton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { UserPageFilters } from './UserPageFilters';
 import { SelectedSpecies } from './SpeciesSelector';
-import { getAnnotationApiUrl, getGbifApiUrl } from '../utils/apiConfig';
+import { getAnnotationApiUrl } from '../utils/apiConfig';
 import { getSpeciesInfo } from '../utils/speciesCache';
 import DownloadAnnotator from './DownloadAnnotator';
 import { 
@@ -118,6 +118,8 @@ interface ProjectStats {
 }
 
 // Searchable multi-select component for Basis of Record
+// Currently unused - commented out to avoid build warnings
+/*
 function BasisOfRecordMultiSelect({ 
   options, 
   selected, 
@@ -298,12 +300,13 @@ function BasisOfRecordMultiSelect({
     </div>
   );
 }
+*/
 
 export function UserPage({ onNavigateToRule }: UserPageProps) {
   const { username } = useParams<{ username: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [rules, setRules] = useState<UserRule[]>([]);
   const [allRules, setAllRules] = useState<UserRule[]>([]); // Store all rules for client-side pagination
+  const rules = allRules; // Derived value for compatibility with existing code
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -339,15 +342,15 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   
   const navigate = useNavigate();
   
-  const basisOfRecordOptions = [
-    'HUMAN_OBSERVATION',
-    'PRESERVED_SPECIMEN',
-    'FOSSIL_SPECIMEN',
-    'LIVING_SPECIMEN',
-    'MACHINE_OBSERVATION',
-    'MATERIAL_SAMPLE',
-    'OCCURRENCE'
-  ];
+  // const basisOfRecordOptions = [
+  //   'HUMAN_OBSERVATION',
+  //   'PRESERVED_SPECIMEN',
+  //   'FOSSIL_SPECIMEN',
+  //   'LIVING_SPECIMEN',
+  //   'MACHINE_OBSERVATION',
+  //   'MATERIAL_SAMPLE',
+  //   'OCCURRENCE'
+  // ];
 
   // Selected project for new rules (persistent across sessions)
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(() => {
@@ -364,7 +367,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   // Check if current user is viewing their own profile
   const getCurrentUser = () => {
     try {
-      const userStr = localStorage.getItem('gbifUser');
+      const userStr = sessionStorage.getItem('gbifUser');
       if (userStr) {
         const user = JSON.parse(userStr);
         return user.userName;
@@ -386,7 +389,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   // Check if current user is an admin
   const isAdmin = () => {
     try {
-      const userStr = localStorage.getItem('gbifUser');
+      const userStr = sessionStorage.getItem('gbifUser');
       if (userStr) {
         const user = JSON.parse(userStr);
         return user.roles && user.roles.includes('REGISTRY_ADMIN');
@@ -423,7 +426,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   // Filter states
   const [speciesFilter, setSpeciesFilter] = useState<SelectedSpecies | null>(null);
   const [projectFilter, setProjectFilter] = useState<number | null>(null);
-  const [userFilter, setUserFilter] = useState<string[]>([username]); // Pre-filled with current user
+  const [userFilter, setUserFilter] = useState<string[]>(username ? [username] : []); // Pre-filled with current user
 
   // Multi-select states
   const [selectedRules, setSelectedRules] = useState<Set<number>>(new Set());
@@ -450,7 +453,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
 
   // Reset userFilter to current username when username changes (different user page)
   useEffect(() => {
-    setUserFilter([username]);
+    if (username) setUserFilter([username]);
   }, [username]);
 
   // Helper functions
@@ -481,7 +484,8 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     }
   };
 
-  const getGeometryDescription = (geometry: string) => {
+  // const getGeometryDescription = (geometry: string) => { // Unused
+  /*
     if (!geometry) return 'Unknown geometry';
     
     // Parse WKT geometry string to get basic info
@@ -497,6 +501,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     
     return 'Geometry';
   };
+  */
 
   // Fetch species info for a rule
   const fetchSpeciesInfo = useCallback(async (taxonKey: number) => {
@@ -657,7 +662,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     setIsCreating(true);
     
     try {
-      const gbifAuth = localStorage.getItem('gbifAuth');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
       
       const response = await fetch(getAnnotationApiUrl('/project'), {
         method: 'POST',
@@ -718,7 +723,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     setIsDeleting(true);
     
     try {
-      const gbifAuth = localStorage.getItem('gbifAuth');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
       
       const response = await fetch(getAnnotationApiUrl(`/project/${projectToDelete.id}`), {
         method: 'DELETE',
@@ -762,7 +767,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     setIsEditingProject(true);
 
     try {
-      const gbifAuth = localStorage.getItem('gbifAuth');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
 
       const response = await fetch(getAnnotationApiUrl(`/project/${projectToEdit.id}`), {
         method: 'PUT',
@@ -866,7 +871,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   const handleDeleteRule = async (ruleId: number) => {
     console.log('Attempting to delete rule:', ruleId);
     
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to delete annotation rules');
       return;
@@ -923,7 +928,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   };
 
   const handleBulkDelete = async () => {
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to delete annotation rules');
       return;
@@ -1001,7 +1006,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   };
 
   const handleBulkEdit = async () => {
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to edit annotation rules');
       return;

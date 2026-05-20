@@ -48,20 +48,40 @@ export const getGbifApiUrl = (endpoint: string): string => {
 const OPENAI_KEY_STORAGE_KEY = 'gbif_openai_api_key';
 
 /**
- * Get OpenAI API key from user-provided localStorage only
+ * Migrate legacy localStorage OpenAI key to sessionStorage
+ * @private
+ */
+const migrateLegacyOpenAIKey = (): void => {
+  try {
+    const legacyKey = localStorage.getItem(OPENAI_KEY_STORAGE_KEY);
+    if (legacyKey) {
+      console.info('Migrating OpenAI API key from localStorage to sessionStorage');
+      sessionStorage.setItem(OPENAI_KEY_STORAGE_KEY, legacyKey);
+      localStorage.removeItem(OPENAI_KEY_STORAGE_KEY);
+    }
+  } catch (error) {
+    console.warn('Failed to migrate legacy OpenAI key:', error);
+  }
+};
+
+/**
+ * Get OpenAI API key from user-provided sessionStorage only
  * 
  * SECURITY: No fallback to environment variables to prevent key exposure in client bundle.
  * Users must provide their own OpenAI API keys via the UI settings.
+ * Key is stored in sessionStorage (not localStorage) to limit exposure to XSS attacks.
  */
 export const getOpenAIApiKey = (): string | undefined => {
+  migrateLegacyOpenAIKey();
+  
   try {
-    const userKey = localStorage.getItem(OPENAI_KEY_STORAGE_KEY);
+    const userKey = sessionStorage.getItem(OPENAI_KEY_STORAGE_KEY);
     if (userKey && userKey.trim()) {
       return userKey.trim();
     }
   } catch (error) {
-    // localStorage may throw in private browsing mode or when disabled
-    console.warn('Failed to access localStorage for OpenAI key:', error);
+    // sessionStorage may throw in private browsing mode or when disabled
+    console.warn('Failed to access sessionStorage for OpenAI key:', error);
   }
   
   // No fallback - users must provide their own keys for security
@@ -69,41 +89,47 @@ export const getOpenAIApiKey = (): string | undefined => {
 };
 
 /**
- * Save user's OpenAI API key to localStorage
+ * Save user's OpenAI API key to sessionStorage
  */
 export const setUserOpenAIApiKey = (key: string): void => {
+  migrateLegacyOpenAIKey();
+  
   try {
     if (key && key.trim()) {
-      localStorage.setItem(OPENAI_KEY_STORAGE_KEY, key.trim());
+      sessionStorage.setItem(OPENAI_KEY_STORAGE_KEY, key.trim());
     } else {
-      localStorage.removeItem(OPENAI_KEY_STORAGE_KEY);
+      sessionStorage.removeItem(OPENAI_KEY_STORAGE_KEY);
     }
   } catch (error) {
-    console.error('Failed to save OpenAI key to localStorage:', error);
-    throw new Error('Unable to save API key. localStorage may be disabled.');
+    console.error('Failed to save OpenAI key to sessionStorage:', error);
+    throw new Error('Unable to save API key. sessionStorage may be disabled.');
   }
 };
 
 /**
- * Get user's OpenAI API key from localStorage (not the fallback)
+ * Get user's OpenAI API key from sessionStorage
  */
 export const getUserOpenAIApiKey = (): string | null => {
+  migrateLegacyOpenAIKey();
+  
   try {
-    return localStorage.getItem(OPENAI_KEY_STORAGE_KEY);
+    return sessionStorage.getItem(OPENAI_KEY_STORAGE_KEY);
   } catch (error) {
-    console.warn('Failed to access localStorage for OpenAI key:', error);
+    console.warn('Failed to access sessionStorage for OpenAI key:', error);
     return null;
   }
 };
 
 /**
- * Remove user's OpenAI API key from localStorage
+ * Remove user's OpenAI API key from sessionStorage
  */
 export const clearUserOpenAIApiKey = (): void => {
   try {
+    sessionStorage.removeItem(OPENAI_KEY_STORAGE_KEY);
+    // Also remove legacy localStorage key if it exists
     localStorage.removeItem(OPENAI_KEY_STORAGE_KEY);
   } catch (error) {
-    console.error('Failed to remove OpenAI key from localStorage:', error);
+    console.error('Failed to remove OpenAI key from sessionStorage:', error);
   }
 };
 

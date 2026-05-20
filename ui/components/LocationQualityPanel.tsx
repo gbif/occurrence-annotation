@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { 
   Drawer, 
   DrawerContent, 
@@ -21,7 +21,6 @@ import {
   ExternalLink,
   Bot,
   RefreshCw,
-  Settings,
   Key
 } from 'lucide-react';
 import { evaluateLocationQuality, LocationQualityReport, isOpenAIConfigured } from '../utils/openaiService';
@@ -245,7 +244,7 @@ export function LocationQualityPanel({ gbifid, onClose }: LocationQualityPanelPr
                   <Button 
                     variant="outline" 
                     className="w-full"
-                    onClick={() => window.open(`https://www.gbif.org/occurrence/${gbifid}`, '_blank')}
+                    onClick={() => window.open(`https://www.gbif.org/occurrence/${gbifid}`, '_blank', 'noopener,noreferrer')}
                   >
                     <ExternalLink className="w-4 h-4 mr-2" />
                     View Full Record on GBIF

@@ -1,5 +1,6 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { useNavigate, useBlocker } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useBlocker } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom'; // Unused - handleNavigateAway is commented out
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -68,7 +69,7 @@ interface DownloadAnnotatorProps {
 }
 
 export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotatorProps = {}) {
-  const navigate = useNavigate();
+  // const navigate = useNavigate(); // Unused - handleNavigateAway is commented out
   const [stage, setStage] = useState<ProcessingStage>('idle');
   const [progress, setProgress] = useState<ProgressInfo>({ stage: '', percent: 0 });
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +81,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
   const [fetchedRules, setFetchedRules] = useState<AnnotationRule[] | null>(null);
   
   const [isDragging, setIsDragging] = useState(false);
-  const [gbifUsername, setGbifUsername] = useState('');
+  // const [gbifUsername, setGbifUsername] = useState(''); // Unused
   const [userDownloads, setUserDownloads] = useState<GbifDownload[]>([]);
   const [loadingDownloads, setLoadingDownloads] = useState(false);
   const [loggedInUser, setLoggedInUser] = useState<GBIFUser | null>(null);
@@ -116,7 +117,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
     { term: 'INTRODUCED', color: '#3b82f6' },
     { term: 'OTHER', color: '#6b7280' },
   ]);
-  const [loadingVocabulary, setLoadingVocabulary] = useState(false);
+  // const [loadingVocabulary, setLoadingVocabulary] = useState(false); // Unused - vocabulary loading tracked differently
 
   // Fetch vocabularies from all projects represented in fetched rules
   useEffect(() => {
@@ -140,7 +141,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
         return;
       }
 
-      setLoadingVocabulary(true);
+      // setLoadingVocabulary(true); // Variable unused
       try {
         // Fetch vocabulary for each project
         const vocabularyPromises = projectIds.map(async (projectId) => {
@@ -190,7 +191,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
       } catch (error) {
         console.error('[DownloadAnnotator] Error fetching vocabularies:', error);
       } finally {
-        setLoadingVocabulary(false);
+        // setLoadingVocabulary(false); // Variable unused
       }
     };
 
@@ -199,18 +200,18 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
 
   // Map visualization state
   const [mapData, setMapData] = useState<FilteredMapData | null>(null);
-  const [showMap, setShowMap] = useState(true);
-  const [includePassingInMap, setIncludePassingInMap] = useState(true);
+  // const [showMap, setShowMap] = useState(true); // Unused
+  // const [includePassingInMap, setIncludePassingInMap] = useState(true); // Unused
   const [currentSpeciesIndex, setCurrentSpeciesIndex] = useState(0);
 
   // Load logged-in user and auto-fill username
   useEffect(() => {
-    const savedUser = localStorage.getItem('gbifUser');
+    const savedUser = sessionStorage.getItem('gbifUser');
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser) as GBIFUser;
         setLoggedInUser(user);
-        setGbifUsername(user.userName);
+        // setGbifUsername(user.userName); // Variable commented out
         
         // Auto-fetch downloads for logged-in user
         fetchUserDownloadsForUsername(user.userName);
@@ -557,7 +558,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
       const url = `https://api.gbif.org/v1/occurrence/download/user/${username}?limit=20`;
       
       // Get auth credentials from localStorage
-      const authCredentials = localStorage.getItem('gbifAuth');
+      const authCredentials = sessionStorage.getItem('gbifAuth');
       const headers: HeadersInit = {};
       if (authCredentials) {
         headers['Authorization'] = `Basic ${authCredentials}`;
@@ -928,6 +929,8 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
     setConflictMode('exclude_any');
   };
 
+  // Unused navigation handler - commented out to avoid build warning
+  /*
   const handleNavigateAway = (path: string) => {
     if (report) {
       const confirmed = window.confirm(
@@ -940,6 +943,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
       navigate(path);
     }
   };
+  */
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
