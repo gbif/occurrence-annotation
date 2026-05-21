@@ -44,7 +44,12 @@ jobs:
           java-version: '17'
           cache: 'maven'
 
-      - name: Build and run Spring Boot App
+      - name: Build Spring Boot App
+        run: |
+          cd backend-service
+          mvn clean install -DskipTests
+
+      - name: Run Spring Boot App in background
         run: |
           cd backend-service
           nohup mvn spring-boot:run > spring_boot.log 2>&1 &
