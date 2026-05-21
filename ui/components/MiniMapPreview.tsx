@@ -182,31 +182,62 @@ export function MiniMapPreview({
         {isInverted ? (
           // For inverted polygons, create a large rectangle with polygon as hole
           (() => {
+            const DOT_THRESHOLD = 4;
             const margin = Math.max(width, height) * 10;
             let pathStr = `M ${-margin},${-margin} L ${margin},${-margin} L ${margin},${margin} L ${-margin},${margin} Z`;
             
-            // Add all polygon rings as holes
-            polygonRings.forEach((ring) => {
+            const smallPolygons: Array<{ cx: number; cy: number; index: number }> = [];
+            
+            // Add polygon rings as holes, collecting small polygons for dot rendering
+            polygonRings.forEach((ring, index) => {
               const pixelCoords = ring.map(([lat, lng]) => {
                 const [x, y] = latLngToPixel(lat, lng);
                 return [x, y];
               });
               
-              const pathPart = pixelCoords.map(([x, y], i) => 
-                i === 0 ? `M ${x},${y}` : `L ${x},${y}`
-              ).join(' ') + ' Z';
+              // Compute bounding box in pixel space
+              const xs = pixelCoords.map(([x]) => x);
+              const ys = pixelCoords.map(([, y]) => y);
+              const bboxWidth = Math.max(...xs) - Math.min(...xs);
+              const bboxHeight = Math.max(...ys) - Math.min(...ys);
               
-              pathStr += ` ${pathPart}`;
+              // If polygon is smaller than ~4px in both dimensions, mark for dot rendering
+              if (bboxWidth < DOT_THRESHOLD && bboxHeight < DOT_THRESHOLD) {
+                const cx = xs.reduce((a, b) => a + b, 0) / xs.length;
+                const cy = ys.reduce((a, b) => a + b, 0) / ys.length;
+                smallPolygons.push({ cx, cy, index });
+              } else {
+                // Add as hole in inverted fill
+                const pathPart = pixelCoords.map(([x, y], i) => 
+                  i === 0 ? `M ${x},${y}` : `L ${x},${y}`
+                ).join(' ') + ' Z';
+                
+                pathStr += ` ${pathPart}`;
+              }
             });
             
             return (
-              <path
-                d={pathStr}
-                fill={color.fillRgba}
-                stroke={color.stroke}
-                strokeWidth={1.5}
-                fillRule="evenodd"
-              />
+              <>
+                <path
+                  d={pathStr}
+                  fill={color.fillRgba}
+                  stroke={color.stroke}
+                  strokeWidth={1.5}
+                  fillRule="evenodd"
+                />
+                {/* Render small polygons as dots on top of inverted fill */}
+                {smallPolygons.map(({ cx, cy, index }) => (
+                  <circle
+                    key={`small-polygon-${index}`}
+                    cx={cx}
+                    cy={cy}
+                    r={3}
+                    fill={color.fill}
+                    stroke={color.stroke}
+                    strokeWidth={1}
+                  />
+                ))}
+              </>
             );
           })()
         ) : (
