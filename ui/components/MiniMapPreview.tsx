@@ -257,6 +257,28 @@ export function MiniMapPreview({
           })
         )}
       </svg>
+      {/* OSM Attribution */}
+      <div style={{
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        fontSize: '8px',
+        lineHeight: '10px',
+        backgroundColor: 'rgba(255, 255, 255, 0.7)',
+        padding: '1px 3px',
+        borderTopLeftRadius: '2px',
+        pointerEvents: 'auto'
+      }}>
+        <a 
+          href="https://www.openstreetmap.org/copyright" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          style={{ color: '#0078a8', textDecoration: 'none' }}
+          title="OpenStreetMap contributors"
+        >
+          © OSM
+        </a>
+      </div>
     </div>
   );
 }
