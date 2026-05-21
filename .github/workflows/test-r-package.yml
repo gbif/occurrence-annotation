@@ -49,6 +49,20 @@ jobs:
           cd backend-service
           nohup mvn spring-boot:run > spring_boot.log 2>&1 &
 
+      - name: Wait for Spring Boot to be ready
+        run: |
+          echo "Waiting for Spring Boot application to start..."
+          for i in {1..60}; do
+            if curl -f http://localhost:8080/occurrence/experimental/annotation/rule 2>/dev/null; then
+              echo "Backend is ready!"
+              break
+            fi
+            echo "Attempt $i: Backend not ready yet, waiting 2 seconds..."
+            sleep 2
+          done
+          # Verify it's actually up
+          curl -f http://localhost:8080/occurrence/experimental/annotation/rule || (echo "Backend failed to start" && cat backend-service/spring_boot.log && exit 1)
+
       - name: Install libcurl and Others
         run: |
           sudo apt-get update
