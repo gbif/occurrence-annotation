@@ -60,8 +60,11 @@ export function MiniMapPreview({
   // The background shows the entire world stretched to fit the viewport,
   // so we map lng [-180, 180] -> [0, width] and Mercator Y -> [0, height].
   const latLngToPixel = (lat: number, lng: number): [number, number] => {
-    // Clamp latitude to prevent infinity at poles
-    const clampedLat = Math.max(-85, Math.min(85, lat));
+    // Web Mercator max latitude: atan(sinh(π)) ≈ 85.05112878°
+    const WEB_MERCATOR_MAX_LAT = 85.05112878;
+    
+    // Clamp latitude to Web Mercator bounds to match OSM tile coverage
+    const clampedLat = Math.max(-WEB_MERCATOR_MAX_LAT, Math.min(WEB_MERCATOR_MAX_LAT, lat));
 
     // Longitude maps linearly across the viewport width
     const x = ((lng + 180) / 360) * width;
@@ -69,7 +72,7 @@ export function MiniMapPreview({
     // Web Mercator Y, normalized to [0, 1] across the full world, then scaled to viewport height
     const latRad = (clampedLat * Math.PI) / 180;
     const mercatorY = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
-    const normalizedY = (1 - mercatorY / Math.PI) / 2; // 0 at top (~85°N), 1 at bottom (~85°S)
+    const normalizedY = (1 - mercatorY / Math.PI) / 2; // 0 at top, 1 at bottom
     const y = normalizedY * height;
 
     return [x, y];
