@@ -1,13 +1,3 @@
-import {
-  ComposableMap,
-  Geographies,
-  Geography,
-} from 'react-simple-maps';
-import { geoMercator } from 'd3-geo';
-
-// Use a reliable CDN URL for world map data
-const geoUrl = `${import.meta.env.BASE_URL}countries-110m.json`;
-
 interface VocabularyTerm {
   term: string;
   description?: string;
@@ -65,68 +55,28 @@ export function MiniMapPreview({
       };
   
   const color = annotationColors[annotation.toUpperCase()] || annotationColors.SUSPICIOUS;
-  
-  // Convert coordinates from [lat, lng] (app format) to [lng, lat] (react-simple-maps format)
-  function toLngLat(coords: [number, number][]): [number, number][] {
-    // Validate input
-    if (!Array.isArray(coords)) {
-      console.error('toLngLat: coords is not an array', coords);
-      return [];
-    }
-    
-    return coords
-      .filter(coord => {
-        // Filter out invalid coordinates
-        if (!Array.isArray(coord) || coord.length < 2) {
-          console.error('Invalid coordinate in toLngLat:', coord);
-          return false;
-        }
-        return true;
-      })
-      .map(([lat, lng]) => [lng, lat] as [number, number]);
-  }
 
-  // Calculate polygon size in projected coordinates to determine if it should be a dot
-  function getPolygonSize(ring: [number, number][]): number {
-    if (!Array.isArray(ring) || ring.length === 0) return 0;
+  // Convert lat/lng directly to viewport pixel coordinates.
+  // The background shows the entire world stretched to fit the viewport,
+  // so we map lng [-180, 180] -> [0, width] and Mercator Y -> [0, height].
+  const latLngToPixel = (lat: number, lng: number): [number, number] => {
+    // Web Mercator max latitude: atan(sinh(π)) ≈ 85.05112878°
+    const WEB_MERCATOR_MAX_LAT = 85.05112878;
     
-    // Create projection
-    const projection = geoMercator()
-      .scale(width * 0.16)
-      .center([0, 20])
-      .translate([width / 2, height / 2]);
-    
-    // Project coordinates
-    const projectedCoords = ring.map(coord => projection(coord)).filter(coord => coord !== null);
-    
-    if (projectedCoords.length === 0) return 0;
-    
-    // Calculate bounding box in projected space
-    const xs = projectedCoords.map(coord => coord![0]);
-    const ys = projectedCoords.map(coord => coord![1]);
-    
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    
-    // Return the maximum dimension (width or height)
-    return Math.max(maxX - minX, maxY - minY);
-  }
+    // Clamp latitude to Web Mercator bounds to match OSM tile coverage
+    const clampedLat = Math.max(-WEB_MERCATOR_MAX_LAT, Math.min(WEB_MERCATOR_MAX_LAT, lat));
 
-  // Calculate polygon centroid for dot placement
-  // Note: ring coordinates are in [lng, lat] format (already converted by toLngLat)
-  function getPolygonCentroid(ring: [number, number][]): [number, number] | null {
-    if (!Array.isArray(ring) || ring.length === 0) return null;
-    
-    // Calculate centroid - ring is already in [lng, lat] format
-    const sumLng = ring.reduce((sum, [lng]) => sum + lng, 0);
-    const sumLat = ring.reduce((sum, [, lat]) => sum + lat, 0);
-    const centroidLng = sumLng / ring.length;
-    const centroidLat = sumLat / ring.length;
-    
-    return [centroidLng, centroidLat]; // Return in [lng, lat] format
-  }
+    // Longitude maps linearly across the viewport width
+    const x = ((lng + 180) / 360) * width;
+
+    // Web Mercator Y, normalized to [0, 1] across the full world, then scaled to viewport height
+    const latRad = (clampedLat * Math.PI) / 180;
+    const mercatorY = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
+    const normalizedY = (1 - mercatorY / Math.PI) / 2; // 0 at top, 1 at bottom
+    const y = normalizedY * height;
+
+    return [x, y];
+  };
 
   // Validate coordinate structure
   function validateCoordinates(coords: any): boolean {
@@ -175,14 +125,14 @@ export function MiniMapPreview({
     );
   }
 
-  // Convert coordinates to the format expected by react-simple-maps
-  const polygonCoordinates = isMultiPolygon
-    ? (coordinates as [number, number][][]).map(ring => toLngLat(ring)).filter(ring => ring.length >= 3)
-    : [toLngLat(coordinates as [number, number][])].filter(ring => ring.length >= 3);
+  // Convert coordinates to array of rings
+  const polygonRings = isMultiPolygon
+    ? (coordinates as [number, number][][]).filter(ring => ring.length >= 3)
+    : [(coordinates as [number, number][])].filter(ring => ring.length >= 3);
 
   // If no valid polygons after filtering, show error
-  if (polygonCoordinates.length === 0 || polygonCoordinates.every(ring => ring.length < 3)) {
-    console.error('No valid polygon rings after conversion in MiniMapPreview');
+  if (polygonRings.length === 0) {
+    console.error('No valid polygon rings in MiniMapPreview');
     return (
       <div className={`border border-red-300 rounded overflow-hidden flex items-center justify-center ${className}`}
            style={{ 
@@ -195,215 +145,171 @@ export function MiniMapPreview({
       </div>
     );
   }
+
   return (
     <div className={`border border-gray-200 rounded overflow-hidden ${className}`}
          style={{ 
-           backgroundColor: '#CAD2D3', // Water color
            width: `${width}px`,
            height: `${height}px`,
-           flexShrink: 0
+           flexShrink: 0,
+           position: 'relative'
          }}>
-      <ComposableMap
-        projection="geoMercator"
-        projectionConfig={{
-          scale: width * 0.16, // Use width-based scaling to fill horizontally
-          center: [0, 20], // Center slightly north to better show land masses
-        }}
-        width={width}
-        height={height}
-        viewBox={`0 0 ${width} ${height}`}
+      {/* Static world map background using OSM tiles */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#aadaff', // Ocean blue
+        backgroundImage: `url(https://tile.openstreetmap.org/1/0/0.png), url(https://tile.openstreetmap.org/1/1/0.png), url(https://tile.openstreetmap.org/1/0/1.png), url(https://tile.openstreetmap.org/1/1/1.png)`,
+        backgroundSize: '50% 50%',
+        backgroundPosition: 'top left, top right, bottom left, bottom right',
+        backgroundRepeat: 'no-repeat'
+      }} />
+      {/* Render polygons as absolute-positioned SVG overlay */}
+      <svg 
         style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
           width: '100%',
           height: '100%',
-          backgroundColor: '#CAD2D3', // Water color
+          pointerEvents: 'none'
         }}
+        viewBox={`0 0 ${width} ${height}`}
       >
-        <Geographies geography={geoUrl}>
-          {({ geographies }) => {
-            if (!geographies || geographies.length === 0) {
-              // Fallback if geography data doesn't load
-              return (
-                <rect
-                  x={0}
-                  y={0}
-                  width={width}
-                  height={height}
-                  fill="#F3F3F1"
-                  stroke="#d1d5db"
-                />
-              );
-            }
-            return geographies.map((geo) => (
-              <Geography
-                key={geo.rsmKey}
-                geography={geo}
-                fill="#F3F3F1" // Land color
-                stroke="#d1d5db" // Border color
-                strokeWidth={0.2} // Thinner borders for mini map
-                style={{
-                  default: {
-                    fill: "#F3F3F1",
-                    stroke: "#d1d5db",
-                    strokeWidth: 0.2,
-                    outline: "none",
-                  },
-                  hover: {
-                    fill: "#F3F3F1",
-                    stroke: "#d1d5db",
-                    strokeWidth: 0.2,
-                    outline: "none",
-                  },
-                  pressed: {
-                    fill: "#F3F3F1",
-                    stroke: "#d1d5db",
-                    strokeWidth: 0.2,
-                    outline: "none",
-                  },
-                }}
-              />
-            ));
-          }}
-        </Geographies>
-        {/* Render the polygon(s) as SVG paths with proper projection */}
         {isInverted ? (
-          // For inverted polygons, create one world-covering shape with all polygons as holes
-          // But also render small polygons as dots on top
-          <>
-            {(() => {
-              // Create a projection that matches the map's projection
-              const projection = geoMercator()
-                .scale(width * 0.16) // Match the map's scaling
-                .center([0, 20]) // Match the map's center
-                .translate([width / 2, height / 2]);
-
-              // Build one combined path with world boundary and large polygons as holes
-              const worldPath = `M 0 0 L ${width} 0 L ${width} ${height} L 0 ${height} Z`;
-              
-              let allPolygonPaths = '';
-              const smallPolygons: [number, number][][] = [];
-              
-              polygonCoordinates.forEach((ring) => {
-                if (ring.length > 0) {
-                  const polygonSize = getPolygonSize(ring);
-                  
-                  if (polygonSize < 8) {
-                    // Store small polygons to render as dots
-                    smallPolygons.push(ring);
-                  } else {
-                    // Add large polygons as holes in the inverted polygon
-                    const projectedCoords = ring.map(coord => projection(coord));
-                    const pathString = projectedCoords.length > 0
-                      ? `M ${projectedCoords.map(coord => coord ? coord.join(",") : "0,0").join(" L ")} Z`
-                      : '';
-                    
-                    allPolygonPaths += ` ${pathString}`;
-                  }
-                }
+          // For inverted polygons, create a large rectangle with polygon as hole
+          (() => {
+            const DOT_THRESHOLD = 4;
+            const margin = Math.max(width, height) * 10;
+            let pathStr = `M ${-margin},${-margin} L ${margin},${-margin} L ${margin},${margin} L ${-margin},${margin} Z`;
+            
+            const smallPolygons: Array<{ cx: number; cy: number; index: number }> = [];
+            
+            // Add polygon rings as holes, collecting small polygons for dot rendering
+            polygonRings.forEach((ring, index) => {
+              const pixelCoords = ring.map(([lat, lng]) => {
+                const [x, y] = latLngToPixel(lat, lng);
+                return [x, y];
               });
-
-              const combinedPath = `${worldPath} ${allPolygonPaths}`;
               
-              return (
-                <g key="inverted-multipolygon">
-                  {/* Main inverted polygon */}
-                  <path
-                    d={combinedPath}
-                    fill={color.fillRgba}
-                    stroke={color.stroke}
-                    strokeWidth={0.8}
-                    fillRule="evenodd" // This makes the inner paths holes
-                    style={{ outline: "none" }}
-                  />
-                  {/* Small polygons as dots */}
-                  {smallPolygons.map((ring, index) => {
-                    const centroid = getPolygonCentroid(ring);
-                    if (!centroid) return null;
-                    
-                    const projectedCentroid = projection(centroid); // centroid is already [lng, lat]
-                    if (!projectedCentroid) return null;
-                    
-                    return (
-                      <circle
-                        key={`inverted-dot-${index}`}
-                        cx={projectedCentroid[0]}
-                        cy={projectedCentroid[1]}
-                        r={2.5}
-                        fill={color.fill}
-                        stroke="#fff"
-                        strokeWidth={0.5}
-                        style={{ outline: "none" }}
-                      />
-                    );
-                  })}
-                </g>
-              );
-            })()}
-          </>
-        ) : (
-          // Normal polygons - render as dots if too small
-          polygonCoordinates.map((ring, index) => {
-            if (ring.length === 0) return null;
+              // Compute bounding box in pixel space
+              const xs = pixelCoords.map(([x]) => x);
+              const ys = pixelCoords.map(([, y]) => y);
+              const bboxWidth = Math.max(...xs) - Math.min(...xs);
+              const bboxHeight = Math.max(...ys) - Math.min(...ys);
+              
+              // If polygon is smaller than ~4px in both dimensions, mark for dot rendering
+              if (bboxWidth < DOT_THRESHOLD && bboxHeight < DOT_THRESHOLD) {
+                const cx = xs.reduce((a, b) => a + b, 0) / xs.length;
+                const cy = ys.reduce((a, b) => a + b, 0) / ys.length;
+                smallPolygons.push({ cx, cy, index });
+              } else {
+                // Add as hole in inverted fill
+                const pathPart = pixelCoords.map(([x, y], i) => 
+                  i === 0 ? `M ${x},${y}` : `L ${x},${y}`
+                ).join(' ') + ' Z';
+                
+                pathStr += ` ${pathPart}`;
+              }
+            });
             
-            // Check if polygon is small enough to render as a dot (threshold: 8 pixels)
-            const polygonSize = getPolygonSize(ring);
-            const shouldRenderAsDot = polygonSize < 8;
-            
-            if (shouldRenderAsDot) {
-              // Render as a dot
-              const centroid = getPolygonCentroid(ring);
-              if (!centroid) return null;
-              
-              // Project centroid
-              const projection = geoMercator()
-                .scale(width * 0.16)
-                .center([0, 20])
-                .translate([width / 2, height / 2]);
-              
-              const projectedCentroid = projection(centroid); // centroid is already [lng, lat]
-              if (!projectedCentroid) return null;
-              
-              return (
-                <circle
-                  key={`dot-${index}`}
-                  cx={projectedCentroid[0]}
-                  cy={projectedCentroid[1]}
-                  r={2.5} // Dot radius
-                  fill={color.fill}
-                  stroke={color.stroke}
-                  strokeWidth={0.5}
-                  style={{ outline: "none" }}
-                />
-              );
-            } else {
-              // Render as normal polygon
-              // Create a projection that matches the map's projection
-              const projection = geoMercator()
-                .scale(width * 0.16) // Match the map's scaling
-                .center([0, 20]) // Match the map's center
-                .translate([width / 2, height / 2]);
-              
-              // Project the coordinates through the same projection as the map
-              const projectedCoords = ring.map(coord => projection(coord));
-              
-              // Create SVG path string with projected coordinates
-              const pathString = projectedCoords.length > 0
-                ? `M ${projectedCoords.map(coord => coord ? coord.join(",") : "0,0").join(" L ")} Z`
-                : '';
-
-              return (
+            return (
+              <>
                 <path
-                  key={`polygon-${index}`}
-                  d={pathString}
+                  d={pathStr}
                   fill={color.fillRgba}
                   stroke={color.stroke}
-                  strokeWidth={0.8}
-                  style={{ outline: "none" }}
+                  strokeWidth={1.5}
+                  fillRule="evenodd"
+                />
+                {/* Render small polygons as dots on top of inverted fill */}
+                {smallPolygons.map(({ cx, cy, index }) => (
+                  <circle
+                    key={`small-polygon-${index}`}
+                    cx={cx}
+                    cy={cy}
+                    r={3}
+                    fill={color.fill}
+                    stroke={color.stroke}
+                    strokeWidth={1}
+                  />
+                ))}
+              </>
+            );
+          })()
+        ) : (
+          // Normal polygons - render as dot if too small to see clearly
+          polygonRings.map((ring, index) => {
+            const pixelCoords = ring.map(([lat, lng]) => {
+              const [x, y] = latLngToPixel(lat, lng);
+              return [x, y] as [number, number];
+            });
+
+            // Compute bounding box in pixel space
+            const xs = pixelCoords.map(([x]) => x);
+            const ys = pixelCoords.map(([, y]) => y);
+            const bboxWidth = Math.max(...xs) - Math.min(...xs);
+            const bboxHeight = Math.max(...ys) - Math.min(...ys);
+
+            // If polygon is smaller than ~4px in both dimensions, show as a dot at centroid
+            const DOT_THRESHOLD = 4;
+            if (bboxWidth < DOT_THRESHOLD && bboxHeight < DOT_THRESHOLD) {
+              const cx = xs.reduce((a, b) => a + b, 0) / xs.length;
+              const cy = ys.reduce((a, b) => a + b, 0) / ys.length;
+              return (
+                <circle
+                  key={`polygon-${index}`}
+                  cx={cx}
+                  cy={cy}
+                  r={3}
+                  fill={color.fill}
+                  stroke={color.stroke}
+                  strokeWidth={1}
                 />
               );
             }
+
+            const pathStr = pixelCoords.map(([x, y], i) =>
+              i === 0 ? `M ${x},${y}` : `L ${x},${y}`
+            ).join(' ') + ' Z';
+
+            return (
+              <path
+                key={`polygon-${index}`}
+                d={pathStr}
+                fill={color.fillRgba}
+                stroke={color.stroke}
+                strokeWidth={1.5}
+              />
+            );
           })
         )}
-      </ComposableMap>
+      </svg>
+      {/* OSM Attribution */}
+      <div style={{
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        fontSize: '8px',
+        lineHeight: '10px',
+        backgroundColor: 'rgba(255, 255, 255, 0.7)',
+        padding: '1px 3px',
+        borderTopLeftRadius: '2px',
+        pointerEvents: 'auto'
+      }}>
+        <a 
+          href="https://www.openstreetmap.org/copyright" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          style={{ color: '#0078a8', textDecoration: 'none' }}
+          title="OpenStreetMap contributors"
+        >
+          © OSM
+        </a>
+      </div>
     </div>
   );
 }
