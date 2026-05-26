@@ -29,6 +29,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.annotation.Secured;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -108,6 +109,9 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) Integer offset) {
     int limitInt = limit == null ? 100 : limit;
     int offsetInt = offset == null ? 0 : offset;
+    if (geometry != null && !geometry.isBlank()) {
+      geometryValidationService.validateGeometry(geometry, isAdmin());
+    }
     return ruleMapper.list(
         taxonKey,
         datasetKey,
@@ -309,6 +313,9 @@ public class RuleController implements Controller<Rule> {
   @Override
   public Rule delete(@PathVariable(value = "id") int id) {
     Rule existing = ruleMapper.get(id);
+    if (existing == null) {
+      throw new IllegalArgumentException("Rule not found: " + id);
+    }
     assertCreatorOrAdmin(existing.getCreatedBy());
     ruleMapper.delete(id, getLoggedInUser());
     return ruleMapper.get(id);
@@ -317,10 +324,13 @@ public class RuleController implements Controller<Rule> {
   @Operation(summary = "Adds support for a rule (removes any existing contest entry for the user)")
   @PostMapping("/{id}/support")
   @Secured("USER")
+  @Transactional
   public Rule support(@PathVariable(value = "id") int id) {
     String username = getLoggedInUser();
-    ruleMapper.addSupport(id, username);
-    ruleMapper.removeContest(id, username); // contest and support are mutually exclusive
+    // Order matters: remove the opposing entry first within the transaction to avoid
+    // a concurrent /contest call overwriting our state under READ_COMMITTED isolation.
+    ruleMapper.removeContest(id, username);
+    ruleMapper.addSupport(id, username); // contest and support are mutually exclusive
     return ruleMapper.get(id);
   }
 
@@ -336,10 +346,13 @@ public class RuleController implements Controller<Rule> {
   @Operation(summary = "Record that the user contests a rule (removes any support from the user)")
   @PostMapping("/{id}/contest")
   @Secured("USER")
+  @Transactional
   public Rule contest(@PathVariable(value = "id") int id) {
     String username = getLoggedInUser();
-    ruleMapper.addContest(id, username);
-    ruleMapper.removeSupport(id, username); // contest and support are mutually exclusive
+    // Order matters: remove the opposing entry first within the transaction to avoid
+    // a concurrent /support call overwriting our state under READ_COMMITTED isolation.
+    ruleMapper.removeSupport(id, username);
+    ruleMapper.addContest(id, username); // contest and support are mutually exclusive
     return ruleMapper.get(id);
   }
 
@@ -373,8 +386,16 @@ public class RuleController implements Controller<Rule> {
   @Operation(summary = "Logical delete a comment")
   @DeleteMapping("/{id}/comment/{commentId}")
   @Secured({"USER", "REGISTRY_ADMIN"})
-  public void deleteComment(@PathVariable(value = "commentId") int commentId) {
+  public void deleteComment(
+      @PathVariable(value = "id") int ruleId, @PathVariable(value = "commentId") int commentId) {
     Comment existing = commentMapper.get(commentId);
+    if (existing == null) {
+      throw new IllegalArgumentException("Comment not found: " + commentId);
+    }
+    if (existing.getRuleId() != ruleId) {
+      throw new IllegalArgumentException(
+          "Comment " + commentId + " does not belong to rule " + ruleId);
+    }
     assertCreatorOrAdmin(existing.getCreatedBy());
     commentMapper.delete(commentId, getLoggedInUser());
   }
