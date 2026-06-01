@@ -90,13 +90,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libudunits2-dev libgdal-dev libgeos-dev libproj-dev
 
-      - name: Install package dependencies (remotes)
-        run: |
-          list.files()
-          setwd("r-package/gbifrules")
-          install.packages("remotes")
-          remotes::install_deps(dependencies = TRUE)  # TRUE = install ALL deps including Suggests
-        shell: Rscript {0}
+      - name: Install package dependencies (cached)
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          working-directory: r-package/gbifrules
+          dependencies: '"all"'  # all deps including Suggests (same as remotes::install_deps(dependencies = TRUE))
 
       - name: Test R package
         run: R CMD check r-package/gbifrules
