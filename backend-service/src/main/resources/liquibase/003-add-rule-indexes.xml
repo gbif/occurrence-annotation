@@ -2,9 +2,9 @@
 <databaseChangeLog
   xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-2.0.xsd">
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
 
-  <changeSet id="3" author="rns886">
+  <changeSet id="3" author="auzun">
     <comment>Add lookup indexes on rule (taxon_key, dataset_key, ruleset_id, project_id).</comment>
     <sql splitStatements="false" stripComments="false">
       <![CDATA[
