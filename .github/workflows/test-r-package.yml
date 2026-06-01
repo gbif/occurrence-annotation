@@ -29,14 +29,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Execute SQL setup
-        run: |
-          cat backend-service/src/main/resources/schema.sql | PGPASSWORD=password psql -h localhost -U postgres annotation -v ON_ERROR_STOP=1
-
-      - name: Sanity check
-        run: |
-          PGPASSWORD=password psql -h localhost -U postgres annotation -c "\dt"
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -48,6 +40,17 @@ jobs:
         run: |
           cd backend-service
           mvn clean install -DskipTests
+
+      - name: Apply DB changelog (Liquibase)
+        run: |
+          mvn -B -f backend-service/pom.xml liquibase:update \
+            -Dliquibase.url=jdbc:postgresql://localhost:5432/annotation \
+            -Dliquibase.username=postgres \
+            -Dliquibase.password=password
+
+      - name: Sanity check
+        run: |
+          PGPASSWORD=password psql -h localhost -U postgres annotation -c "\dt"
 
       - name: Run Spring Boot App in background
         run: |
