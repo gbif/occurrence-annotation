@@ -141,6 +141,9 @@ public class ProjectController implements Controller<Project> {
   @Override
   public Project delete(@PathVariable(value = "id") int id) {
     Project existing = projectMapper.get(id);
+    if (existing == null) {
+      throw new IllegalArgumentException("Project not found: " + id);
+    }
     assertCreatorOrAdmin(existing.getCreatedBy());
     String username = getLoggedInUser();
     projectMapper.delete(id, username);

@@ -100,6 +100,9 @@ public class RulesetController implements Controller<Ruleset> {
   @Override
   public Ruleset delete(@PathVariable(value = "id") int id) {
     Ruleset existing = rulesetMapper.get(id);
+    if (existing == null) {
+      throw new IllegalArgumentException("Ruleset not found: " + id);
+    }
     assertCreatorOrAdmin(existing.getCreatedBy());
     String username = getLoggedInUser();
     rulesetMapper.delete(id, username);
