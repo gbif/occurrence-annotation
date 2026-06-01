@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-2.0.xsd">
+
+  <changeSet id="3" author="rns886">
+    <comment>Add lookup indexes on rule (taxon_key, dataset_key, ruleset_id, project_id).</comment>
+    <sql splitStatements="false" stripComments="false">
+      <![CDATA[
+        CREATE INDEX IF NOT EXISTS rule_taxon_key_idx ON rule (taxon_key);
+        CREATE INDEX IF NOT EXISTS rule_dataset_key_idx ON rule (dataset_key);
+        CREATE INDEX IF NOT EXISTS rule_ruleset_id_idx ON rule (ruleset_id);
+        CREATE INDEX IF NOT EXISTS rule_project_id_idx ON rule (project_id);
+      ]]>
+    </sql>
+  </changeSet>
+</databaseChangeLog>

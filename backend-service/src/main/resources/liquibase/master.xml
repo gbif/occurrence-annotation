@@ -6,4 +6,5 @@
 
   <include file="liquibase/001-initial.xml"/>
   <include file="liquibase/002-add-custom-vocabulary-to-project.xml"/>
+  <include file="liquibase/003-add-rule-indexes.xml"/>
 </databaseChangeLog>
