@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="2" author="auzun">
+    <comment>Add project-specific annotation vocabulary stored as JSONB.</comment>
+    <sql splitStatements="false" stripComments="false">
+      <![CDATA[
+        ALTER TABLE project ADD COLUMN IF NOT EXISTS custom_vocabulary JSONB;
+
+        COMMENT ON COLUMN project.custom_vocabulary IS 'Custom annotation vocabulary terms stored as JSONB array. Each term has: term, description, color, locked fields.';
+      ]]>
+    </sql>
+  </changeSet>
+</databaseChangeLog>

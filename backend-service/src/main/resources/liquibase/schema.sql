@@ -1,3 +1,6 @@
+-- Baseline schema for occurrence annotation service.
+-- Loaded by liquibase/001-initial.xml. Incremental changes live in numbered
+-- changelog files (liquibase/002-*.xml, ...) registered in liquibase/master.xml.
 DROP TABLE IF EXISTS comment;
 DROP TABLE IF EXISTS rule;
 DROP TABLE IF EXISTS ruleset;
@@ -8,7 +11,6 @@ CREATE TABLE project (
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     members TEXT[] NOT NULL DEFAULT '{}',
-    custom_vocabulary JSONB,
     created TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     created_by TEXT NOT NULL,
     modified TIMESTAMP WITHOUT TIME ZONE,
