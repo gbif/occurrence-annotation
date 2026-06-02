@@ -4,10 +4,14 @@
 \alias{rm_contest_rule}
 \title{Remove contest of a rule}
 \usage{
-rm_contest_rule(id)
+rm_contest_rule(id, user = NULL, pwd = NULL)
 }
 \arguments{
 \item{id}{id of rule to contest.}
+
+\item{user}{(character) Optional username for authentication. Defaults to GBIF_USER environment variable.}
+
+\item{pwd}{(character) Optional password for authentication. Defaults to GBIF_PWD environment variable.}
 }
 \value{
 A `list` information about the rule contested.

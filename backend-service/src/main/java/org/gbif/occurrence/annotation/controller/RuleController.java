@@ -13,15 +13,23 @@
  */
 package org.gbif.occurrence.annotation.controller;
 
+import org.gbif.api.vocabulary.UserRole;
 import org.gbif.occurrence.annotation.mapper.CommentMapper;
+import org.gbif.occurrence.annotation.mapper.ProjectMapper;
 import org.gbif.occurrence.annotation.mapper.RuleMapper;
 import org.gbif.occurrence.annotation.model.Comment;
+import org.gbif.occurrence.annotation.model.Project;
 import org.gbif.occurrence.annotation.model.Rule;
+import org.gbif.occurrence.annotation.service.GeometryValidationService;
+import org.gbif.occurrence.annotation.service.VocabularyService;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.annotation.Secured;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -47,6 +55,9 @@ import static org.gbif.occurrence.annotation.controller.AuthAdvice.assertCreator
 public class RuleController implements Controller<Rule> {
   @Autowired private RuleMapper ruleMapper;
   @Autowired private CommentMapper commentMapper;
+  @Autowired private ProjectMapper projectMapper;
+  @Autowired private VocabularyService vocabularyService;
+  @Autowired private GeometryValidationService geometryValidationService;
 
   @Operation(
       summary =
@@ -98,6 +109,9 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) Integer offset) {
     int limitInt = limit == null ? 100 : limit;
     int offsetInt = offset == null ? 0 : offset;
+    if (geometry != null && !geometry.isBlank()) {
+      geometryValidationService.validateGeometry(geometry, isAdmin());
+    }
     return ruleMapper.list(
         taxonKey,
         datasetKey,
@@ -227,17 +241,37 @@ public class RuleController implements Controller<Rule> {
     return ruleMapper.get(id);
   }
 
-  @Operation(summary = "Create a new rule")
+  @Operation(summary = "Create a new rule. Polygon vertex limits enforced (admins exempt).")
   @PostMapping
   @Secured("USER")
   @Override
   public Rule create(@Valid @RequestBody Rule rule) {
+    // Check project membership if rule is associated with a project
+    assertProjectMember(rule.getProjectId());
+
+    // Check user hasn't exceeded rule limit (admins exempt)
+    if (!isAdmin()) {
+      int userRuleCount = ruleMapper.countActiveByCreatedBy(getLoggedInUser());
+      if (userRuleCount >= 30000) {
+        throw new IllegalArgumentException(
+            "Maximum 30,000 rules per user exceeded. Current: "
+                + userRuleCount
+                + ". Contact helpdesk@gbif.org");
+      }
+    }
+
+    // Validate annotation term exists in project vocabulary
+    validateAnnotationTerm(rule);
+
+    // Validate geometry size limits (admins can bypass)
+    geometryValidationService.validateGeometry(rule.getGeometry(), isAdmin());
+
     rule.setCreatedBy(getLoggedInUser());
     ruleMapper.create(rule); // id set by mybatis
     return ruleMapper.get(rule.getId());
   }
 
-  @Operation(summary = "Update an existing rule")
+  @Operation(summary = "Update an existing rule. Geometry validation not applied (grandfathered).")
   @PutMapping("/{id}")
   @Secured({"USER", "REGISTRY_ADMIN"})
   public Rule update(@PathVariable(value = "id") int id, @Valid @RequestBody Rule rule) {
@@ -253,6 +287,15 @@ public class RuleController implements Controller<Rule> {
 
     // Only creator or admin can update
     assertCreatorOrAdmin(existing.getCreatedBy());
+
+    // Check project membership if rule is being assigned to a project
+    if (rule.getProjectId() != null
+        && !java.util.Objects.equals(existing.getProjectId(), rule.getProjectId())) {
+      assertProjectMember(rule.getProjectId());
+    }
+
+    // Validate annotation term exists in project vocabulary
+    validateAnnotationTerm(rule);
 
     // Set the ID from path parameter to ensure we're updating the correct rule
     rule.setId(id);
@@ -270,6 +313,9 @@ public class RuleController implements Controller<Rule> {
   @Override
   public Rule delete(@PathVariable(value = "id") int id) {
     Rule existing = ruleMapper.get(id);
+    if (existing == null) {
+      throw new IllegalArgumentException("Rule not found: " + id);
+    }
     assertCreatorOrAdmin(existing.getCreatedBy());
     ruleMapper.delete(id, getLoggedInUser());
     return ruleMapper.get(id);
@@ -278,10 +324,13 @@ public class RuleController implements Controller<Rule> {
   @Operation(summary = "Adds support for a rule (removes any existing contest entry for the user)")
   @PostMapping("/{id}/support")
   @Secured("USER")
+  @Transactional
   public Rule support(@PathVariable(value = "id") int id) {
     String username = getLoggedInUser();
-    ruleMapper.addSupport(id, username);
-    ruleMapper.removeContest(id, username); // contest and support are mutually exclusive
+    // Order matters: remove the opposing entry first within the transaction to avoid
+    // a concurrent /contest call overwriting our state under READ_COMMITTED isolation.
+    ruleMapper.removeContest(id, username);
+    ruleMapper.addSupport(id, username); // contest and support are mutually exclusive
     return ruleMapper.get(id);
   }
 
@@ -297,10 +346,13 @@ public class RuleController implements Controller<Rule> {
   @Operation(summary = "Record that the user contests a rule (removes any support from the user)")
   @PostMapping("/{id}/contest")
   @Secured("USER")
+  @Transactional
   public Rule contest(@PathVariable(value = "id") int id) {
     String username = getLoggedInUser();
-    ruleMapper.addContest(id, username);
-    ruleMapper.removeSupport(id, username); // contest and support are mutually exclusive
+    // Order matters: remove the opposing entry first within the transaction to avoid
+    // a concurrent /support call overwriting our state under READ_COMMITTED isolation.
+    ruleMapper.removeSupport(id, username);
+    ruleMapper.addContest(id, username); // contest and support are mutually exclusive
     return ruleMapper.get(id);
   }
 
@@ -334,8 +386,16 @@ public class RuleController implements Controller<Rule> {
   @Operation(summary = "Logical delete a comment")
   @DeleteMapping("/{id}/comment/{commentId}")
   @Secured({"USER", "REGISTRY_ADMIN"})
-  public void deleteComment(@PathVariable(value = "commentId") int commentId) {
+  public void deleteComment(
+      @PathVariable(value = "id") int ruleId, @PathVariable(value = "commentId") int commentId) {
     Comment existing = commentMapper.get(commentId);
+    if (existing == null) {
+      throw new IllegalArgumentException("Comment not found: " + commentId);
+    }
+    if (existing.getRuleId() != ruleId) {
+      throw new IllegalArgumentException(
+          "Comment " + commentId + " does not belong to rule " + ruleId);
+    }
     assertCreatorOrAdmin(existing.getCreatedBy());
     commentMapper.delete(commentId, getLoggedInUser());
   }
@@ -360,5 +420,64 @@ public class RuleController implements Controller<Rule> {
     return results.isEmpty()
         ? new org.gbif.occurrence.annotation.model.RuleMetrics()
         : results.get(0);
+  }
+
+  /**
+   * Validates that the current user is a member of the project (if projectId is not null).
+   *
+   * @param projectId the project ID to check, or null for rules not associated with a project
+   * @throws IllegalArgumentException if user is not a member of the project
+   */
+  private void assertProjectMember(Integer projectId) {
+    if (projectId == null) {
+      return; // Rules without a project don't require membership
+    }
+
+    Project project = projectMapper.get(projectId);
+    if (project == null) {
+      throw new IllegalArgumentException("Project not found: " + projectId);
+    }
+
+    String currentUser = getLoggedInUser();
+    if (!Arrays.asList(project.getMembers()).contains(currentUser)) {
+      throw new IllegalArgumentException(
+          "Only project members can create or update rules for this project. "
+              + "Please ask a project member to add you to project: "
+              + project.getName());
+    }
+  }
+
+  /**
+   * Validates that the annotation term in a rule exists in the project's vocabulary.
+   *
+   * @param rule the rule to validate
+   * @throws IllegalArgumentException if the annotation term is not in the vocabulary
+   */
+  private void validateAnnotationTerm(Rule rule) {
+    if (rule.getAnnotation() == null || rule.getAnnotation().isBlank()) {
+      return; // Annotation is optional, so null/blank is valid
+    }
+
+    String annotationTerm = rule.getAnnotation().toUpperCase();
+    Integer projectId = rule.getProjectId();
+
+    // Check if term exists in vocabulary
+    if (!vocabularyService.isValidTerm(projectId, annotationTerm)) {
+      throw new IllegalArgumentException(
+          "Annotation term '"
+              + annotationTerm
+              + "' is not in the vocabulary for this project. "
+              + "Please add the term to the project vocabulary first or use a different term.");
+    }
+  }
+
+  /**
+   * Checks if the currently logged-in user has administrator privileges.
+   *
+   * @return true if the user is a REGISTRY_ADMIN, false otherwise
+   */
+  private boolean isAdmin() {
+    return SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+        .anyMatch(r -> r.getAuthority().equals(UserRole.REGISTRY_ADMIN.toString()));
   }
 }

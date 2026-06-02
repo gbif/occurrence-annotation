@@ -4,6 +4,8 @@ import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Trash2, ChevronLeft, ChevronRight, MessageSquare, Loader2, Pencil, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp, Folder, Plus } from 'lucide-react';
+// import { Checkbox } from './ui/checkbox'; // Unused
+// import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'; // Unused
 import { parseWKTGeometry, MultiPolygon, PolygonWithHoles } from '../utils/wktParser';
 import { toast } from 'sonner';
 import { SelectedSpecies } from './SpeciesSelector';
@@ -11,6 +13,14 @@ import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl, getGbifApiUrl } from '../utils/apiConfig';
+
+interface VocabularyTerm {
+  term: string;
+  description?: string;
+  color: string;
+  locked: boolean;
+}
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,9 +35,215 @@ import {
 
 // Helper function to generate species page URL
 const getSpeciesPageUrl = (taxonKey: number): string => {
-  const isDevelopment = import.meta.env.DEV;
-  const baseUrl = isDevelopment ? 'http://localhost:3000' : window.location.origin;
-  return `${baseUrl}/?taxonKey=${taxonKey}`;
+  return `https://www.gbif.org/species/${taxonKey}`;
+};
+
+// Searchable multi-select component for Basis of Record
+// Currently unused - commented out to avoid build warnings
+/*
+function BasisOfRecordMultiSelect({ 
+  options, 
+  selected, 
+  onChange,
+  negated,
+  onNegatedChange
+}: { 
+  options: string[]; 
+  selected: string[]; 
+  onChange: (selected: string[]) => void;
+  negated?: boolean;
+  onNegatedChange?: (negated: boolean) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filteredOptions = options.filter(option =>
+    option.toLowerCase().includes(searchTerm.toLowerCase()) && !selected.includes(option)
+  );
+
+  const handleSelectOption = (option: string) => {
+    if (!selected.includes(option)) {
+      onChange([...selected, option]);
+    }
+    setSearchTerm('');
+    setShowDropdown(false);
+    setFocusedIndex(-1);
+    inputRef.current?.focus();
+  };
+
+  const handleRemoveChip = (option: string) => {
+    onChange(selected.filter(item => item !== option));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showDropdown) {
+      if (e.key === 'ArrowDown' && filteredOptions.length > 0) {
+        e.preventDefault();
+        setShowDropdown(true);
+        setFocusedIndex(0);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setFocusedIndex(prev => prev < filteredOptions.length - 1 ? prev + 1 : prev);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setFocusedIndex(prev => prev > 0 ? prev - 1 : prev);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (focusedIndex >= 0 && focusedIndex < filteredOptions.length) {
+          handleSelectOption(filteredOptions[focusedIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setShowDropdown(false);
+        setFocusedIndex(-1);
+        break;
+      case 'Backspace':
+        if (searchTerm === '' && selected.length > 0) {
+          e.preventDefault();
+          handleRemoveChip(selected[selected.length - 1]);
+        }
+        break;
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+        setFocusedIndex(-1);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs text-gray-700">
+          Basis of Record (optional)
+          {selected.length > 0 && (
+            <span className="ml-1 text-blue-600 font-medium">({selected.length} selected)</span>
+          )}
+        </Label>
+        <div className="flex items-center space-x-3">
+          <div className="flex space-x-2">
+            <button type="button" onClick={() => onChange(options)} className="text-xs text-blue-600 hover:text-blue-800 underline">
+              Select All
+            </button>
+            <button type="button" onClick={() => onChange([])} className="text-xs text-gray-600 hover:text-gray-800 underline">
+              Clear
+            </button>
+          </div>
+          {onNegatedChange && (
+            <div className="flex items-center space-x-1">
+              <Checkbox
+                id="basis-of-record-negated-inline"
+                checked={negated || false}
+                disabled={selected.length === 0}
+                onCheckedChange={(checked) => onNegatedChange(checked === true)}
+                className="h-3 w-3"
+              />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Label htmlFor="basis-of-record-negated-inline" className={`text-xs font-medium cursor-pointer ${selected.length === 0 ? 'text-gray-400' : 'text-gray-900'}`}>
+                      Negate
+                    </Label>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Apply rule to all records that do NOT have the selected basis of record</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="relative" ref={dropdownRef}>
+        <div className="min-h-[2.25rem] border border-gray-300 rounded p-2 bg-white flex flex-wrap gap-1 items-center">
+          {selected.map((option) => (
+            <span key={option} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-md">
+              {option.replace(/_/g, ' ')}
+              <button type="button" onClick={() => handleRemoveChip(option)} className="hover:bg-blue-200 rounded-sm p-0.5 -mr-1" aria-label={`Remove ${option}`}>
+                ×
+              </button>
+            </span>
+          ))}
+          <input
+            ref={inputRef}
+            type="text"
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setShowDropdown(true);
+              setFocusedIndex(-1);
+            }}
+            onKeyDown={handleKeyDown}
+            onFocus={() => {
+              if (filteredOptions.length > 0) setShowDropdown(true);
+            }}
+            placeholder={selected.length === 0 ? "Type to search basis of record..." : ""}
+            className="flex-1 min-w-[120px] text-xs outline-none bg-transparent"
+          />
+        </div>
+        {showDropdown && filteredOptions.length > 0 && (
+          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-32 overflow-y-auto">
+            {filteredOptions.map((option, index) => (
+              <div
+                key={option}
+                className={`p-2 text-xs cursor-pointer ${index === focusedIndex ? 'bg-blue-100 text-blue-900' : 'hover:bg-gray-100'}`}
+                onClick={() => handleSelectOption(option)}
+                onMouseEnter={() => setFocusedIndex(index)}
+              >
+                {option.replace(/_/g, ' ')}
+              </div>
+            ))}
+          </div>
+        )}
+        {selected.length === 0 && (
+          <div className="text-xs text-gray-500 italic mt-1">
+            No selection - will apply to all basis of record types
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+*/
+
+// Component for fetching and displaying dataset title
+const DatasetTitleDisplay = ({ datasetKey }: { datasetKey: string }) => {
+  const [title, setTitle] = useState<string>(datasetKey);
+
+  useEffect(() => {
+    const fetchDatasetTitle = async () => {
+      try {
+        const response = await fetch(`https://api.gbif.org/v1/dataset/${datasetKey}`);
+        if (response.ok) {
+          const dataset = await response.json();
+          setTitle(dataset.title || datasetKey);
+        }
+      } catch (error) {
+        console.warn('Failed to fetch dataset title:', error);
+      }
+    };
+
+    fetchDatasetTitle();
+  }, [datasetKey]);
+
+  return <span className="font-semibold text-purple-600">{title}</span>;
 };
 
 // Component for clickable species name in annotation rules
@@ -46,18 +262,16 @@ const SpeciesLink = ({
     return (
       <a 
         href={getSpeciesPageUrl(taxonKey)} 
-        target="_blank" 
-        rel="noopener noreferrer"
         className={`${className} hover:underline cursor-pointer`}
         style={style}
         title={`View ${scientificName} species page`}
       >
-        "{scientificName}"
+        {scientificName}
       </a>
     );
   }
   
-  return <span className={className} style={style}>"{scientificName}"</span>;
+  return <span className={className} style={style}>{scientificName}</span>;
 };
 
 export interface RuleComment {
@@ -84,11 +298,13 @@ export interface AnnotationRule {
   createdBy: string;
   deleted: string | null;
   deletedBy: string | null;
-  // Parsed geometry (can be single or multi polygon)
-  multiPolygon?: MultiPolygon;
+  // Parsed geometry (can be single polygon with holes or multi polygon)
+  multiPolygon?: MultiPolygon | PolygonWithHoles;
   // Higher order metadata
   taxonomicLevel?: string;
   scientificName?: string;
+  // Project-specific vocabulary for this rule
+  projectVocabulary?: VocabularyTerm[];
 }
 
 interface AnnotationRulesProps {
@@ -98,15 +314,26 @@ interface AnnotationRulesProps {
   onRulesLoad?: (rules: AnnotationRule[]) => void;
   refreshTrigger?: number; // Add this to force refresh when rules are saved
   filterProjectId?: number | null; // Filter rules by project ID
+  vocabulary?: VocabularyTerm[];
+  onLoadRuleForEditing?: (rule: AnnotationRule) => Promise<boolean>; // Callback to load rule for editing
 }
 
 export function AnnotationRules({ 
   selectedSpecies, 
   showHigherOrderRules = false,
-  onShowHigherOrderChange,
+  // onShowHigherOrderChange, // Unused
   onRulesLoad,
   refreshTrigger,
-  filterProjectId
+  filterProjectId,
+  vocabulary = [
+    { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
+    { term: 'NATIVE', description: 'Native species', color: '#22c55e', locked: false },
+    { term: 'MANAGED', description: 'Managed population', color: '#a855f7', locked: false },
+    { term: 'FORMER', description: 'Former population', color: '#f97316', locked: false },
+    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#06b6d4', locked: false },
+    { term: 'INTRODUCED', description: 'Introduced species', color: '#3b82f6', locked: false },
+  ],
+  onLoadRuleForEditing,
 }: AnnotationRulesProps) {
   const [rules, setRules] = useState<AnnotationRule[]>([]);
   const [loading, setLoading] = useState(false);
@@ -133,11 +360,29 @@ export function AnnotationRules({
   // Project names cache
   const [projectNames, setProjectNames] = useState<Map<number, string>>(new Map());
   
+  // Project vocabularies cache - stores vocabulary for each project
+  const [projectVocabularies, setProjectVocabularies] = useState<Map<number, VocabularyTerm[]>>(new Map());
+  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [hasNextPage, setHasNextPage] = useState(false);
   const pageSize = 20;
+  
+  // Edit confirmation dialog state
+  const [isEditConfirmOpen, setIsEditConfirmOpen] = useState(false);
+  const [ruleToEdit, setRuleToEdit] = useState<AnnotationRule | null>(null);
+  const [isLoadingForEdit, setIsLoadingForEdit] = useState(false);
+  
+  // const basisOfRecordOptions = [
+  //   'HUMAN_OBSERVATION',
+  //   'PRESERVED_SPECIMEN',
+  //   'FOSSIL_SPECIMEN',
+  //   'LIVING_SPECIMEN',
+  //   'MACHINE_OBSERVATION',
+  //   'MATERIAL_SAMPLE',
+  //   'OCCURRENCE'
+  // ];
   
   const onRulesLoadRef = useRef(onRulesLoad);
 
@@ -146,11 +391,16 @@ export function AnnotationRules({
     onRulesLoadRef.current = onRulesLoad;
   }, [onRulesLoad]);
 
+  // Sync rules to parent whenever they change (prevents setState-in-render warnings)
+  useEffect(() => {
+    onRulesLoadRef.current?.(rules);
+  }, [rules]);
+
   // Check login status and get current user
   useEffect(() => {
     const checkLoginStatus = () => {
-      const gbifAuth = localStorage.getItem('gbifAuth');
-      const gbifUser = localStorage.getItem('gbifUser');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
+      const gbifUser = sessionStorage.getItem('gbifUser');
       
       setIsLoggedIn(!!gbifAuth);
       
@@ -186,7 +436,6 @@ export function AnnotationRules({
     if (!selectedSpecies) {
       setRules([]);
       setError(null);
-      onRulesLoadRef.current?.([]);
       return;
     }
 
@@ -306,30 +555,11 @@ export function AnnotationRules({
         const rulesWithCoords = paginatedRules.map(rule => {
           const multiPolygon = parseWKTGeometry(rule.geometry);
           
-          // DEBUG: Log coordinate information for the first few rules
-          if (multiPolygon && multiPolygon.polygons && multiPolygon.polygons.length > 0) {
-            const firstPolygon = multiPolygon.polygons[0];
-            console.log('DEBUG: Annotation Rule Coordinates', {
-              ruleId: rule.id,
-              annotation: rule.annotation,
-              originalWKT: rule.geometry.substring(0, 100) + '...', // First 100 chars
-              polygonCount: multiPolygon.polygons.length,
-              firstPolygonVertexCount: firstPolygon.outer.length,
-              firstThreeVertices: firstPolygon.outer.slice(0, 3),
-              hasHoles: firstPolygon.holes.length > 0
-            });
-          }
-          
           return {
             ...rule,
             multiPolygon: multiPolygon || undefined
           };
         });
-        
-        setRules(rulesWithCoords);
-        setTotalCount(totalRulesCount);
-        setHasNextPage((page + 1) * pageSize < totalRulesCount);
-        onRulesLoadRef.current?.(rulesWithCoords);
         
         // Initialize user votes based on current user being in supported/contested arrays
         if (currentUser?.userName) {
@@ -351,21 +581,61 @@ export function AnnotationRules({
           fetchCommentCount(rule.id);
         });
         
-        // Fetch project names for rules that have projectIds
+        // Fetch project names and vocabularies for rules that have projectIds
         const projectIdsToFetch = new Set<number>();
+        const vocabularyProjectIds = new Set<number>();
         rulesWithCoords.forEach(rule => {
-          if (rule.projectId && !projectNames.has(rule.projectId)) {
-            projectIdsToFetch.add(rule.projectId);
+          if (rule.projectId) {
+            if (!projectNames.has(rule.projectId)) {
+              projectIdsToFetch.add(rule.projectId);
+            }
+            if (!projectVocabularies.has(rule.projectId)) {
+              vocabularyProjectIds.add(rule.projectId);
+            }
           }
         });
         
+        // Fetch project names and vocabularies in parallel
+        let fetchedVocabularies = new Map<number, VocabularyTerm[]>();
+        
+        const promises: Promise<any>[] = [];
         if (projectIdsToFetch.size > 0) {
-          fetchProjectNames(Array.from(projectIdsToFetch));
+          promises.push(fetchProjectNames(Array.from(projectIdsToFetch)));
         }
+        if (vocabularyProjectIds.size > 0) {
+          promises.push(
+            fetchProjectVocabularies(Array.from(vocabularyProjectIds)).then(vocabMap => {
+              fetchedVocabularies = vocabMap;
+            })
+          );
+        }
+        
+        // Wait for vocabularies to be fetched
+        if (promises.length > 0) {
+          await Promise.all(promises);
+        }
+        
+        // Merge cached vocabularies with newly fetched ones
+        const allVocabularies = new Map([...projectVocabularies, ...fetchedVocabularies]);
+        
+        // Now augment rules with their project vocabularies
+        const rulesWithVocabulary = rulesWithCoords.map(rule => {
+          if (rule.projectId) {
+            const projectVocab = allVocabularies.get(rule.projectId);
+            if (projectVocab) {
+              return { ...rule, projectVocabulary: projectVocab };
+            }
+          }
+          return rule;
+        });
+        
+        // Update state with rules that have vocabulary attached
+        setRules(rulesWithVocabulary);
+        setTotalCount(totalRulesCount);
+        setHasNextPage((page + 1) * pageSize < totalRulesCount);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
         setRules([]);
-        onRulesLoadRef.current?.([]);
       } finally {
         setLoading(false);
       }
@@ -455,6 +725,54 @@ export function AnnotationRules({
       });
     } catch (error) {
       console.error('Error fetching project names:', error);
+    }
+  };
+  
+  const fetchProjectVocabularies = async (projectIds: number[]): Promise<Map<number, VocabularyTerm[]>> => {
+    try {
+      const vocabularyPromises = projectIds.map(async (projectId) => {
+        try {
+          const response = await fetch(
+            getAnnotationApiUrl(`/project/${projectId}/vocabulary`)
+          );
+          
+          if (!response.ok) {
+            return { id: projectId, vocabulary: [] };
+          }
+          
+          const vocabulary: VocabularyTerm[] = await response.json();
+          return { id: projectId, vocabulary };
+        } catch (error) {
+          console.error(`Error fetching vocabulary for project ${projectId}:`, error);
+          return { id: projectId, vocabulary: [] };
+        }
+      });
+      
+      const vocabularyData = await Promise.all(vocabularyPromises);
+      
+      // Build the result map
+      const resultMap = new Map<number, VocabularyTerm[]>();
+      vocabularyData.forEach(({ id, vocabulary }) => {
+        if (vocabulary.length > 0) {
+          resultMap.set(id, vocabulary);
+        }
+      });
+      
+      // Update state for future use
+      setProjectVocabularies(prev => {
+        const newMap = new Map(prev);
+        vocabularyData.forEach(({ id, vocabulary }) => {
+          if (vocabulary.length > 0) {
+            newMap.set(id, vocabulary);
+          }
+        });
+        return newMap;
+      });
+      
+      return resultMap;
+    } catch (error) {
+      console.error('Error fetching project vocabularies:', error);
+      return new Map();
     }
   };
 
@@ -562,7 +880,7 @@ export function AnnotationRules({
     }
 
     // Check if user is logged in
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to add comments');
       return;
@@ -617,7 +935,7 @@ export function AnnotationRules({
 
   const handleDeleteComment = async (ruleId: number, commentId: number) => {
     // Check if user is logged in
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to delete comments');
       return;
@@ -672,7 +990,7 @@ export function AnnotationRules({
 
   const handleDeleteRule = async (ruleId: number) => {
     // Check if user is logged in
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to delete annotation rules');
       return;
@@ -704,11 +1022,7 @@ export function AnnotationRules({
       }
 
       // Remove the deleted rule from state
-      setRules(prevRules => {
-        const updatedRules = prevRules.filter(r => r.id !== ruleId);
-        onRulesLoadRef.current?.(updatedRules);
-        return updatedRules;
-      });
+      setRules(prevRules => prevRules.filter(r => r.id !== ruleId));
 
       // Update total count
       setTotalCount(prevCount => prevCount - 1);
@@ -724,10 +1038,84 @@ export function AnnotationRules({
 
   // Helper to get Basic Auth header from GBIF login
   function getBasicAuthHeader() {
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) return null;
     return 'Basic ' + gbifAuth;
   }
+
+  // Search datasets for edit dialog
+  // Edit rule handlers - new workflow: delete + load for editing
+  const handleEditRule = (rule: AnnotationRule) => {
+    setRuleToEdit(rule);
+    setIsEditConfirmOpen(true);
+  };
+
+  const handleConfirmEdit = async () => {
+    if (!ruleToEdit || !onLoadRuleForEditing) return;
+
+    setIsLoadingForEdit(true);
+    
+    try {
+      // Check if user is logged in
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
+      if (!gbifAuth) {
+        toast.error('Please login to GBIF to edit annotation rules');
+        setIsLoadingForEdit(false);
+        setIsEditConfirmOpen(false);
+        return;
+      }
+
+      // Step 1: Delete the old rule
+      const deleteResponse = await fetch(
+        getAnnotationApiUrl(`/rule/${ruleToEdit.id}`),
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Basic ${gbifAuth}`,
+          },
+        }
+      );
+
+      if (!deleteResponse.ok) {
+        if (deleteResponse.status === 401) {
+          throw new Error('Unauthorized - please check your GBIF credentials');
+        } else if (deleteResponse.status === 403) {
+          throw new Error('Forbidden - you may not have permission to edit this rule');
+        } else if (deleteResponse.status === 404) {
+          throw new Error('Rule not found');
+        } else {
+          throw new Error(`Failed to delete rule (${deleteResponse.status})`);
+        }
+      }
+
+      // Step 2: Remove from local state
+      setRules(prevRules => prevRules.filter(r => r.id !== ruleToEdit.id));
+      setTotalCount(prevCount => prevCount - 1);
+
+      // Step 3: Load the rule for editing
+      const success = await onLoadRuleForEditing(ruleToEdit);
+      
+      if (success) {
+        toast.success('Rule loaded for editing', {
+          description: 'Modify the polygon and attributes in the sidebar, then save to create a new rule.',
+          duration: 5000,
+        });
+      }
+
+      setIsEditConfirmOpen(false);
+      setRuleToEdit(null);
+    } catch (err) {
+      console.error('Error loading rule for editing:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to load rule for editing');
+    } finally {
+      setIsLoadingForEdit(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditConfirmOpen(false);
+    setRuleToEdit(null);
+  };
 
   // Voting handlers
   const handleVote = async (ruleId: number, action: 'support' | 'contest') => {
@@ -768,22 +1156,18 @@ export function AnnotationRules({
         setUserVotes(prev => new Map(prev.set(ruleId, action)));
         
         // Update rule counts in the rules array
-        setRules(prevRules => {
-          const updatedRules = prevRules.map(rule => {
-            if (rule.id === ruleId) {
-              const updatedRule = { ...rule };
-              if (action === 'support') {
-                updatedRule.supportedBy = [...rule.supportedBy, currentUser?.userName || 'anonymous'];
-              } else {
-                updatedRule.contestedBy = [...rule.contestedBy, currentUser?.userName || 'anonymous'];
-              }
-              return updatedRule;
+        setRules(prevRules => prevRules.map(rule => {
+          if (rule.id === ruleId) {
+            const updatedRule = { ...rule };
+            if (action === 'support') {
+              updatedRule.supportedBy = [...rule.supportedBy, currentUser?.userName || 'anonymous'];
+            } else {
+              updatedRule.contestedBy = [...rule.contestedBy, currentUser?.userName || 'anonymous'];
             }
-            return rule;
-          });
-          onRulesLoadRef.current?.(updatedRules);
-          return updatedRules;
-        });
+            return updatedRule;
+          }
+          return rule;
+        }));
 
         toast.success(`Rule ${action === 'support' ? 'supported' : 'contested'} successfully`);
       } else {
@@ -844,23 +1228,19 @@ export function AnnotationRules({
         setUserVotes(prev => new Map(prev.set(ruleId, null)));
         
         // Update rule counts in the rules array
-        setRules(prevRules => {
-          const updatedRules = prevRules.map(rule => {
-            if (rule.id === ruleId) {
-              const updatedRule = { ...rule };
-              const currentUserName = currentUser?.userName || 'anonymous';
-              if (action === 'support') {
-                updatedRule.supportedBy = rule.supportedBy.filter(user => user !== currentUserName);
-              } else {
-                updatedRule.contestedBy = rule.contestedBy.filter(user => user !== currentUserName);
-              }
-              return updatedRule;
+        setRules(prevRules => prevRules.map(rule => {
+          if (rule.id === ruleId) {
+            const updatedRule = { ...rule };
+            const currentUserName = currentUser?.userName || 'anonymous';
+            if (action === 'support') {
+              updatedRule.supportedBy = rule.supportedBy.filter(user => user !== currentUserName);
+            } else {
+              updatedRule.contestedBy = rule.contestedBy.filter(user => user !== currentUserName);
             }
-            return rule;
-          });
-          onRulesLoadRef.current?.(updatedRules);
-          return updatedRules;
-        });
+            return updatedRule;
+          }
+          return rule;
+        }));
 
         toast.success(`${action === 'support' ? 'Support' : 'Contest'} removed successfully`);
       } else {
@@ -889,25 +1269,59 @@ export function AnnotationRules({
     }
   };
 
-  const getAnnotationColor = (annotation: string) => {
-    switch (annotation.toUpperCase()) {
-      case 'SUSPICIOUS':
-        return 'bg-red-100 text-red-800 border-red-300';
-      case 'NATIVE':
-        return 'bg-green-100 text-green-800 border-green-300';
-      case 'MANAGED':
-        return 'bg-blue-100 text-blue-800 border-blue-300';
-      case 'FORMER':
-        return 'bg-purple-100 text-purple-800 border-purple-300';
-      case 'VAGRANT':
-        return 'bg-orange-100 text-orange-800 border-orange-300';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-300';
+  // Helper to get the appropriate vocabulary for a rule
+  const getVocabularyForRule = (rule: AnnotationRule): VocabularyTerm[] => {
+    // Prefer vocabulary attached directly to the rule when available
+    if (rule.projectVocabulary && rule.projectVocabulary.length > 0) {
+      return rule.projectVocabulary;
     }
+    
+    // Otherwise, if the rule has a projectId and we have vocabulary for that project, use it
+    if (rule.projectId && projectVocabularies.has(rule.projectId)) {
+      return projectVocabularies.get(rule.projectId)!;
+    }
+    
+    // Finally, fall back to the default/current vocabulary
+    return vocabulary;
   };
 
-  const renderPolygonPreview = (multiPolygon: MultiPolygon | undefined, annotation: string) => {
-    if (!multiPolygon || multiPolygon.polygons.length === 0) return null;
+  const getAnnotationColor = (annotation: string, rule?: AnnotationRule) => {
+    // Determine which vocabulary to use
+    const vocabToUse = rule ? getVocabularyForRule(rule) : vocabulary;
+    
+    // Look up color from vocabulary
+    const vocabTerm = vocabToUse.find(v => v.term.toUpperCase() === annotation.toUpperCase());
+    if (vocabTerm) {
+      // Convert hex color to Tailwind-style classes
+      const color = vocabTerm.color.toLowerCase();
+      // Use custom style instead of Tailwind classes for dynamic colors
+      return {
+        backgroundColor: `${color}20`, // 20 = 12.5% opacity
+        color: color,
+        borderColor: `${color}80`, // 80 = 50% opacity
+      };
+    }
+    
+    // Fallback for unknown annotations
+    return {
+      backgroundColor: '#f3f4f620',
+      color: '#6b7280',
+      borderColor: '#6b728080',
+    };
+  };
+
+  const renderPolygonPreview = (geometry: MultiPolygon | PolygonWithHoles | undefined, annotation: string, rule?: AnnotationRule) => {
+    if (!geometry) return null;
+
+    // Normalize to array of PolygonWithHoles
+    const polygons: PolygonWithHoles[] = 'polygons' in geometry 
+      ? geometry.polygons 
+      : [geometry];
+
+    if (polygons.length === 0) return null;
+
+    // Get the appropriate vocabulary for this rule
+    const vocabToUse = rule ? getVocabularyForRule(rule) : vocabulary;
 
     // Helper function to detect if a polygon is inverted by checking if outer ring covers the world
     const isInvertedPolygon = (polygon: PolygonWithHoles): boolean => {
@@ -929,13 +1343,13 @@ export function AnnotationRules({
       return coversWorld && hasHoles;
     };
 
-    // Convert MultiPolygon format to coordinates format expected by MiniMapPreview
+    // Convert to coordinates format expected by MiniMapPreview
     let coordinates: [number, number][] | [number, number][][];
     let isMultiPolygon = false;
     let isInverted = false;
 
-    if (multiPolygon.polygons.length === 1) {
-      const polygon = multiPolygon.polygons[0];
+    if (polygons.length === 1) {
+      const polygon = polygons[0];
       const isOriginallyInverted = isInvertedPolygon(polygon);
       
       if (isOriginallyInverted && polygon.holes && polygon.holes.length > 0) {
@@ -959,7 +1373,7 @@ export function AnnotationRules({
       }
     } else {
       // Multiple polygons - convert to array of coordinate arrays
-      coordinates = multiPolygon.polygons.map(poly => poly.outer);
+      coordinates = polygons.map(poly => poly.outer);
       isMultiPolygon = true;
       // For simplicity, don't handle inversion for multipolygons in preview
       isInverted = false;
@@ -974,6 +1388,7 @@ export function AnnotationRules({
         width={80}
         height={60}
         className="rounded-md shadow-sm"
+        vocabulary={vocabToUse}
       />
     );
 
@@ -1059,14 +1474,18 @@ export function AnnotationRules({
                 {/* Polygon preview */}
                 {rule.multiPolygon && (
                   <div className="flex-shrink-0">
-                    {renderPolygonPreview(rule.multiPolygon, rule.annotation)}
+                    {renderPolygonPreview(rule.multiPolygon, rule.annotation, rule)}
                   </div>
                 )}
                 
                 {/* Rule details */}
                 <div className="flex-1 space-y-2 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Badge className={getAnnotationColor(rule.annotation)} variant="outline">
+                    <Badge 
+                      style={getAnnotationColor(rule.annotation, rule)} 
+                      variant="outline"
+                      className="border"
+                    >
                       {rule.annotation}
                     </Badge>
                     {rule.projectId && (
@@ -1123,28 +1542,21 @@ export function AnnotationRules({
                         </Button>
                         {expandedDescriptions.has(rule.id) && (
                           <p className="text-sm mt-2">
-                            <span className="text-gray-500">This rule designates all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <SpeciesLink scientificName={rule.scientificName} taxonKey={rule.taxonKey} className="font-semibold" />
+                            <span className="text-gray-500">This rule designates all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <SpeciesLink scientificName={rule.scientificName} taxonKey={rule.taxonKey} className="font-semibold" style={{color: '#4C9C2E'}} />
                             {rule.basisOfRecord && rule.basisOfRecord.length > 0 && (
                               rule.basisOfRecordNegated ? (
-                                <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold">NOT "{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                                <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold text-blue-600">NOT {rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}</span></>
                               ) : (
-                                <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold">"{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                                <><span className="text-gray-500"> with basis of record</span> <span className="font-semibold text-blue-600">{rule.basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}</span></>
                               )
                             )}
                             {rule.datasetKey && (
-                              <><span className="text-gray-500"> from dataset</span> <span className="font-semibold">"{rule.datasetKey}"</span></>
+                              <><span className="text-gray-500"> from dataset</span> <DatasetTitleDisplay datasetKey={rule.datasetKey} /></>
                             )}
                             {rule.yearRange && (
                               <><span className="text-gray-500"> from years</span> <span className="font-semibold">{rule.yearRange}</span></>
                             )}
-                            <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${
-                              rule.annotation === 'SUSPICIOUS' ? 'text-red-600' :
-                              rule.annotation === 'NATIVE' ? 'text-green-600' :
-                              rule.annotation === 'MANAGED' ? 'text-blue-600' :
-                              rule.annotation === 'FORMER' ? 'text-purple-600' :
-                              rule.annotation === 'VAGRANT' ? 'text-orange-600' :
-                              'text-red-600'
-                            }`}>{rule.annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
+                            <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className="font-semibold" style={{ color: getVocabularyForRule(rule).find(v => v.term.toUpperCase() === rule.annotation.toUpperCase())?.color || '#ef4444' }}>{rule.annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
                           </p>
                         )}
                       </div>
@@ -1252,6 +1664,19 @@ export function AnnotationRules({
 
                 {/* Separator */}
                 <div className="w-px h-6 bg-gray-300" />
+
+                {/* Edit button - only show for own rules or if user is logged in */}
+                {isLoggedIn && currentUser && rule.createdBy === currentUser.userName && !rule.deleted && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleEditRule(rule)}
+                    className="h-7 w-7 p-0"
+                    title="Edit this rule"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                )}
 
                 {/* Delete button */}
                 <AlertDialog>
@@ -1425,6 +1850,40 @@ export function AnnotationRules({
           );
         })}
       </div>
+
+      {/* Edit Confirmation Dialog */}
+      <AlertDialog open={isEditConfirmOpen} onOpenChange={setIsEditConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Edit Annotation Rule</AlertDialogTitle>
+            <AlertDialogDescription>
+              Editing this rule will delete the original rule (ID: {ruleToEdit?.id}) and load it for modification. 
+              You can then modify the polygon geometry and attributes before saving as a new rule.
+              <br /><br />
+              <strong>This action cannot be undone.</strong> Continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelEdit} disabled={isLoadingForEdit}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmEdit}
+              disabled={isLoadingForEdit}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isLoadingForEdit ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                'Load for Editing'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

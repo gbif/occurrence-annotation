@@ -1,15 +1,31 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Map, Overlay } from 'pigeon-maps';
 import { PolygonData } from '../App';
+import { OccurrenceFilters, OccurrenceFilterOptions } from './OccurrenceFilters';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors } from 'lucide-react';
+import { Trash2, Square, Check, X, Edit2, Search, Plus, Minus, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Hand, Repeat, GitBranch, Scissors, Layers, Waves, Bot, Combine, GitMerge, Split, Maximize2, Eraser } from 'lucide-react';
 import { AnnotationRule } from './AnnotationRules';
+import { LocationQualityPanel } from './LocationQualityPanel';
+import { isAdmin } from '../utils/authHelpers';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
+import { PolygonWithHoles } from '../utils/wktParser';
+import { subtractOceanFromPolygon, bufferPolygon, bufferMultiPolygon, eraseFromPolygon } from '../utils/spatialOperations';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { getDatasetInfo } from '../utils/datasetCache';
+
+
+interface VocabularyTerm {
+  term: string;
+  description: string;
+  color: string;
+  locked: boolean;
+}
 
 interface MapComponentProps {
   selectedSpecies: {
@@ -24,6 +40,8 @@ interface MapComponentProps {
   onPolygonChange: (coords: [number, number][] | null) => void;
   annotationRules?: AnnotationRule[];
   showAnnotationRules?: boolean;
+  showMyRulesOnly?: boolean;
+  showContestedRules?: boolean;
   editingPolygonId?: string | null;
   onUpdatePolygon?: (id: string, coordinates: [number, number][] | [number, number][][]) => void;
   onStopEditing?: () => void;
@@ -33,6 +51,14 @@ interface MapComponentProps {
   onToggleInvert?: (id: string) => void;
   onEditPolygon?: (id: string) => void;
   onDeletePolygon?: (id: string) => void;
+  occurrenceFilters?: OccurrenceFilterOptions;
+  onFiltersChange?: (filters: OccurrenceFilterOptions) => void;
+  onCreateRuleFromSearch?: (coords: [number, number][], metadata?: { basisOfRecord?: string[]; datasetKey?: string }) => void;
+  onSaveMultiplePolygons?: (polygons: [number, number][][]) => void;
+  onMergeAllPolygons?: () => void;
+  onUnionPolygons?: () => void;
+  onSplitMultiPolygon?: (id: string) => void;
+  vocabulary?: VocabularyTerm[];
 }
 
 // Tile conversion helpers for Web Mercator (EPSG:3857)
@@ -50,11 +76,7 @@ function tileToLatLngWebMercator(x: number, y: number, zoom: number): [number, n
   return [lat, lng];
 }
 
-// GBIF base map tile provider - Web Mercator (EPSG:3857)
-const gbifTileProvider = (x: number, y: number, z: number) => {
-  const url = `https://tile.gbif.org/3857/omt/${z}/${x}/${y}@2x.png?style=gbif-geyser-en`;
-  return url;
-};
+// Note: gbifTileProvider is defined inside the component to access baseMapStyle state
 
 export function MapComponent({
   selectedSpecies,
@@ -65,20 +87,49 @@ export function MapComponent({
   onPolygonChange,
   annotationRules = [],
   showAnnotationRules = true,
+  showMyRulesOnly = false,
+  showContestedRules = false,
   editingPolygonId = null,
   onUpdatePolygon,
+  onStopEditing,
   onSaveAndEdit,
   onAutoSave,
   onNavigateToLocation,
   onToggleInvert,
   onEditPolygon,
   onDeletePolygon,
+  occurrenceFilters = {},
+  onFiltersChange,
+  onCreateRuleFromSearch,
+  onSaveMultiplePolygons,
+  onMergeAllPolygons,
+  onUnionPolygons,
+  onSplitMultiPolygon,
+  vocabulary = [
+    { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
+    { term: 'NATIVE', description: 'Native species', color: '#22c55e', locked: false },
+    { term: 'MANAGED', description: 'Managed population', color: '#a855f7', locked: false },
+    { term: 'FORMER', description: 'Former population', color: '#f97316', locked: false },
+    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#06b6d4', locked: false },
+    { term: 'INTRODUCED', description: 'Introduced species', color: '#3b82f6', locked: false },
+  ],
 }: MapComponentProps) {
+  // Helper function to get colors from vocabulary
+  const getColorFromVocabulary = (annotation: string, rule?: AnnotationRule): { fill: string; stroke: string } => {
+    // Use rule's project vocabulary if available, otherwise use the main vocabulary prop
+    const vocabToUse = rule?.projectVocabulary || vocabulary;
+    
+    const term = vocabToUse.find(v => v.term.toUpperCase() === annotation.toUpperCase());
+    if (term) {
+      return { fill: term.color, stroke: term.color };
+    }
+    // Fallback to SUSPICIOUS if term not found
+    const suspicious = vocabToUse.find(v => v.term.toUpperCase() === 'SUSPICIOUS');
+    return { fill: suspicious?.color || '#ef4444', stroke: suspicious?.color || '#dc2626' };
+  };
+  
   const [center, setCenter] = useState<[number, number]>([20, 0]);
   const [zoom, setZoom] = useState(2);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [drawingMode, setDrawingMode] = useState<'polygon' | 'rectangle' | 'latband'>('polygon');
-  const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
   const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
   const [gbifTiles, setGbifTiles] = useState<Array<{ x: number; y: number; z: number; anchor: [number, number]; url: string }>>([]);
   const [isZooming, setIsZooming] = useState(false);
@@ -88,8 +139,67 @@ export function MapComponent({
   const [isDraggingShape, setIsDraggingShape] = useState(false);
   const [dragStart, setDragStart] = useState<[number, number] | null>(null);
   const [dragCurrent, setDragCurrent] = useState<[number, number] | null>(null);
-  const [isEditingCurrent, setIsEditingCurrent] = useState(false);
+  // const [isEditingCurrent, setIsEditingCurrent] = useState(false); // Unused
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [drawingMode, setDrawingMode] = useState<'polygon' | 'rectangle' | 'latband' | 'erase'>('polygon');
+  const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
+  // const [latBandStart, setLatBandStart] = useState<number | null>(null); // Unused
+  
+  // Base map style state - load from localStorage or use default
+  const [baseMapStyle, setBaseMapStyle] = useState<string>(() => {
+    return localStorage.getItem('gbifBaseMapStyle') || 'gbif-middle';
+  });
+  const [isBaseMapDialogOpen, setIsBaseMapDialogOpen] = useState(false);
+  
+  // Ocean subtraction state
+  const [isSubtractingOcean, setIsSubtractingOcean] = useState(false);
+  const [polygonBeforeSubtract, setPolygonBeforeSubtract] = useState<[number, number][] | null>(null);
+  
+  // Buffer polygon state
+  const [isBufferPopoverOpen, setIsBufferPopoverOpen] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
+  
+  // Erase operation state
+  const [isErasing, setIsErasing] = useState(false);
+  
+  // ArcGIS API Key from environment
+  // const arcgisApiKey = import.meta.env.VITE_ARCGIS_API_KEY || ''; // Unused
+  
+  // Base map tile provider - supports both GBIF and ArcGIS - Web Mercator (EPSG:3857)
+  const baseTileProvider = (x: number, y: number, z: number) => {
+    // ArcGIS base maps - using tile service endpoints
+    if (baseMapStyle.startsWith('arcgis-')) {
+      const styleMap: { [key: string]: string } = {
+        'arcgis-imagery': 'arcgis/rest/services/World_Imagery/MapServer',
+        'arcgis-imagery-labels': 'arcgis/rest/services/World_Imagery/MapServer', // Will layer with labels
+        'arcgis-streets': 'arcgis/rest/services/World_Street_Map/MapServer',
+        'arcgis-streets-relief': 'arcgis/rest/services/World_Street_Map/MapServer',
+        'arcgis-topographic': 'arcgis/rest/services/World_Topo_Map/MapServer',
+        'arcgis-navigation': 'arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer',
+        'arcgis-navigation-night': 'arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer',
+        'arcgis-light-gray': 'arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer',
+        'arcgis-dark-gray': 'arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer',
+        'arcgis-ocean': 'arcgis/rest/services/Ocean/World_Ocean_Base/MapServer',
+        'arcgis-ocean-labels': 'arcgis/rest/services/Ocean/World_Ocean_Base/MapServer',
+        'arcgis-terrain': 'arcgis/rest/services/World_Terrain_Base/MapServer',
+        'arcgis-terrain-detail': 'arcgis/rest/services/World_Terrain_Base/MapServer',
+        'arcgis-community': 'arcgis/rest/services/World_Topo_Map/MapServer',
+        'arcgis-nova': 'arcgis/rest/services/World_Street_Map/MapServer',
+        'arcgis-charted-territory': 'arcgis/rest/services/World_Topo_Map/MapServer',
+        'arcgis-hillshade-light': 'arcgis/rest/services/World_Shaded_Relief/MapServer',
+        'arcgis-hillshade-dark': 'arcgis/rest/services/World_Shaded_Relief/MapServer',
+      };
+      const service = styleMap[baseMapStyle] || 'arcgis/rest/services/World_Imagery/MapServer';
+      return `https://services.arcgisonline.com/${service}/tile/${z}/${y}/${x}`;
+    }
+    
+    // GBIF base maps
+    return `https://tile.gbif.org/3857/omt/${z}/${x}/${y}@2x.png?style=${baseMapStyle}`;
+  };
+  
+  // Keep old name for compatibility
+  const gbifTileProvider = baseTileProvider;
   
   // Drag detection state for preventing investigation during map drag
   const [isDragging, setIsDragging] = useState(false);
@@ -103,6 +213,25 @@ export function MapComponent({
   const [investigateResults, setInvestigateResults] = useState<any[]>([]);
   const [isInvestigateDialogOpen, setIsInvestigateDialogOpen] = useState(false);
   const [investigationPoint, setInvestigationPoint] = useState<{ lat: number; lng: number } | null>(null);
+  const [investigationBounds, setInvestigationBounds] = useState<{ north: number; south: number; east: number; west: number } | null>(null);
+  const [selectedOccurrenceForQualityCheck, setSelectedOccurrenceForQualityCheck] = useState<number | null>(null);
+  
+  // Check if current user is admin
+  const userIsAdmin = isAdmin();
+  
+  // Get current user from sessionStorage
+  const getCurrentUser = () => {
+    try {
+      const userStr = sessionStorage.getItem('gbifUser');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        return user.userName;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
   
   // Function to calculate appropriate radius based on zoom level
   const calculateRadiusForZoom = (zoomLevel: number): number => {
@@ -157,7 +286,6 @@ export function MapComponent({
     if (isInvestigateMode) {
       const newRadius = calculateRadiusForZoom(zoom);
       setInvestigateRadius(newRadius);
-      console.log(`🔍 Auto-adjusted investigation radius: ${newRadius}m (${(newRadius/1000).toFixed(1)}km) for zoom level ${zoom}`);
     }
   }, [zoom, isInvestigateMode]);
   
@@ -170,28 +298,6 @@ export function MapComponent({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const zoomTimeoutRef = useRef<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-
-  // Debug logging for current annotation
-  useEffect(() => {
-    if (currentPolygon && currentPolygon.length > 0) {
-      const annotationColors: { [key: string]: { fill: string; stroke: string } } = {
-        SUSPICIOUS: { fill: '#ef4444', stroke: '#dc2626' },
-        NATIVE: { fill: '#10b981', stroke: '#059669' },
-        MANAGED: { fill: '#3b82f6', stroke: '#2563eb' },
-        FORMER: { fill: '#a855f7', stroke: '#9333ea' },
-        VAGRANT: { fill: '#f97316', stroke: '#ea580c' },
-        INTRODUCED: { fill: '#d97706', stroke: '#b45309' },
-      };
-      const color = annotationColors[currentAnnotation.toUpperCase()] || annotationColors.SUSPICIOUS;
-      console.log('🎨 ACTIVE POLYGON DEBUG:', {
-        annotationType: currentAnnotation,
-        fillColor: color.fill,
-        strokeColor: color.stroke,
-        isInverted: isCurrentInverted,
-        polygonPoints: currentPolygon.length
-      });
-    }
-  }, [currentPolygon, currentAnnotation, isCurrentInverted]);
 
   useEffect(() => {
     if (mapContainerRef.current) {
@@ -315,27 +421,69 @@ export function MapComponent({
     }
   }, []);
 
-  // Update GBIF tiles when map moves or species changes
-  useEffect(() => {
-    if (!selectedSpecies || mapSize.width === 0 || isZooming) {
-      if (isZooming) {
-        setGbifTiles([]);
-      }
-      if (!selectedSpecies || mapSize.width === 0) {
-        setGbifTiles([]);
-        if (!selectedSpecies) {
-          console.log('🧹 SPECIES CLEARED - GBIF tiles removed');
-        }
-      }
-      return;
+  // Helper function to build GBIF occurrence tile URL with filters
+  const buildGbifTileUrl = (tileZoom: number, x: number, y: number, taxonKey: number) => {
+    const baseUrl = `https://api.gbif.org/v2/map/occurrence/adhoc/${tileZoom}/${x}/${y}@2x.png`;
+    const params = new URLSearchParams({
+      srs: 'EPSG:3857',
+      style: 'scaled.circles',
+      mode: 'GEO_CENTROID',
+      taxonKey: taxonKey.toString()
+    });
+
+    // Add occurrence status filter (defaults to PRESENT only if not explicitly set to false)
+    if (occurrenceFilters?.showOnlyPresent !== false) {
+      params.append('occurrenceStatus', 'PRESENT');
     }
 
-    console.log('🐾 SPECIES LOADED:', {
-      name: selectedSpecies.name,
-      scientificName: selectedSpecies.scientificName,
-      key: selectedSpecies.key,
-      status: '⏳ Loading GBIF occurrence tiles...'
-    });
+    // Add occurrence filters
+    if (occurrenceFilters?.hasGeospatialIssue !== undefined) {
+      params.append('hasGeospatialIssue', occurrenceFilters.hasGeospatialIssue.toString());
+    }
+    
+    if (occurrenceFilters?.datasetKey) {
+      params.append('datasetKey', occurrenceFilters.datasetKey);
+    }
+    
+    if (occurrenceFilters?.year) {
+      params.append('year', occurrenceFilters.year);
+    }
+    
+    if (occurrenceFilters?.yearRange) {
+      // GBIF API supports year range with comma-separated values
+      const years = [];
+      for (let y = occurrenceFilters.yearRange.min; y <= occurrenceFilters.yearRange.max; y++) {
+        years.push(y.toString());
+      }
+      // GBIF API uses year parameter multiple times or as comma-separated
+      params.append('year', `${occurrenceFilters.yearRange.min},${occurrenceFilters.yearRange.max}`);
+    }
+    
+    if (occurrenceFilters?.basisOfRecord && occurrenceFilters.basisOfRecord.length > 0) {
+      occurrenceFilters.basisOfRecord.forEach(bor => {
+        params.append('basisOfRecord', bor);
+      });
+    }
+
+    if (occurrenceFilters?.distanceFromCentroid) {
+      params.append('distanceFromCentroidInMeters', '0,5000');
+    }
+
+    return `${baseUrl}?${params.toString()}`;
+  };
+
+  // Update GBIF tiles when map moves or species changes
+  useEffect(() => {
+    // Early exit but don't clear tiles during zoom animation to prevent flicker
+    if (!selectedSpecies || mapSize.width === 0) {
+      setGbifTiles([]);
+      return;
+    }
+    
+    // Skip tile updates during zoom animation - tiles stay in state but are hidden visually
+    if (isZooming) {
+      return;
+    }
 
     const tileZoom = Math.max(0, Math.min(14, Math.floor(zoom)));
     const [centerX, centerY] = latLngToTileWebMercator(center[0], center[1], tileZoom);
@@ -344,7 +492,7 @@ export function MapComponent({
     const tilesX = Math.min(6, Math.ceil(mapSize.width / 256) + 1);
     const tilesY = Math.min(6, Math.ceil(mapSize.height / 256) + 1);
     
-    const newTiles = [];
+    const newTiles: Array<{ x: number; y: number; z: number; anchor: [number, number]; url: string }> = [];
     for (let dx = -Math.floor(tilesX / 2); dx <= Math.ceil(tilesX / 2); dx++) {
       for (let dy = -Math.floor(tilesY / 2); dy <= Math.ceil(tilesY / 2); dy++) {
         const x = centerX + dx;
@@ -354,21 +502,30 @@ export function MapComponent({
         if (x >= 0 && x < maxTile && y >= 0 && y < maxTile) {
           // Get the northwest corner of the tile as anchor point
           const anchor = tileToLatLngWebMercator(x, y, tileZoom);
-          const url = `https://api.gbif.org/v2/map/occurrence/adhoc/${tileZoom}/${x}/${y}@2x.png?srs=EPSG:3857&style=scaled.circles&mode=GEO_CENTROID&taxonKey=${selectedSpecies.key}&hasGeospatialIssue=false`;
+          const url = buildGbifTileUrl(tileZoom, x, y, selectedSpecies.key);
           
           newTiles.push({ x, y, z: tileZoom, anchor, url });
         }
       }
     }
     
-    setGbifTiles(newTiles);
-    console.log('📍 GBIF TILES LOADED:', {
-      tileCount: newTiles.length,
-      species: selectedSpecies?.name || 'Unknown',
-      zoom: zoom,
-      status: '🔍 Check coordinate alignment NOW'
+    // Only update tiles if they actually changed (prevents unnecessary re-renders)
+    setGbifTiles(prevTiles => {
+      // Check if tile set changed (same tiles at same positions)
+      if (prevTiles.length === newTiles.length) {
+        const allMatch = newTiles.every(newTile => 
+          prevTiles.some(prevTile => 
+            prevTile.x === newTile.x && prevTile.y === newTile.y && prevTile.z === newTile.z
+          )
+        );
+        if (allMatch) {
+          return prevTiles; // No change needed
+        }
+      }
+      
+      return newTiles;
     });
-  }, [zoom, center, mapSize, selectedSpecies, isZooming]);
+  }, [zoom, center, mapSize, selectedSpecies, isZooming, occurrenceFilters, baseMapStyle]);
 
   // Handle external navigation requests
   useEffect(() => {
@@ -387,11 +544,17 @@ export function MapComponent({
     };
   }, [onNavigateToLocation]);
 
-  // Clear GBIF tiles when zoom level changes significantly to reduce flicker
+  // Removed: Aggressive tile clearing on zoom changes caused flicker
+  // Tiles now persist during zoom and are only hidden visually via isZooming flag
+
+  // Reset erase mode when exiting edit mode
   useEffect(() => {
-    // Clear tiles on significant zoom changes to improve performance
-    setGbifTiles([]);
-  }, [zoom]);
+    if (!editingPolygonId && drawingMode === 'erase') {
+      setDrawingMode('polygon');
+      setIsDrawing(false);
+      setDrawingPoints([]);
+    }
+  }, [editingPolygonId, drawingMode]);
 
   // Investigate area function
   const investigateArea = async (lat: number, lng: number) => {
@@ -404,8 +567,6 @@ export function MapComponent({
     setInvestigateResults([]); // Clear previous results
     setIsInvestigateDialogOpen(true); // Open dialog immediately
     
-    console.log('🔍 Starting area investigation at:', { lat, lng, radius: investigateRadius });
-    
     try {
       // Use a simple bounding box for the search
       const radiusInDegrees = investigateRadius / 111000; // Rough conversion: 1 degree ≈ 111km
@@ -417,15 +578,49 @@ export function MapComponent({
       const east = lng + lngAdjustment;
       const west = lng - lngAdjustment;
       
-      console.log('🔍 Search bounds:', { north, south, east, west, radiusKm: investigateRadius/1000 });
+      // Store bounds for later use
+      setInvestigationBounds({ north, south, east, west });
       
-      // Search for occurrences within the bounding box
-      const apiUrl = `https://api.gbif.org/v1/occurrence/search?` +
-        `taxonKey=${selectedSpecies.key}&` +
-        `hasCoordinate=true&` +
-        `decimalLatitude=${south},${north}&` +
-        `decimalLongitude=${west},${east}&` +
-        `limit=20`;
+      // Build API URL with occurrence filters
+      const params = new URLSearchParams({
+        taxonKey: selectedSpecies.key.toString(),
+        hasCoordinate: 'true',
+        decimalLatitude: `${south},${north}`,
+        decimalLongitude: `${west},${east}`,
+        limit: '20'
+      });
+
+      // Add occurrence status filter (defaults to PRESENT only if not explicitly set to false)
+      if (occurrenceFilters.showOnlyPresent !== false) {
+        params.append('occurrenceStatus', 'PRESENT');
+      }
+
+      // Apply occurrence filters
+      if (occurrenceFilters.hasGeospatialIssue !== undefined) {
+        params.append('hasGeospatialIssue', occurrenceFilters.hasGeospatialIssue.toString());
+      }
+
+      if (occurrenceFilters.datasetKey) {
+        params.append('datasetKey', occurrenceFilters.datasetKey);
+      }
+
+      if (occurrenceFilters.year) {
+        params.append('year', occurrenceFilters.year);
+      } else if (occurrenceFilters.yearRange) {
+        params.append('year', `${occurrenceFilters.yearRange.min},${occurrenceFilters.yearRange.max}`);
+      }
+
+      if (occurrenceFilters.basisOfRecord && occurrenceFilters.basisOfRecord.length > 0) {
+        occurrenceFilters.basisOfRecord.forEach(bor => {
+          params.append('basisOfRecord', bor);
+        });
+      }
+
+      if (occurrenceFilters.distanceFromCentroid) {
+        params.append('distanceFromCentroidInMeters', '0,5000');
+      }
+
+      const apiUrl = `https://api.gbif.org/v1/occurrence/search?${params.toString()}`;
       
       const response = await fetch(apiUrl);
       
@@ -434,7 +629,6 @@ export function MapComponent({
       }
       
       const data = await response.json();
-      console.log('🔍 GBIF response:', data);
       
       if (data.results.length === 0) {
         // No results found
@@ -446,28 +640,11 @@ export function MapComponent({
       // Show initial results count
       toast.success(`Found ${data.results.length} occurrence(s) for ${selectedSpecies.scientificName}. Loading details...`);
       
-      // Process occurrences one by one and update the dialog as we go
-      const enrichedOccurrences: any[] = [];
-      
-      for (let i = 0; i < data.results.length; i++) {
-        const occurrence = data.results[i];
-        
-        try {
-          // Fetch dataset info
-          const datasetResponse = await fetch(
-            `https://api.gbif.org/v1/dataset/${occurrence.datasetKey}`
-          );
-          
-          let datasetInfo = {};
-          if (datasetResponse.ok) {
-            const dataset = await datasetResponse.json();
-            datasetInfo = {
-              datasetTitle: dataset.title,
-              publisher: dataset.publishingOrganizationTitle || dataset.publisher
-            };
-          }
-          
-          const enrichedOccurrence = {
+      // Fetch all dataset info in parallel using datasetCache
+      const enrichmentResults = await Promise.allSettled(
+        data.results.map(async (occurrence: any) => {
+          const dataset = await getDatasetInfo(occurrence.datasetKey);
+          return {
             key: occurrence.key,
             scientificName: occurrence.scientificName,
             decimalLatitude: occurrence.decimalLatitude,
@@ -477,22 +654,27 @@ export function MapComponent({
             datasetKey: occurrence.datasetKey,
             basisOfRecord: occurrence.basisOfRecord,
             coordinateUncertaintyInMeters: occurrence.coordinateUncertaintyInMeters,
+            locality: occurrence.locality,
             media: occurrence.media || [],
-            ...datasetInfo
+            datasetTitle: dataset?.title,
+            publisher: dataset?.publishingOrganizationTitle || dataset?.publisher
           };
-          
-          enrichedOccurrences.push(enrichedOccurrence);
-          
-          // Update results in real-time as each occurrence is processed
-          setInvestigateResults([...enrichedOccurrences]);
-          
-        } catch (err) {
-          console.error('Error fetching dataset info:', err);
-          // Add the occurrence without enriched data
-          enrichedOccurrences.push(occurrence);
-          setInvestigateResults([...enrichedOccurrences]);
-        }
-      }
+        })
+      );
+      
+      // Extract successful results
+      const enrichedOccurrences = enrichmentResults
+        .map((result, index) => {
+          if (result.status === 'fulfilled') {
+            return result.value;
+          } else {
+            console.error('Error enriching occurrence:', result.reason);
+            // Return occurrence without enriched data
+            return data.results[index];
+          }
+        });
+      
+      setInvestigateResults(enrichedOccurrences);
       
     } catch (error) {
       console.error('Error investigating area:', error);
@@ -510,6 +692,68 @@ export function MapComponent({
       return new Date(dateString).toLocaleDateString();
     } catch {
       return dateString;
+    }
+  };
+
+  const createPolygonFromInvestigation = () => {
+    if (!investigationBounds) {
+      toast.error('No investigation area to create polygon from');
+      return;
+    }
+
+    const { north, south, east, west } = investigationBounds;
+    
+    // Create a rectangle polygon from the bounds
+    const rectangleCoords: [number, number][] = [
+      [north, west], // Top-left
+      [north, east], // Top-right
+      [south, east], // Bottom-right
+      [south, west], // Bottom-left
+      [north, west]  // Close the polygon
+    ];
+
+    // Extract unique basis of record values from investigation results
+    const uniqueBasisOfRecord = new Set<string>();
+    const uniqueDatasetKeys = new Set<string>();
+    
+    investigateResults.forEach(result => {
+      if (result.basisOfRecord) {
+        uniqueBasisOfRecord.add(result.basisOfRecord);
+      }
+      if (result.datasetKey) {
+        uniqueDatasetKeys.add(result.datasetKey);
+      }
+    });
+
+    const metadata: { basisOfRecord?: string[]; datasetKey?: string } = {};
+    
+    // Only include basis of record if we found any
+    if (uniqueBasisOfRecord.size > 0) {
+      metadata.basisOfRecord = Array.from(uniqueBasisOfRecord);
+    }
+    
+    // Only include dataset key if there's exactly one unique dataset
+    if (uniqueDatasetKeys.size === 1) {
+      metadata.datasetKey = Array.from(uniqueDatasetKeys)[0];
+    }
+
+    console.log('Creating rule from search with metadata:', metadata);
+
+    // Close the dialog and turn off investigate mode first
+    setIsInvestigateDialogOpen(false);
+    setIsInvestigateMode(false);
+
+    // If we have the new callback, use it to directly save with coordinates and metadata
+    if (onCreateRuleFromSearch) {
+      onCreateRuleFromSearch(rectangleCoords, metadata);
+      toast.success('Rule created from search! Review and save to GBIF.');
+    } else {
+      // Fallback to old method
+      onPolygonChange(rectangleCoords);
+      setTimeout(() => {
+        onSaveAndEdit();
+        toast.success('Rule created from search! Review and save to GBIF.');
+      }, 100);
     }
   };
 
@@ -538,30 +782,20 @@ export function MapComponent({
     const [lat, lng] = latLng;
     const timeSinceMouseDown = Date.now() - dragStartTime;
     
-    console.log('🗺️ MapComponent: handleMapClick called with:', { 
-      lat, lng, isInvestigateMode, dialogOpen: isInvestigateDialogOpen, 
-      isDragging, timeSinceMouseDown 
-    });
-    
     // Don't trigger investigation if this was a drag event or held too long (>500ms)
     if (isDragging || timeSinceMouseDown > 500) {
-      console.log('🗺️ MapComponent: Ignoring click - was a drag event or held too long');
       return;
     }
     
     // Don't trigger investigation if dialog is open
     if (isInvestigateDialogOpen) {
-      console.log('🗺️ MapComponent: Ignoring click - dialog is open');
       return;
     }
     
     // Handle investigate mode - search for occurrences in clicked area
     if (isInvestigateMode) {
-      console.log('🗺️ MapComponent: Investigate mode click detected at:', { lat, lng });
-      
       // Prevent multiple clicks while investigation is in progress
       if (isInvestigateLoading) {
-        console.log('🗺️ MapComponent: Investigation already in progress, ignoring click');
         toast.info('Investigation already in progress...');
         return;
       }
@@ -570,27 +804,12 @@ export function MapComponent({
       return;
     }
     
-    // Only log clicks near the map edges where coordinate issues occur
-    if (Math.abs(lat) > 80) {
-      const [ourScreenX, ourScreenY] = latLngToPixel(lat, lng);
-      const roundTripLatLng = pixelToCurrentLatLng(ourScreenX, ourScreenY);
-      const latError = Math.abs(lat - roundTripLatLng[0]);
-      
-      console.log('🖱️ EDGE CLICK TEST:', {
-        clicked: `${lat.toFixed(2)}°, ${lng.toFixed(2)}°`,
-        coordinateError: latError.toFixed(4) + '°',
-        status: latError > 0.1 ? '❌ MISALIGNED' : '✅ ALIGNED'
-      });
-    }
-    
     if (!isDrawing) {
-      console.log('🗺️ MapComponent: Not in drawing mode, ignoring click');
       return;
     }
     
     // Check if coordinates are within valid map bounds before adding to drawing points
     if (!isWithinBounds(lat, lng)) {
-      console.log('🚫 Click outside valid map bounds, ignoring:', { lat, lng });
       toast.error('Cannot draw outside map boundaries');
       return;
     }
@@ -684,8 +903,8 @@ export function MapComponent({
       return;
     }
     
-    if (drawingMode === 'rectangle' && pointsToUse.length !== 2) {
-      alert('Please click two opposite corners to create a rectangle');
+    if ((drawingMode === 'rectangle' || drawingMode === 'erase') && pointsToUse.length !== 2) {
+      alert('Please drag to define the area');
       return;
     }
     
@@ -699,8 +918,8 @@ export function MapComponent({
     
     let finalPoints = pointsToUse;
     
-    // Convert rectangle to polygon (4 corners)
-    if (drawingMode === 'rectangle' && pointsToUse.length === 2) {
+    // Convert rectangle/erase area to polygon (4 corners)
+    if ((drawingMode === 'rectangle' || drawingMode === 'erase') && pointsToUse.length === 2) {
       const [p1, p2] = pointsToUse;
       finalPoints = [
         [p1[0], p1[1]], // top-left
@@ -708,6 +927,56 @@ export function MapComponent({
         [p2[0], p2[1]], // bottom-right
         [p2[0], p1[1]], // bottom-left
       ];
+    }
+    
+    // Handle erase mode - subtract drawn area from edited polygon
+    if (drawingMode === 'erase' && editingPolygonId && onUpdatePolygon) {
+      const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+      if (polygon) {
+        try {
+          setIsErasing(true);
+          
+          // Show info toast during operation
+          toast.info('Erasing area from polygon...');
+          
+          const result = eraseFromPolygon(polygon.coordinates, finalPoints);
+          
+          if (!result) {
+            toast.error('Erase resulted in empty polygon', {
+              description: 'The entire polygon was erased'
+            });
+            // Optionally delete the polygon if completely erased
+            if (onDeletePolygon) {
+              onDeletePolygon(editingPolygonId);
+            }
+          } else {
+            onUpdatePolygon(editingPolygonId, result);
+            
+            // Check if result is multi-polygon
+            const isMulti = Array.isArray(result[0]) && Array.isArray(result[0][0]);
+            if (isMulti) {
+              const parts = result as [number, number][][];
+              toast.success(`Erased area from polygon`, {
+                description: `${parts.length} piece${parts.length > 1 ? 's' : ''} remaining`
+              });
+            } else {
+              toast.success('Erased area from polygon');
+            }
+          }
+        } catch (error) {
+          console.error('Erase operation failed:', error);
+          toast.error('Erase operation failed', {
+            description: error instanceof Error ? error.message : 'An error occurred during erase'
+          });
+        } finally {
+          setIsErasing(false);
+        }
+      }
+      
+      setDrawingPoints([]);
+      setIsDrawing(false);
+      setDrawingMode('polygon'); // Reset to polygon mode after erase
+      return;
     }
     
     // Auto-save the polygon immediately
@@ -729,6 +998,12 @@ export function MapComponent({
     setDragCurrent(null);
     setShowLatBandControls(false);
     
+    // Reset drawing mode if in erase mode
+    if (drawingMode === 'erase') {
+      setDrawingMode('polygon');
+      toast.info('Erase mode cancelled');
+    }
+    
     // Clear current polygon if it was a latitude band
     if (drawingMode === 'latband') {
       onPolygonChange && onPolygonChange(null);
@@ -737,8 +1012,232 @@ export function MapComponent({
 
   const clearCurrentPolygon = () => {
     onPolygonChange(null);
-    setIsEditingCurrent(false);
+    // setIsEditingCurrent(false); // Variable commented out
     setShowLatBandControls(false);
+    setPolygonBeforeSubtract(null);
+  };
+
+  // Handle ocean subtraction
+  const handleSubtractOcean = async () => {
+    if (!currentPolygon || currentPolygon.length < 3) {
+      toast.error('No polygon to process');
+      return;
+    }
+
+    try {
+      setIsSubtractingOcean(true);
+      
+      // Store original polygon for undo
+      setPolygonBeforeSubtract([...currentPolygon]);
+      
+      const result = await subtractOceanFromPolygon(currentPolygon);
+      
+      if (!result) {
+        toast.error('Polygon is entirely over ocean', {
+          description: 'Try drawing a polygon that includes land areas'
+        });
+        setIsSubtractingOcean(false);
+        return;
+      }
+      
+      // Check if result is MultiPolygon (array of arrays)
+      if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
+        // MultiPolygon result - save all land polygons as separate items
+        const polygons = result as [number, number][][];
+        
+        if (onSaveMultiplePolygons) {
+          // Save all land polygons as separate polygon items
+          onSaveMultiplePolygons(polygons);
+          onPolygonChange(null); // Clear current polygon since we saved them all
+          
+          toast.success(`Ocean subtracted - created ${polygons.length} land polygon${polygons.length > 1 ? 's' : ''}`, {
+            description: polygons.length > 1 ? 'Each land area saved as a separate polygon' : `${polygons[0].length} vertices`
+          });
+        } else {
+          // Fallback: keep largest polygon (old behavior)
+          const largestPolygon = polygons.reduce((largest, current) => 
+            current.length > largest.length ? current : largest
+          , polygons[0]);
+          
+          onPolygonChange(largestPolygon);
+          
+          toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`, {
+            description: `${largestPolygon.length} vertices in result`
+          });
+        }
+      } else {
+        // Single polygon result - keep as current polygon
+        const polygon = result as [number, number][];
+        onPolygonChange(polygon);
+        toast.success('Ocean subtracted successfully', {
+          description: `${polygon.length} vertices in result`
+        });
+      }
+    } catch (error) {
+      console.error('Failed to subtract ocean:', error);
+      toast.error('Failed to subtract ocean', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsSubtractingOcean(false);
+    }
+  };
+
+  // Undo ocean subtraction
+  const handleUndoSubtractOcean = () => {
+    if (polygonBeforeSubtract) {
+      onPolygonChange(polygonBeforeSubtract);
+      setPolygonBeforeSubtract(null);
+      toast.info('Ocean subtraction undone');
+    }
+  };
+
+  // Handle buffer polygon operation
+  const handleBufferPolygon = async (distance: number) => {
+    if (!currentPolygon || currentPolygon.length < 3) {
+      toast.error('No polygon to buffer');
+      return;
+    }
+
+    if (distance === 0) {
+      toast.error('Buffer distance cannot be zero');
+      return;
+    }
+
+    try {
+      setIsBuffering(true);
+      setIsBufferPopoverOpen(false);
+      
+      const result = bufferPolygon(currentPolygon, distance);
+      
+      if (!result) {
+        toast.error('Buffer operation failed', {
+          description: distance < 0 ? 'Negative buffer may be too large for polygon size' : 'Invalid result from buffer operation'
+        });
+        return;
+      }
+      
+      // Check if result is MultiPolygon (array of arrays)
+      if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
+        // MultiPolygon result from self-intersection
+        const polygons = result as [number, number][][];
+        
+        if (onSaveMultiplePolygons && polygons.length > 1) {
+          // Save all buffer pieces as separate polygon items
+          onSaveMultiplePolygons(polygons);
+          onPolygonChange(null); // Clear current polygon since we saved them all
+          
+          toast.success(`Buffer created ${polygons.length} polygon pieces`, {
+            description: 'Self-intersecting buffer split into separate polygons'
+          });
+        } else {
+          // Keep largest polygon
+          const largestPolygon = polygons.reduce((largest, current) => 
+            current.length > largest.length ? current : largest
+          , polygons[0]);
+          
+          onPolygonChange(largestPolygon);
+          
+          toast.success(`Buffer applied - kept largest of ${polygons.length} pieces`, {
+            description: `${largestPolygon.length} vertices`
+          });
+        }
+      } else {
+        // Single polygon result
+        const polygon = result as [number, number][];
+        onPolygonChange(polygon);
+        
+        const direction = distance > 0 ? 'expanded' : 'shrunk';
+        const distanceKm = Math.abs(distance) / 1000;
+        toast.success(`Polygon ${direction} by ${distanceKm}km`, {
+          description: `${polygon.length} vertices in result`
+        });
+      }
+    } catch (error) {
+      console.error('Failed to buffer polygon:', error);
+      toast.error('Failed to buffer polygon', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsBuffering(false);
+    }
+  };
+
+  // Handle buffer polygon operation in edit mode
+  const handleBufferEditMode = async (polygonId: string, polygon: PolygonData, distance: number) => {
+    if (!onUpdatePolygon) return;
+    
+    if (distance === 0) {
+      toast.error('Buffer distance cannot be zero');
+      return;
+    }
+
+    try {
+      setIsBuffering(true);
+      setIsBufferPopoverOpen(false);
+      
+      let result: [number, number][] | [number, number][][] | null = null;
+      
+      // Check if this is a multi-polygon
+      if (polygon.isMultiPolygon) {
+        const multiCoords = polygon.coordinates as [number, number][][];
+        if (!multiCoords || multiCoords.length === 0) {
+          toast.error('Invalid multi-polygon coordinates');
+          return;
+        }
+        
+        console.log(`Buffering multi-polygon with ${multiCoords.length} parts`);
+        result = bufferMultiPolygon(multiCoords, distance);
+        
+      } else {
+        // Single polygon
+        const coords = polygon.coordinates as [number, number][];
+        if (!coords || coords.length < 3) {
+          toast.error('Invalid polygon coordinates');
+          return;
+        }
+        
+        result = bufferPolygon(coords, distance);
+      }
+      
+      if (!result) {
+        toast.error('Buffer operation failed', {
+          description: distance < 0 ? 'Negative buffer may be too large for polygon size' : 'Invalid result from buffer operation'
+        });
+        return;
+      }
+      
+      // Check if result is MultiPolygon
+      if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
+        const polygons = result as [number, number][][];
+        
+        // Always update as multi-polygon if result is multi-polygon
+        onUpdatePolygon(polygonId, polygons);
+        
+        const direction = distance > 0 ? 'expanded' : 'shrunk';
+        const distanceKm = Math.abs(distance) / 1000;
+        toast.success(`Multi-polygon ${direction} by ${distanceKm}km`, {
+          description: `${polygons.length} polygon parts`
+        });
+      } else {
+        // Single polygon result
+        const bufferedPolygon = result as [number, number][];
+        onUpdatePolygon(polygonId, bufferedPolygon);
+        
+        const direction = distance > 0 ? 'expanded' : 'shrunk';
+        const distanceKm = Math.abs(distance) / 1000;
+        toast.success(`Polygon ${direction} by ${distanceKm}km`, {
+          description: `${bufferedPolygon.length} vertices in result`
+        });
+      }
+    } catch (error) {
+      console.error('Failed to buffer polygon in edit mode:', error);
+      toast.error('Failed to buffer polygon', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsBuffering(false);
+    }
   };
 
   // Function to automatically add midpoint vertices to make editing easier
@@ -799,11 +1298,14 @@ export function MapComponent({
   }, [isMoveToolActive, draggingPolygon]);
 
   // Handlers for current polygon editing
+  // Unused - commented out to avoid build warning
+  /*
   const handleCurrentVertexMouseDown = (e: React.MouseEvent, vertexIndex: number) => {
     e.stopPropagation();
     e.preventDefault();
     setDraggingVertex({ polygonId: 'current', index: vertexIndex });
   };
+  */
 
   const handleCurrentEdgeClick = (e: React.MouseEvent, edgeStartIndex: number) => {
     e.stopPropagation();
@@ -851,17 +1353,23 @@ export function MapComponent({
   };
 
   // Clamp longitude to valid range (-180 to 180) (for existing systems)
+  // Unused - commented out to avoid build warning
+  /*
   const clampLongitude = (lng: number): number => {
     // Normalize longitude to -180 to 180 range
     while (lng > 180) lng -= 360;
     while (lng < -180) lng += 360;
     return lng;
   };
+  */
 
   // Clamp coordinates to valid map bounds (kept for legacy/import systems)
+  // Unused - commented out to avoid build warning
+  /*
   const clampCoordinates = (lat: number, lng: number): [number, number] => {
     return [clampLatitude(lat), clampLongitude(lng)];
   };
+  */
 
   // Check if coordinates are within valid bounds
   const isWithinBounds = (lat: number, lng: number): boolean => {
@@ -885,11 +1393,6 @@ export function MapComponent({
     // Using the standard Web Mercator formula: y = ln(tan(π/4 + φ/2))
     const mercatorY = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
     const worldY = (1 - mercatorY / Math.PI) / 2 * scale;
-    
-    // Debug logging for coordinate transformation
-    if (Math.abs(lat - clampedLat) > 0.001) {
-      console.log('🌐 Coordinate clamping:', { original: lat, clamped: clampedLat, limit: WEB_MERCATOR_MAX_LAT });
-    }
     
     return [worldX, worldY];
   };
@@ -929,7 +1432,7 @@ export function MapComponent({
     if (draggingVertex) return;
     
     if (!isDrawing) return;
-    if (drawingMode !== 'rectangle') return; // Only for rectangle mode
+    if (drawingMode !== 'rectangle' && drawingMode !== 'erase') return; // For rectangle and erase modes
     
     const rect = mapContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -1187,9 +1690,9 @@ export function MapComponent({
   };
 
   const handleOverlayMouseUp = () => {
-    // Handle rectangle creation
+    // Handle rectangle/erase area creation
     if (isDraggingShape && dragStart && dragCurrent) {
-      // Only create rectangle if drag was significant (more than 5 pixels)
+      // Only create rectangle/erase if drag was significant (more than 5 pixels)
       const rect = mapContainerRef.current?.getBoundingClientRect();
       if (rect) {
         const [x1, y1] = latLngToPixel(dragStart[0], dragStart[1]);
@@ -1219,7 +1722,7 @@ export function MapComponent({
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (!isDrawing) return;
-    if (drawingMode === 'rectangle') return; // Rectangle uses drag instead
+    if (drawingMode === 'rectangle' || drawingMode === 'erase') return; // Rectangle and erase use drag instead
     
     // Get click position relative to map container
     const rect = mapContainerRef.current?.getBoundingClientRect();
@@ -1228,10 +1731,6 @@ export function MapComponent({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const [lat, lng] = pixelToCurrentLatLng(x, y);
-    
-    // console.log('Click at pixel:', x, y);
-    // console.log('Converted to lat/lng:', lat, lng);
-    // console.log('Current center:', center, 'zoom:', zoom);
     
     setDrawingPoints([...drawingPoints, [lat, lng]]);
   };
@@ -1295,33 +1794,24 @@ export function MapComponent({
         }
       }}
       onMouseUp={handleMouseUp}
-      onMouseDown={() => {
-        console.log('🗺️ Map interaction started - polygons will move synchronously');
-      }}
+      onMouseDown={() => {}}
       onMouseLeave={() => {
         setMousePosition(null);
         handleMouseUp();
-        console.log('🗺️ Map interaction ended via mouse leave');
       }}
       onClick={(e) => {
-        console.log('🗺️ Container div clicked! isInvestigateMode:', isInvestigateMode, 'dialogOpen:', isInvestigateDialogOpen, 'event:', e);
-        
         // Don't process clicks when dialog is open
         if (isInvestigateDialogOpen) {
-          console.log('🗺️ Ignoring container click - dialog is open');
           return;
         }
         
         if (isInvestigateMode) {
-          console.log('🗺️ Processing investigate mode click');
           // Calculate approximate lat/lng from pixel coordinates
           const rect = mapContainerRef.current?.getBoundingClientRect();
           if (rect) {
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-            console.log('🗺️ Click coordinates:', { x, y, rect });
             const latLng = pixelToCurrentLatLng(x, y);
-            console.log('🗺️ Container calculated coordinates:', latLng);
             handleMapClick({ latLng });
           }
         }
@@ -1359,29 +1849,10 @@ export function MapComponent({
             center[1] // Longitude can wrap around
           ];
           
-          // Debug logging for synchronized movement
-          console.log('🗺️ BOUNDS CHANGED - Polygons will update after zoom completes:', {
-            newCenter: `${JSON.stringify(clampedCenter)}`,
-            newZoom: newZoom,
-            isZooming: Math.abs(newZoom - zoom) > 0.1,
-            testPolygonLocation: 'NYC [40.7589, -73.9851]',
-            status: 'Polygons frozen during zoom, will update after 500ms delay'
-          });
-          
-          // Log if clamping occurred
-          if (Math.abs(center[0] - clampedCenter[0]) > 0.001) {
-            console.log('🗺️ Map center clamped:', { 
-              original: center[0], 
-              clamped: clampedCenter[0], 
-              reason: 'Web Mercator latitude limit' 
-            });
-          }
-          
           setCenter(clampedCenter);
           setZoom(newZoom);
         }}
         onClick={(event) => {
-          console.log('🗺️ Map onClick event triggered:', event);
           handleMapClick(event);
         }}
         provider={gbifTileProvider}
@@ -1495,41 +1966,57 @@ export function MapComponent({
         */}
 
         {/* PRIORITY 4: Annotation rule polygons - render before user polygons for proper layering */}
-        {!isZooming && showAnnotationRules && annotationRules.map((rule) => {
+        {!isZooming && showAnnotationRules && annotationRules.filter(rule => {
+          // Filter by user if needed
+          if (showMyRulesOnly) {
+            const currentUser = getCurrentUser();
+            if (!currentUser || rule.createdBy !== currentUser) {
+              return false;
+            }
+          }
+          
+          // Filter out contested/downvoted rules unless toggle is active
+          if (!showContestedRules) {
+            // Hide if there are more contested votes than supported votes
+            const contestedCount = rule.contestedBy?.length || 0;
+            const supportedCount = rule.supportedBy?.length || 0;
+            if (contestedCount > supportedCount) {
+              return false;
+            }
+          }
+          
+          return true;
+        }).map((rule) => {
           if (!rule.multiPolygon) {
             return null;
           }
           
-          // Color based on annotation type
-          const colors = {
-            SUSPICIOUS: { fill: '#ef4444', stroke: '#dc2626' }, // red
-            NATIVE: { fill: '#10b981', stroke: '#059669' }, // green
-            MANAGED: { fill: '#3b82f6', stroke: '#2563eb' }, // blue
-            FORMER: { fill: '#a855f7', stroke: '#9333ea' }, // purple
-            VAGRANT: { fill: '#f97316', stroke: '#ea580c' }, // orange
-            INTRODUCED: { fill: '#d97706', stroke: '#b45309' }, // amber
-          };
-          const colorSet = colors[rule.annotation.toUpperCase() as keyof typeof colors] || { fill: '#6b7280', stroke: '#4b5563' };
+          // Color based on annotation type - use rule's project vocabulary if available
+          const colorSet = getColorFromVocabulary(rule.annotation, rule);
+          
+          // Normalize multiPolygon to array of PolygonWithHoles
+          const polygons: PolygonWithHoles[] = 'polygons' in rule.multiPolygon 
+            ? rule.multiPolygon.polygons 
+            : [rule.multiPolygon];
           
           // Find the first coordinate to use as anchor point
-          const firstPolygon = rule.multiPolygon.polygons[0];
-          if (!firstPolygon || !firstPolygon.outer || firstPolygon.outer.length === 0) {
+          if (polygons.length === 0 || !polygons[0].outer || polygons[0].outer.length === 0) {
             return null;
           }
           
-          const [anchorLat, anchorLng] = firstPolygon.outer[0];
+          const [anchorLat, anchorLng] = polygons[0].outer[0];
           
           return (
             <Overlay key={`rule-overlay-${rule.id}`} anchor={[anchorLat, anchorLng]} offset={[0, 0]}>
               <div style={{ pointerEvents: 'none' }}>
                 <svg width="8000" height="8000" style={{ overflow: 'visible' }}>
                   {(() => {
-                    // Build SVG path for all polygons in the multipolygon using geographic coordinates
+                    // Build SVG path for all polygons using geographic coordinates
                     const [anchorPixelX, anchorPixelY] = latLngToPixel(anchorLat, anchorLng);
                     let path = '';
                     
                     // Render each polygon
-                    rule.multiPolygon!.polygons.forEach((polygonWithHoles) => {
+                    polygons.forEach((polygonWithHoles) => {
                       // Outer ring
                       const outerPixels = polygonWithHoles.outer.map(([lat, lng]) => {
                         const [pixelX, pixelY] = latLngToPixel(lat, lng);
@@ -1573,15 +2060,13 @@ export function MapComponent({
         {!isZooming && savedPolygons.map((polygonData) => {
           // Get color based on annotation type
           const annotation = polygonData.annotation || 'SUSPICIOUS';
-          const annotationColors: { [key: string]: { fill: string; stroke: string } } = {
-            SUSPICIOUS: { fill: '#ef4444', stroke: '#dc2626' }, // red
-            NATIVE: { fill: '#10b981', stroke: '#059669' }, // green
-            MANAGED: { fill: '#3b82f6', stroke: '#2563eb' }, // blue
-            FORMER: { fill: '#a855f7', stroke: '#9333ea' }, // purple
-            VAGRANT: { fill: '#f97316', stroke: '#ea580c' }, // orange
-            INTRODUCED: { fill: '#d97706', stroke: '#b45309' }, // amber
-          };
-          const color = annotationColors[annotation.toUpperCase()] || annotationColors.SUSPICIOUS;
+          const color = getColorFromVocabulary(annotation);
+          
+          // Use different styling for edited rules (thicker, dashed)
+          const isEditedRule = !!polygonData.editingOriginalRuleId;
+          const strokeColor = color.stroke; // Use annotation color
+          const strokeWidth = isEditedRule ? '3' : '2';
+          const strokeDasharray = isEditedRule ? '8,4' : 'none'; // Dashed line for edited rules
           
           // Normalize coordinates to array of polygons
           const polygonParts: [number, number][][] = polygonData.isMultiPolygon 
@@ -1590,7 +2075,9 @@ export function MapComponent({
 
           // Use the first coordinate of the first part as anchor
           const firstPart = polygonParts[0];
-          if (!firstPart || firstPart.length === 0) return null;
+          if (!firstPart || firstPart.length === 0) {
+            return null;
+          }
           
           const [anchorLat, anchorLng] = firstPart[0];
           const isEditing = editingPolygonId === polygonData.id;
@@ -1651,8 +2138,9 @@ export function MapComponent({
                           d={pathStr}
                           fill={color.fill}
                           fillOpacity="0.1"
-                          stroke={color.stroke}
-                          strokeWidth="2"
+                          stroke={strokeColor}
+                          strokeWidth={strokeWidth}
+                          strokeDasharray={strokeDasharray}
                           fillRule="evenodd"
                         />
                       );
@@ -1680,8 +2168,9 @@ export function MapComponent({
                             points={pixelPoints}
                             fill={color.fill}
                             fillOpacity="0.1"
-                            stroke={color.stroke}
-                            strokeWidth="2"
+                            stroke={strokeColor}
+                            strokeWidth={strokeWidth}
+                            strokeDasharray={strokeDasharray}
                           />
                         );
                       })}
@@ -1711,7 +2200,7 @@ export function MapComponent({
                           cy={offsetY}
                           r="6"
                           fill="white"
-                          stroke={color.stroke}
+                          stroke={strokeColor}
                           strokeWidth="2"
                           style={{ 
                             cursor: 'move',
@@ -1854,15 +2343,7 @@ export function MapComponent({
                       return `${offsetX},${offsetY}`;
                     }).join(' ');
                     
-                    const annotationColors: { [key: string]: { fill: string; stroke: string } } = {
-                      SUSPICIOUS: { fill: '#ef4444', stroke: '#dc2626' },
-                      NATIVE: { fill: '#10b981', stroke: '#059669' },
-                      MANAGED: { fill: '#3b82f6', stroke: '#2563eb' },
-                      FORMER: { fill: '#a855f7', stroke: '#9333ea' },
-                      VAGRANT: { fill: '#f97316', stroke: '#ea580c' },
-                      INTRODUCED: { fill: '#d97706', stroke: '#b45309' },
-                    };
-                    const color = annotationColors[currentAnnotation.toUpperCase()] || annotationColors.SUSPICIOUS;
+                    const color = getColorFromVocabulary(currentAnnotation);
                     
                     return (
                       <>
@@ -1979,6 +2460,43 @@ export function MapComponent({
 
       </Map>
 
+      {/* Map Attribution */}
+      <div className="absolute bottom-2 right-2 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded shadow-md text-xs text-gray-700 z-[200]">
+        <div className="flex items-center gap-1">
+          <span>Map tiles ©</span>
+          {baseMapStyle.startsWith('arcgis-') ? (
+            <a 
+              href="https://www.esri.com" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-blue-600 hover:underline font-medium"
+            >
+              Esri
+            </a>
+          ) : (
+            <>
+              <a 
+                href="https://www.gbif.org" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-blue-600 hover:underline font-medium"
+              >
+                GBIF
+              </a>
+              <span>|</span>
+              <a 
+                href="https://openmaptiles.org" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-blue-600 hover:underline font-medium"
+              >
+                OpenMapTiles
+              </a>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* Click capture layer for drawing when overlays are present */}
       {isDrawing && (
         <div 
@@ -2058,20 +2576,21 @@ export function MapComponent({
 
           {/* Non-transformed group for current drawing - uses current view coords */}
           <g>
-            {/* Drag preview for rectangle */}
+            {/* Drag preview for rectangle/erase */}
             {isDraggingShape && dragStart && dragCurrent && (
               (() => {
                 const [x1, y1] = latLngToPixel(dragStart[0], dragStart[1]);
                 const [x2, y2] = latLngToPixel(dragCurrent[0], dragCurrent[1]);
+                const isEraseMode = drawingMode === 'erase';
                 return (
                   <rect
                     x={Math.min(x1, x2)}
                     y={Math.min(y1, y2)}
                     width={Math.abs(x2 - x1)}
                     height={Math.abs(y2 - y1)}
-                    fill="#3b82f6"
-                    fillOpacity="0.1"
-                    stroke="#3b82f6"
+                    fill={isEraseMode ? "#ef4444" : "#3b82f6"}
+                    fillOpacity="0.2"
+                    stroke={isEraseMode ? "#ef4444" : "#3b82f6"}
                     strokeWidth="2"
                     strokeDasharray="5,5"
                   />
@@ -2079,10 +2598,10 @@ export function MapComponent({
               })()
             )}
 
-            {/* Drawing preview */}
-            {drawingPoints.length > 0 && (
+            {/* Drawing preview - only for polygon mode */}
+            {drawingPoints.length > 0 && drawingMode === 'polygon' && (
               <>
-                {drawingMode === 'polygon' && drawingPoints.length > 1 && (
+                {drawingPoints.length > 1 && (
                   <polyline
                     points={drawingPoints.map(([lat, lng]) => {
                       const [x, y] = latLngToPixel(lat, lng);
@@ -2094,28 +2613,11 @@ export function MapComponent({
                     strokeDasharray="5,5"
                   />
                 )}
-                {drawingMode === 'rectangle' && drawingPoints.length === 2 && (() => {
-                  const [p1, p2] = drawingPoints;
-                  const [x1, y1] = latLngToPixel(p1[0], p1[1]);
-                  const [x2, y2] = latLngToPixel(p2[0], p2[1]);
-                  return (
-                    <rect
-                      x={Math.min(x1, x2)}
-                      y={Math.min(y1, y2)}
-                      width={Math.abs(x2 - x1)}
-                      height={Math.abs(y2 - y1)}
-                      fill="none"
-                      stroke="#3b82f6"
-                      strokeWidth="2"
-                      strokeDasharray="5,5"
-                    />
-                  );
-                })()}
               </>
             )}
 
-            {/* Drawing Points */}
-            {drawingPoints.map((point, index) => {
+            {/* Drawing Points - only show for polygon mode */}
+            {drawingMode === 'polygon' && drawingPoints.map((point, index) => {
               const [x, y] = latLngToPixel(point[0], point[1]);
               return (
                 <g key={`drawing-${index}`}>
@@ -2161,16 +2663,6 @@ export function MapComponent({
             
             // Adjust stroke width based on size for better visibility
             const strokeWidth = constrainedPixelRadius < 10 ? 1 : constrainedPixelRadius < 50 ? 2 : 3;
-            
-            console.log('🎯 Cursor Geographic Accuracy:', { 
-              investigateRadius: `${investigateRadius}m`, 
-              zoom, 
-              mouseLat: mouseLat.toFixed(4),
-              metersPerPixel: metersPerPixel.toFixed(1), 
-              truePixelRadius: pixelRadius.toFixed(1),
-              displayPixelRadius: constrainedPixelRadius.toFixed(1),
-              crosshairSize: crosshairSize.toFixed(1)
-            });
             
             return (
               <g className="pointer-events-none">
@@ -2227,9 +2719,10 @@ export function MapComponent({
 
       {/* Map Controls - Always visible */}
       <div 
-        className="absolute top-4 left-4 bg-white rounded-lg shadow-lg p-2 flex flex-col gap-2 z-20"
+        className="absolute top-4 left-4 bg-white rounded-lg shadow-lg p-2 flex flex-col gap-2 z-[100]"
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
+        style={{ pointerEvents: 'auto' }}
       >
         {/* Drawing Tools - Always visible */}
         {!isDrawing ? (
@@ -2271,12 +2764,17 @@ export function MapComponent({
               size="icon"
               onClick={(e) => {
                 e.stopPropagation();
+                if (!selectedSpecies && !isInvestigateMode) {
+                  // Don't activate if no species selected
+                  return;
+                }
                 setIsInvestigateMode(!isInvestigateMode);
               }}
               onMouseDown={(e) => e.stopPropagation()}
-              disabled={!selectedSpecies}
-              title={selectedSpecies ? "Click on map to investigate area for occurrences" : "Select a species first"}
-              className={isInvestigateMode ? "bg-blue-600 hover:bg-blue-700" : ""}
+              disabled={!selectedSpecies && !isInvestigateMode}
+              title={selectedSpecies ? "Click on map to investigate area for occurrences" : (isInvestigateMode ? "Turn off investigate mode" : "Select a species first")}
+              className={`relative z-[110] ${isInvestigateMode ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+              style={{ pointerEvents: 'auto' }}
             >
               <Search className="w-5 h-5" />
             </Button>
@@ -2284,14 +2782,15 @@ export function MapComponent({
             {/* Radius Controls - vertically below investigate button when active */}
             {isInvestigateMode && (
               <div 
-                className="flex flex-col gap-1 bg-white rounded border shadow-sm px-1 py-1 relative z-30"
+                className="flex flex-col gap-1 bg-white rounded border shadow-sm px-1 py-1 relative z-[120]"
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
+                style={{ pointerEvents: 'auto' }}
               >
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-6 w-6 relative z-40"
+                  className="h-6 w-6 relative z-[130]"
                   style={{ pointerEvents: 'auto' }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -2303,14 +2802,14 @@ export function MapComponent({
                 >
                   <Plus className="w-3 h-3" />
                 </Button>
-                <span className="text-xs font-medium text-center py-1 relative z-40" style={{ pointerEvents: 'none' }}>
+                <span className="text-xs font-medium text-center py-1 relative z-[130]" style={{ pointerEvents: 'none' }}>
                   {(investigateRadius / 1000).toFixed(0)}km
                   <div className="text-[10px] text-gray-500">Auto</div>
                 </span>
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-6 w-6 relative z-40"
+                  className="h-6 w-6 relative z-[130]"
                   style={{ pointerEvents: 'auto' }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -2324,6 +2823,26 @@ export function MapComponent({
                 </Button>
               </div>
             )}
+            
+            {/* Occurrence Filters - below investigate button */}
+            {onFiltersChange && (
+              <OccurrenceFilters
+                filters={occurrenceFilters}
+                onFiltersChange={onFiltersChange}
+              />
+            )}
+            
+            {/* Base Map Style Selector */}
+            <Dialog open={isBaseMapDialogOpen} onOpenChange={setIsBaseMapDialogOpen}>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setIsBaseMapDialogOpen(true)}
+                title="Change base map style"
+              >
+                <Layers className="w-5 h-5" />
+              </Button>
+            </Dialog>
             
             {/* Current polygon controls */}
             {currentPolygon && (
@@ -2399,6 +2918,117 @@ export function MapComponent({
                   </div>
                 )}
                 
+                {/* Ocean Subtraction Tools - Subtract ocean from polygon to create land-only areas */}
+                <div className="w-full h-px bg-gray-200 my-1" />
+                
+                <Button 
+                  onClick={handleSubtractOcean}
+                  disabled={isSubtractingOcean}
+                  variant="outline"
+                  size="icon"
+                  title="Subtract Ocean - Create land-only polygon (may ignore smaller land features)"
+                  className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                >
+                  {isSubtractingOcean ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Waves className="w-4 h-4" />
+                  )}
+                </Button>
+                
+                {polygonBeforeSubtract && !isSubtractingOcean && (
+                  <Button 
+                    onClick={handleUndoSubtractOcean}
+                    variant="outline"
+                    size="icon"
+                    title="Undo Ocean Subtraction"
+                    className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 7v6h6M21 17v-6h-6"/>
+                      <path d="M20.49 9A9 9 0 0 0 5.64 5.64L3 7m18 10l-2.64 1.36A9 9 0 0 1 3.51 15"/>
+                    </svg>
+                  </Button>
+                )}
+                
+                {/* Buffer Polygon Tool - Expand or shrink polygon by distance */}
+                <Popover open={isBufferPopoverOpen} onOpenChange={setIsBufferPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button 
+                      variant="outline"
+                      size="icon"
+                      title="Buffer Polygon - Expand or shrink by distance"
+                      className="border-purple-300 text-purple-600 hover:bg-purple-50"
+                      disabled={isBuffering}
+                    >
+                      {isBuffering ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Maximize2 className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64" side="right" align="start">
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-sm mb-2">Buffer Distance</h4>
+                      
+                      <div className="grid grid-cols-3 gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => handleBufferPolygon(50000)}
+                        >
+                          +50km
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => handleBufferPolygon(100000)}
+                        >
+                          +100km
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => handleBufferPolygon(500000)}
+                        >
+                          +500km
+                        </Button>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs text-orange-600 border-orange-300"
+                          onClick={() => handleBufferPolygon(-50000)}
+                        >
+                          -50km
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs text-orange-600 border-orange-300"
+                          onClick={() => handleBufferPolygon(-100000)}
+                        >
+                          -100km
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs text-orange-600 border-orange-300"
+                          onClick={() => handleBufferPolygon(-500000)}
+                        >
+                          -500km
+                        </Button>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                
                 <Button 
                   onClick={onSaveAndEdit} 
                   variant="outline"
@@ -2424,18 +3054,58 @@ export function MapComponent({
             {savedPolygons.length > 0 && !editingPolygonId && (
               <>
                 <div className="w-full h-px bg-gray-200 my-1" />
-                {savedPolygons.map((polygon) => (
+                
+                {/* Merge All button - only show if there are 2+ polygons */}
+                {savedPolygons.length > 1 && onMergeAllPolygons && (
                   <Button
-                    key={polygon.id}
-                    onClick={() => onEditPolygon && onEditPolygon(polygon.id)}
+                    onClick={onMergeAllPolygons}
                     size="icon"
                     variant="outline"
-                    title={`Edit polygon ${polygon.id.slice(0, 8)}...`}
-                    className="border-green-300 text-green-700 hover:bg-green-50"
+                    title={`Merge all ${savedPolygons.length} polygons into a single multi-polygon`}
+                    className="border-purple-300 text-purple-700 hover:bg-purple-50"
                   >
-                    <Edit2 className="w-4 h-4" />
+                    <Combine className="w-4 h-4" />
                   </Button>
-                ))}
+                )}
+                
+                {/* Union button - dissolves overlapping boundaries */}
+                {(() => {
+                  // Count total polygon parts (including multipolygon parts)
+                  const totalParts = savedPolygons.reduce((sum, p) => {
+                    if (p.isMultiPolygon) {
+                      return sum + (p.coordinates as [number, number][][]).length;
+                    }
+                    return sum + 1;
+                  }, 0);
+                  
+                  return totalParts > 1 && onUnionPolygons && (
+                    <Button
+                      onClick={onUnionPolygons}
+                      size="icon"
+                      variant="outline"
+                      title={`Union all polygons - overlapping areas are dissolved into one`}
+                      className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                    >
+                      <GitMerge className="w-4 h-4" />
+                    </Button>
+                  );
+                })()}
+                
+                {/* Edit polygon buttons - two-column grid to prevent overflow */}
+                <div className="grid grid-cols-2 gap-1 w-full">
+                  {savedPolygons.map((polygon) => (
+                    <Button
+                      key={polygon.id}
+                      onClick={() => onEditPolygon && onEditPolygon(polygon.id)}
+                      size="icon"
+                      variant="outline"
+                      title={`Edit polygon ${polygon.id.slice(0, 8)}...`}
+                      className="border-green-300 text-green-700 hover:bg-green-50"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                  ))}
+                </div>
               </>
             )}
 
@@ -2443,61 +3113,346 @@ export function MapComponent({
             {editingPolygonId && (
               <>
                 <div className="w-full h-px bg-gray-200 my-1" />
-                <Button 
-                  onClick={() => onEditPolygon && onEditPolygon(editingPolygonId)}
-                  size="icon" 
-                  variant="default"
-                  title="Done editing"
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Check className="w-4 h-4" />
-                </Button>
-                <Button 
-                  onClick={() => setIsMoveToolActive(!isMoveToolActive)}
-                  size="icon" 
-                  variant={isMoveToolActive ? "default" : "outline"}
-                  title={isMoveToolActive ? "Disable move tool" : "Enable move tool - drag polygon to move"}
-                  className={isMoveToolActive ? "bg-blue-600 hover:bg-blue-700" : ""}
-                >
-                  <Hand className="w-5 h-5" />
-                </Button>
-                <Button 
-                  onClick={addMidpointVertices} 
-                  size="icon" 
-                  variant="outline"
-                  title="Add midpoint vertices to all edges"
-                >
-                  <GitBranch className="w-5 h-5" />
-                </Button>
-                <Button 
-                  onClick={removeMidpointVertices} 
-                  size="icon" 
-                  variant="outline"
-                  title="Remove alternating vertices"
-                >
-                  <Scissors className="w-5 h-5" />
-                </Button>
-                {onToggleInvert && (
-                  <Button 
-                    onClick={() => onToggleInvert(editingPolygonId)}
-                    size="icon" 
-                    variant="outline"
-                    title="Invert polygon (toggle inside/outside)"
-                  >
-                    <Repeat className="w-5 h-5" />
-                  </Button>
-                )}
-                {onDeletePolygon && (
-                  <Button 
-                    onClick={() => onDeletePolygon(editingPolygonId)}
-                    size="icon" 
-                    variant="outline"
-                    title="Delete polygon"
-                    className="hover:bg-red-50 hover:border-red-300 hover:text-red-600"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </Button>
-                )}
+                
+                {/* Two-column grid layout for editing tools */}
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Column 1 */}
+                  <div className="flex flex-col gap-2">
+                    <Button 
+                      onClick={() => onEditPolygon && onEditPolygon(editingPolygonId)}
+                      size="icon" 
+                      variant="default"
+                      title="Done editing"
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Check className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      onClick={() => setIsMoveToolActive(!isMoveToolActive)}
+                      size="icon" 
+                      variant={isMoveToolActive ? "default" : "outline"}
+                      title={isMoveToolActive ? "Disable move tool" : "Enable move tool - drag polygon to move"}
+                      className={isMoveToolActive ? "bg-blue-600 hover:bg-blue-700" : ""}
+                    >
+                      <Hand className="w-5 h-5" />
+                    </Button>
+                    <Button 
+                      onClick={addMidpointVertices} 
+                      size="icon" 
+                      variant="outline"
+                      title="Add midpoint vertices to all edges"
+                    >
+                      <GitBranch className="w-5 h-5" />
+                    </Button>
+                    <Button 
+                      onClick={removeMidpointVertices} 
+                      size="icon" 
+                      variant="outline"
+                      title="Remove alternating vertices"
+                    >
+                      <Scissors className="w-5 h-5" />
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        if (drawingMode === 'erase') {
+                          // Cancel erase mode if already active
+                          setDrawingMode('polygon');
+                          setIsDrawing(false);
+                          setDrawingPoints([]);
+                          toast.info('Erase mode cancelled');
+                        } else {
+                          // Activate erase mode - user will drag to define area
+                          setDrawingMode('erase');
+                          setIsDrawing(true);
+                          setDrawingPoints([]); // Clear any existing points
+                          toast.info('Erase mode active', {
+                            description: 'Drag on the map to select area to erase'
+                          });
+                        }
+                      }}
+                      size="icon" 
+                      variant={drawingMode === 'erase' && isDrawing ? "default" : "outline"}
+                      title={drawingMode === 'erase' ? "Cancel erase mode" : "Erase area - Drag to remove from polygon"}
+                      className={drawingMode === 'erase' && isDrawing ? "bg-red-600 hover:bg-red-700" : "border-red-300 text-red-600 hover:bg-red-50"}
+                      disabled={isErasing || isSubtractingOcean || isBuffering}
+                    >
+                      {isErasing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eraser className="w-5 h-5" />}
+                    </Button>
+                  </div>
+                  
+                  {/* Column 2 */}
+                  <div className="flex flex-col gap-2">
+                    {/* Ocean Subtraction in Edit Mode - Only for single polygons */}
+                    {!(() => {
+                      const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                      return polygon?.isMultiPolygon;
+                    })() && (
+                    <Button 
+                      onClick={async () => {
+                        if (!editingPolygonId) return;
+                        const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                        if (!polygon) return;
+                        
+                        // Get the coordinates from the polygon
+                        let coords: [number, number][] | null = null;
+                        if (Array.isArray(polygon.coordinates) && polygon.coordinates.length > 0) {
+                          if (Array.isArray(polygon.coordinates[0]) && typeof polygon.coordinates[0][0] === 'number') {
+                            coords = polygon.coordinates as [number, number][];
+                          }
+                        }
+                        
+                        if (!coords || coords.length < 3) {
+                          toast.error('Invalid polygon coordinates');
+                          return;
+                        }
+                        
+                        try {
+                          setIsSubtractingOcean(true);
+                          setPolygonBeforeSubtract([...coords]);
+                          
+                          const result = await subtractOceanFromPolygon(coords);
+                          
+                          if (!result) {
+                            toast.error('Polygon is entirely over ocean');
+                            setIsSubtractingOcean(false);
+                            return;
+                          }
+                          
+                          // Handle result - replace with all land polygons
+                          if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]) && Array.isArray(result[0][0])) {
+                            const polygons = result as [number, number][][];
+                            
+                            if (onSaveMultiplePolygons && onDeletePolygon) {
+                              // Delete the original polygon and save all land polygons as separate items
+                              onDeletePolygon(editingPolygonId);
+                              onSaveMultiplePolygons(polygons);
+                              
+                              // Exit edit mode when multiple polygons are created so user can see all pencils
+                              if (onStopEditing && polygons.length > 1) {
+                                onStopEditing();
+                              }
+                              
+                              toast.success(`Ocean subtracted - created ${polygons.length} land polygon${polygons.length > 1 ? 's' : ''}`, {
+                                description: polygons.length > 1 ? 'Each land area saved as a separate polygon' : `${polygons[0].length} vertices`
+                              });
+                            } else {
+                              // Fallback: keep largest polygon (old behavior)
+                              const largestPolygon = polygons.reduce((largest, current) => 
+                                current.length > largest.length ? current : largest
+                              , polygons[0]);
+                              
+                              onUpdatePolygon?.(editingPolygonId, largestPolygon);
+                              
+                              if (polygons.length > 1) {
+                                toast.success(`Ocean subtracted - kept largest of ${polygons.length} land areas`);
+                              } else {
+                                toast.success('Ocean subtracted successfully');
+                              }
+                            }
+                          } else {
+                            const polygon = result as [number, number][];
+                            onUpdatePolygon?.(editingPolygonId, polygon);
+                            toast.success('Ocean subtracted successfully');
+                          }
+                        } catch (error) {
+                          console.error('Failed to subtract ocean:', error);
+                          toast.error('Failed to subtract ocean');
+                        } finally {
+                          setIsSubtractingOcean(false);
+                        }
+                      }}
+                      disabled={isSubtractingOcean}
+                      size="icon" 
+                      variant="outline"
+                      title="Subtract Ocean - Create land-only polygon (may ignore smaller land features)"
+                      className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                    >
+                      {isSubtractingOcean ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Waves className="w-5 h-5" />
+                      )}
+                    </Button>
+                    )}
+                    
+                    {/* Buffer Polygon in Edit Mode */}
+                    <Popover open={isBufferPopoverOpen} onOpenChange={setIsBufferPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button 
+                          size="icon" 
+                          variant="outline"
+                          title="Buffer Polygon - Expand or shrink by distance"
+                          className="border-purple-300 text-purple-600 hover:bg-purple-50"
+                          disabled={isBuffering}
+                        >
+                          {isBuffering ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            <Maximize2 className="w-5 h-5" />
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64" side="right" align="start">
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-sm mb-2">Buffer Distance</h4>
+                          
+                          <div className="grid grid-cols-3 gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, 50000);
+                                }
+                              }}
+                            >
+                              +50km
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, 100000);
+                                }
+                              }}
+                            >
+                              +100km
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, 500000);
+                                }
+                              }}
+                            >
+                              +500km
+                            </Button>
+                          </div>
+                          
+                          <div className="grid grid-cols-3 gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs text-orange-600 border-orange-300"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, -50000);
+                                }
+                              }}
+                            >
+                              -50km
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs text-orange-600 border-orange-300"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, -100000);
+                                }
+                              }}
+                            >
+                              -100km
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs text-orange-600 border-orange-300"
+                              onClick={() => {
+                                const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                                if (polygon && onUpdatePolygon) {
+                                  handleBufferEditMode(editingPolygonId, polygon, -500000);
+                                }
+                              }}
+                            >
+                              -500km
+                            </Button>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    
+                    {/* Union button - exits edit mode and merges all polygons */}
+                    {(() => {
+                      // Count total polygon parts (including multipolygon parts)
+                      const totalParts = savedPolygons.reduce((sum, p) => {
+                        if (p.isMultiPolygon) {
+                          return sum + (p.coordinates as [number, number][][]).length;
+                        }
+                        return sum + 1;
+                      }, 0);
+                      
+                      return onUnionPolygons && totalParts > 1 && (
+                        <Button 
+                          onClick={() => {
+                            // Exit edit mode first
+                            if (onStopEditing) {
+                              onStopEditing();
+                            }
+                            // Then perform union
+                            onUnionPolygons();
+                          }}
+                          size="icon" 
+                          variant="outline"
+                          title="Union all polygons (merges overlapping areas)"
+                          className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                        >
+                          <GitMerge className="w-5 h-5" />
+                        </Button>
+                      );
+                    })()}
+                    
+                    {onToggleInvert && (
+                      <Button 
+                        onClick={() => onToggleInvert(editingPolygonId)}
+                        size="icon" 
+                        variant="outline"
+                        title="Invert polygon (toggle inside/outside)"
+                      >
+                        <Repeat className="w-5 h-5" />
+                      </Button>
+                    )}
+                    
+                    {/* Split Multi-Polygon button - only show for multi-polygons */}
+                    {onSplitMultiPolygon && (() => {
+                      const polygon = savedPolygons.find(p => p.id === editingPolygonId);
+                      return polygon?.isMultiPolygon && (
+                        <Button 
+                          onClick={() => onSplitMultiPolygon(editingPolygonId)}
+                          size="icon" 
+                          variant="outline"
+                          title="Split multi-polygon into separate polygons"
+                          className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                        >
+                          <Split className="w-5 h-5" />
+                        </Button>
+                      );
+                    })()}
+                    
+                    {onDeletePolygon && (
+                      <Button 
+                        onClick={() => onDeletePolygon(editingPolygonId)}
+                        size="icon" 
+                        variant="outline"
+                        title="Delete polygon"
+                        className="hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </>
             )}
           </>
@@ -2505,6 +3460,7 @@ export function MapComponent({
           <>
             <div className="px-2 py-1 text-xs text-gray-600 whitespace-nowrap">
               {drawingMode === 'polygon' && `${drawingPoints.length} pts`}
+              {drawingMode === 'erase' && 'Drag to erase area'}
               {drawingMode === 'latband' && 'Latitude band created'}
             </div>
             {drawingMode === 'polygon' && (
@@ -2556,14 +3512,28 @@ export function MapComponent({
                   {investigationPoint.lat.toFixed(4)}, {investigationPoint.lng.toFixed(4)} 
                   ({(investigateRadius/1000)}km radius)
                   {!isInvestigateLoading && investigateResults.length > 0 && (
-                    <span className="block mt-1 text-green-600">
-                      Found {investigateResults.length} occurrence{investigateResults.length !== 1 ? 's' : ''}
+                    <span className="ml-2 text-green-600">
+                      • Found {investigateResults.length} occurrence{investigateResults.length !== 1 ? 's' : ''}
                     </span>
                   )}
                 </>
               )}
             </DialogDescription>
           </DialogHeader>
+          
+          {!isInvestigateLoading && investigateResults.length > 0 && investigationBounds && (
+            <div className="flex justify-center -mt-2 mb-2">
+              <Button
+                onClick={createPolygonFromInvestigation}
+                size="sm"
+                variant="ghost"
+                className="h-6 text-xs text-blue-600 hover:text-blue-800"
+                title="Create polygon from investigation area"
+              >
+                Create rule from search
+              </Button>
+            </div>
+          )}
 
           <ScrollArea className="flex-1 overflow-y-auto">
             <div className="pr-4 space-y-4">
@@ -2693,6 +3663,12 @@ export function MapComponent({
                                 ±{occurrence.coordinateUncertaintyInMeters}m uncertainty
                               </div>
                             )}
+                            {occurrence.locality && (
+                              <div className="text-gray-600 mt-1">
+                                <span className="text-gray-500">Locality: </span>
+                                {occurrence.locality}
+                              </div>
+                            )}
                           </div>
 
                           <div className="space-y-1">
@@ -2732,12 +3708,12 @@ export function MapComponent({
                         </div>
 
                         {/* Links */}
-                        <div className="flex gap-2 pt-2">
+                        <div className="flex flex-wrap gap-2 pt-2">
                           <Button
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs"
-                            onClick={() => window.open(`https://www.gbif.org/occurrence/${occurrence.key}`, '_blank')}
+                            onClick={() => window.open(`https://www.gbif.org/occurrence/${occurrence.key}`, '_blank', 'noopener,noreferrer')}
                           >
                             <ExternalLink className="w-3 h-3 mr-1" />
                             View on GBIF
@@ -2747,11 +3723,31 @@ export function MapComponent({
                               size="sm"
                               variant="outline"
                               className="h-7 text-xs"
-                              onClick={() => window.open(`https://www.gbif.org/dataset/${occurrence.datasetKey}`, '_blank')}
+                              onClick={() => window.open(`https://www.gbif.org/dataset/${occurrence.datasetKey}`, '_blank', 'noopener,noreferrer')}
                             >
                               <Database className="w-3 h-3 mr-1" />
                               Dataset
                             </Button>
+                          )}
+                          {userIsAdmin && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs"
+                                    onClick={() => setSelectedOccurrenceForQualityCheck(occurrence.key)}
+                                  >
+                                    <Bot className="w-3 h-3 mr-1" />
+                                    AI Check
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Evaluate location quality using AI</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           )}
                         </div>
                       </div>
@@ -2765,7 +3761,439 @@ export function MapComponent({
         </DialogContent>
       </Dialog>
 
+      {/* Base Map Style Selector Dialog */}
+      <Dialog open={isBaseMapDialogOpen} onOpenChange={setIsBaseMapDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Base Map Style</DialogTitle>
+            <DialogDescription>
+              Choose the background map appearance
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-2 gap-3 mt-4 max-h-[60vh] overflow-y-auto">
+            {/* GBIF Base Maps Section */}
+            <div className="col-span-2 text-xs font-semibold text-gray-600 mt-2">GBIF Base Maps</div>
+            
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-geyser-en');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-geyser-en');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Geyser');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-geyser-en' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Geyser</div>
+              <div className="text-xs text-gray-500 mt-1">High contrast</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-light');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-light');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Light');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-light' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Light</div>
+              <div className="text-xs text-gray-500 mt-1">Light theme</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-middle');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-middle');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Middle');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-middle' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Middle</div>
+              <div className="text-xs text-gray-500 mt-1">Default style</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-dark');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-dark');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Dark');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-dark' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Dark</div>
+              <div className="text-xs text-gray-500 mt-1">Dark theme</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-tuatara-en');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-tuatara-en');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Tuatara');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-tuatara-en' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Tuatara</div>
+              <div className="text-xs text-gray-500 mt-1">Tuatara theme</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-violet-en');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-violet-en');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Violet');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-violet-en' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Violet</div>
+              <div className="text-xs text-gray-500 mt-1">Purple/violet theme</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-classic');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-classic');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Classic');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-classic' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Classic</div>
+              <div className="text-xs text-gray-500 mt-1">Traditional style</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('gbif-natural-en');
+                localStorage.setItem('gbifBaseMapStyle', 'gbif-natural-en');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: GBIF Natural');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'gbif-natural-en' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">GBIF Natural</div>
+              <div className="text-xs text-gray-500 mt-1">Natural style</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('osm-bright-en');
+                localStorage.setItem('gbifBaseMapStyle', 'osm-bright-en');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: OSM Bright');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'osm-bright-en' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">OSM Bright</div>
+              <div className="text-xs text-gray-500 mt-1">OpenStreetMap style</div>
+            </button>
+
+            {/* ArcGIS Base Maps Section */}
+            <div className="col-span-2 text-xs font-semibold text-gray-600 mt-4">ArcGIS Base Maps</div>
+            
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-imagery');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-imagery');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Satellite Imagery');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-imagery' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Satellite Imagery</div>
+              <div className="text-xs text-gray-500 mt-1">High-res satellite</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-imagery-labels');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-imagery-labels');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Satellite + Labels');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-imagery-labels' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Satellite + Labels</div>
+              <div className="text-xs text-gray-500 mt-1">Imagery with place names</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-streets');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-streets');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Streets');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-streets' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Streets</div>
+              <div className="text-xs text-gray-500 mt-1">Detailed street map</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-streets-relief');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-streets-relief');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Streets Relief');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-streets-relief' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Streets Relief</div>
+              <div className="text-xs text-gray-500 mt-1">Streets with terrain</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-topographic');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-topographic');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Topographic');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-topographic' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Topographic</div>
+              <div className="text-xs text-gray-500 mt-1">Terrain features</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-navigation');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-navigation');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Navigation');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-navigation' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Navigation</div>
+              <div className="text-xs text-gray-500 mt-1">Navigation style</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-navigation-night');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-navigation-night');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Navigation Night');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-navigation-night' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Navigation Night</div>
+              <div className="text-xs text-gray-500 mt-1">Dark navigation</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-terrain');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-terrain');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Terrain');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-terrain' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Terrain</div>
+              <div className="text-xs text-gray-500 mt-1">Physical terrain</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-terrain-detail');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-terrain-detail');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Terrain Detail');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-terrain-detail' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Terrain Detail</div>
+              <div className="text-xs text-gray-500 mt-1">Detailed terrain</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-ocean');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-ocean');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Ocean');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-ocean' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Ocean</div>
+              <div className="text-xs text-gray-500 mt-1">Ocean basemap</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-ocean-labels');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-ocean-labels');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Ocean + Labels');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-ocean-labels' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Ocean + Labels</div>
+              <div className="text-xs text-gray-500 mt-1">Ocean with labels</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-light-gray');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-light-gray');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Light Gray');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-light-gray' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Light Gray</div>
+              <div className="text-xs text-gray-500 mt-1">Neutral light</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-dark-gray');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-dark-gray');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Dark Gray');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-dark-gray' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Dark Gray</div>
+              <div className="text-xs text-gray-500 mt-1">Neutral dark</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-community');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-community');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Community');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-community' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Community</div>
+              <div className="text-xs text-gray-500 mt-1">Community style</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-charted-territory');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-charted-territory');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Charted Territory');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-charted-territory' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Charted Territory</div>
+              <div className="text-xs text-gray-500 mt-1">Classic map style</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-nova');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-nova');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Nova');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-nova' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Nova</div>
+              <div className="text-xs text-gray-500 mt-1">Modern colorful</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-hillshade-light');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-hillshade-light');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Hillshade Light');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-hillshade-light' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Hillshade Light</div>
+              <div className="text-xs text-gray-500 mt-1">Light relief</div>
+            </button>
+
+            <button
+              onClick={() => {
+                setBaseMapStyle('arcgis-hillshade-dark');
+                localStorage.setItem('gbifBaseMapStyle', 'arcgis-hillshade-dark');
+                setIsBaseMapDialogOpen(false);
+                toast.success('Base map: Hillshade Dark');
+              }}
+              className={`p-3 border-2 rounded-lg text-left hover:border-blue-300 transition-colors ${
+                baseMapStyle === 'arcgis-hillshade-dark' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+            >
+              <div className="font-semibold text-sm">Hillshade Dark</div>
+              <div className="text-xs text-gray-500 mt-1">Dark relief</div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Location Quality Check Panel */}
+      <LocationQualityPanel 
+        gbifid={selectedOccurrenceForQualityCheck} 
+        onClose={() => setSelectedOccurrenceForQualityCheck(null)} 
+      />
+
     </div>
   );
 }
+
 

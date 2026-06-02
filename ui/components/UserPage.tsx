@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
@@ -34,12 +34,17 @@ import {
 } from './ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
-import { ArrowLeft, User, MapPin, Eye, ExternalLink, Loader2, Trash2, Folder, Users, Plus, Edit, Check } from 'lucide-react';
+// import { TooltipProvider } from './ui/tooltip'; // Unused
+// import { Checkbox } from './ui/checkbox'; // Unused
+import { ArrowLeft, User, MapPin, Eye, ExternalLink, Loader2, Trash2, Folder, Users, Plus, Edit, Check, Pencil, Download, TrendingUp, ThumbsUp } from 'lucide-react';
 import { toast } from 'sonner';
+import { LoginButton } from './LoginButton';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { UserPageFilters } from './UserPageFilters';
 import { SelectedSpecies } from './SpeciesSelector';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
 import { getSpeciesInfo } from '../utils/speciesCache';
+import DownloadAnnotator from './DownloadAnnotator';
 import { 
   Pagination, 
   PaginationContent, 
@@ -93,12 +98,217 @@ interface UserPageProps {
   onNavigateToRule?: (rule: UserRule) => void;
 }
 
+interface CreatorStats {
+  username: string;
+  ruleCount: number;
+  totalSupports: number;
+  totalContests: number;
+  projectCount: number;
+}
+
+interface ProjectStats {
+  projectId: number;
+  projectName: string;
+  projectDescription: string;
+  createdBy: string;
+  ruleCount: number;
+  totalSupports: number;
+  totalContests: number;
+  memberCount: number;
+}
+
+// Searchable multi-select component for Basis of Record
+// Currently unused - commented out to avoid build warnings
+/*
+function BasisOfRecordMultiSelect({ 
+  options, 
+  selected, 
+  onChange,
+  negated,
+  onNegatedChange
+}: { 
+  options: string[]; 
+  selected: string[]; 
+  onChange: (selected: string[]) => void;
+  negated?: boolean;
+  onNegatedChange?: (negated: boolean) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filteredOptions = options.filter(option =>
+    option.toLowerCase().includes(searchTerm.toLowerCase()) && !selected.includes(option)
+  );
+
+  const handleSelectOption = (option: string) => {
+    if (!selected.includes(option)) {
+      onChange([...selected, option]);
+    }
+    setSearchTerm('');
+    setShowDropdown(false);
+    setFocusedIndex(-1);
+    inputRef.current?.focus();
+  };
+
+  const handleRemoveChip = (option: string) => {
+    onChange(selected.filter(item => item !== option));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showDropdown) {
+      if (e.key === 'ArrowDown' && filteredOptions.length > 0) {
+        e.preventDefault();
+        setShowDropdown(true);
+        setFocusedIndex(0);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setFocusedIndex(prev => prev < filteredOptions.length - 1 ? prev + 1 : prev);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setFocusedIndex(prev => prev > 0 ? prev - 1 : prev);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (focusedIndex >= 0 && focusedIndex < filteredOptions.length) {
+          handleSelectOption(filteredOptions[focusedIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setShowDropdown(false);
+        setFocusedIndex(-1);
+        break;
+      case 'Backspace':
+        if (searchTerm === '' && selected.length > 0) {
+          e.preventDefault();
+          handleRemoveChip(selected[selected.length - 1]);
+        }
+        break;
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+        setFocusedIndex(-1);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs text-gray-700">
+          Basis of Record (optional)
+          {selected.length > 0 && (
+            <span className="ml-1 text-blue-600 font-medium">({selected.length} selected)</span>
+          )}
+        </Label>
+        <div className="flex items-center space-x-3">
+          <div className="flex space-x-2">
+            <button type="button" onClick={() => onChange(options)} className="text-xs text-blue-600 hover:text-blue-800 underline">
+              Select All
+            </button>
+            <button type="button" onClick={() => onChange([])} className="text-xs text-gray-600 hover:text-gray-800 underline">
+              Clear
+            </button>
+          </div>
+          {onNegatedChange && (
+            <div className="flex items-center space-x-1">
+              <Checkbox
+                id="basis-of-record-negated-inline"
+                checked={negated || false}
+                disabled={selected.length === 0}
+                onCheckedChange={(checked) => onNegatedChange(checked === true)}
+                className="h-3 w-3"
+              />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Label htmlFor="basis-of-record-negated-inline" className={`text-xs font-medium cursor-pointer ${selected.length === 0 ? 'text-gray-400' : 'text-gray-900'}`}>
+                      Negate
+                    </Label>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Apply rule to all records that do NOT have the selected basis of record</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="relative" ref={dropdownRef}>
+        <div className="min-h-[2.25rem] border border-gray-300 rounded p-2 bg-white flex flex-wrap gap-1 items-center">
+          {selected.map((option) => (
+            <span key={option} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-md">
+              {option.replace(/_/g, ' ')}
+              <button type="button" onClick={() => handleRemoveChip(option)} className="hover:bg-blue-200 rounded-sm p-0.5 -mr-1" aria-label={`Remove ${option}`}>
+                ×
+              </button>
+            </span>
+          ))}
+          <input
+            ref={inputRef}
+            type="text"
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setShowDropdown(true);
+              setFocusedIndex(-1);
+            }}
+            onKeyDown={handleKeyDown}
+            onFocus={() => {
+              if (filteredOptions.length > 0) setShowDropdown(true);
+            }}
+            placeholder={selected.length === 0 ? "Type to search basis of record..." : ""}
+            className="flex-1 min-w-[120px] text-xs outline-none bg-transparent"
+          />
+        </div>
+        {showDropdown && filteredOptions.length > 0 && (
+          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-32 overflow-y-auto">
+            {filteredOptions.map((option, index) => (
+              <div
+                key={option}
+                className={`p-2 text-xs cursor-pointer ${index === focusedIndex ? 'bg-blue-100 text-blue-900' : 'hover:bg-gray-100'}`}
+                onClick={() => handleSelectOption(option)}
+                onMouseEnter={() => setFocusedIndex(index)}
+              >
+                {option.replace(/_/g, ' ')}
+              </div>
+            ))}
+          </div>
+        )}
+        {selected.length === 0 && (
+          <div className="text-xs text-gray-500 italic mt-1">
+            No selection - will apply to all basis of record types
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+*/
+
 export function UserPage({ onNavigateToRule }: UserPageProps) {
   const { username } = useParams<{ username: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [rules, setRules] = useState<UserRule[]>([]);
   const [allRules, setAllRules] = useState<UserRule[]>([]); // Store all rules for client-side pagination
+  const rules = allRules; // Derived value for compatibility with existing code
   const [loading, setLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // Projects state
@@ -111,6 +321,9 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   const initialTab = searchParams.get('tab') || 'rules';
   const [activeTab, setActiveTab] = useState(initialTab === 'projects' ? 'projects' : 'rules');
   
+  // Track if Download Annotator has results
+  const downloadAnnotatorHasResults = useRef(false);
+  
   // Create project dialog state
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -121,15 +334,23 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Edit rule dialog state
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingRule, setEditingRule] = useState<UserRule | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
+  // Edit project dialog state
+  const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
+  const [editProjectName, setEditProjectName] = useState('');
+  const [editProjectDescription, setEditProjectDescription] = useState('');
+  const [isEditingProject, setIsEditingProject] = useState(false);
   
-  // Dataset search state for edit dialog
-  const [datasetQuery, setDatasetQuery] = useState<string>('');
-  const [datasetSuggestions, setDatasetSuggestions] = useState<any[]>([]);
-  const [showDatasetSuggestions, setShowDatasetSuggestions] = useState(false);
+  const navigate = useNavigate();
+  
+  // const basisOfRecordOptions = [
+  //   'HUMAN_OBSERVATION',
+  //   'PRESERVED_SPECIMEN',
+  //   'FOSSIL_SPECIMEN',
+  //   'LIVING_SPECIMEN',
+  //   'MACHINE_OBSERVATION',
+  //   'MATERIAL_SAMPLE',
+  //   'OCCURRENCE'
+  // ];
 
   // Selected project for new rules (persistent across sessions)
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(() => {
@@ -137,10 +358,16 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     return stored ? parseInt(stored, 10) : null;
   });
 
+  // Community stats state
+  const [topCreators, setTopCreators] = useState<CreatorStats[]>([]);
+  const [topProjects, setTopProjects] = useState<ProjectStats[]>([]);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
+
   // Check if current user is viewing their own profile
   const getCurrentUser = () => {
     try {
-      const userStr = localStorage.getItem('gbifUser');
+      const userStr = sessionStorage.getItem('gbifUser');
       if (userStr) {
         const user = JSON.parse(userStr);
         return user.userName;
@@ -152,6 +379,26 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   };
   
   const isOwnProfile = getCurrentUser() === username;
+
+  // Check if a rule belongs to the current user
+  const isOwnRule = (rule: any) => {
+    const currentUser = getCurrentUser();
+    return currentUser && rule.createdBy === currentUser;
+  };
+
+  // Check if current user is an admin
+  const isAdmin = () => {
+    try {
+      const userStr = sessionStorage.getItem('gbifUser');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        return user.roles && user.roles.includes('REGISTRY_ADMIN');
+      }
+    } catch {
+      return false;
+    }
+    return false;
+  };
 
   // Helper function to get back-to-map URL with last species context
   const getBackToMapUrl = () => {
@@ -169,6 +416,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   
   // Species info cache
   const [speciesCache, setSpeciesCache] = useState<Map<number, SpeciesInfo>>(new Map());
+  const fetchedTaxonKeys = useRef<Set<number>>(new Set());
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -178,40 +426,35 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   // Filter states
   const [speciesFilter, setSpeciesFilter] = useState<SelectedSpecies | null>(null);
   const [projectFilter, setProjectFilter] = useState<number | null>(null);
+  const [userFilter, setUserFilter] = useState<string[]>(username ? [username] : []); // Pre-filled with current user
 
-  // Apply filters to all rules first
-  const filteredAllRules = useMemo(() => {
-    let filtered = allRules;
+  // Multi-select states
+  const [selectedRules, setSelectedRules] = useState<Set<number>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [bulkEditAnnotation, setBulkEditAnnotation] = useState<string>('');
+  const [bulkEditProjectId, setBulkEditProjectId] = useState<string>('');
 
-    if (speciesFilter) {
-      filtered = filtered.filter(rule => 
-        rule.taxonKey === speciesFilter.key
-      );
-    }
-
-    if (projectFilter !== null) {
-      filtered = filtered.filter(rule => 
-        rule.projectId === projectFilter
-      );
-    }
-
-    return filtered;
-  }, [allRules, speciesFilter, projectFilter]);
-
-  // Calculate pagination values based on filtered results
-  const totalPages = Math.ceil(filteredAllRules.length / pageSize);
-
-  // Get current page of filtered rules
+  // Get current page of rules (no filtering needed - API returns filtered results)
   const filteredRules = useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize;
     const endIndex = startIndex + pageSize;
-    return filteredAllRules.slice(startIndex, endIndex);
-  }, [filteredAllRules, currentPage, pageSize]);
+    return allRules.slice(startIndex, endIndex);
+  }, [allRules, currentPage, pageSize]);
+
+  // Calculate pagination values based on all rules
+  const totalPages = Math.ceil(allRules.length / pageSize);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [speciesFilter, projectFilter]);
+  }, [speciesFilter, projectFilter, userFilter]);
+
+  // Reset userFilter to current username when username changes (different user page)
+  useEffect(() => {
+    if (username) setUserFilter([username]);
+  }, [username]);
 
   // Helper functions
   const formatDate = (dateString: string) => {
@@ -241,7 +484,8 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     }
   };
 
-  const getGeometryDescription = (geometry: string) => {
+  // const getGeometryDescription = (geometry: string) => { // Unused
+  /*
     if (!geometry) return 'Unknown geometry';
     
     // Parse WKT geometry string to get basic info
@@ -257,31 +501,43 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     
     return 'Geometry';
   };
+  */
 
   // Fetch species info for a rule
-  const fetchSpeciesInfo = async (taxonKey: number) => {
-    if (speciesCache.has(taxonKey)) {
-      return speciesCache.get(taxonKey);
-    }
-
+  const fetchSpeciesInfo = useCallback(async (taxonKey: number) => {
+    // Mark as fetched to prevent duplicate requests
+    fetchedTaxonKeys.current.add(taxonKey);
+    
     try {
+      console.log(`Fetching species info for taxonKey: ${taxonKey}`);
       const data = await getSpeciesInfo(taxonKey);
+      console.log(`Received species data for ${taxonKey}:`, data);
       if (data) {
-        setSpeciesCache(prev => new Map(prev).set(taxonKey, data));
+        setSpeciesCache(prev => {
+          const newCache = new Map(prev);
+          newCache.set(taxonKey, data);
+          console.log(`Updated cache, new size: ${newCache.size}`);
+          return newCache;
+        });
         return data;
       }
     } catch (error) {
       console.error('Error fetching species info:', error);
     }
     return null;
-  };
+  }, []);
 
   useEffect(() => {
     const fetchUserRules = async () => {
       if (!username) return;
 
       try {
-        setLoading(true);
+        // Use tableLoading for subsequent fetches, loading only for initial
+        if (loading) {
+          setLoading(true);
+        } else {
+          setTableLoading(true);
+        }
         setError(null);
 
         // Fetch total count from metrics API
@@ -294,10 +550,21 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
           setTotalRules(metricsData.ruleCount || 0);
         }
 
-        // Fetch all rules (API currently returns all rules as array)
-        const response = await fetch(
-          `http://localhost:8080/occurrence/experimental/annotation/rule?createdBy=${encodeURIComponent(username)}`
-        );
+        // Build API URL - fetch all rules and filter client-side by selected users
+        let apiUrl = getAnnotationApiUrl('/rule');
+        
+        // Add taxonKey filter if species is selected
+        if (speciesFilter) {
+          apiUrl += `?taxonKey=${speciesFilter.key}`;
+        }
+
+        // Add projectId filter if project is selected
+        if (projectFilter !== null) {
+          const separator = apiUrl.includes('?') ? '&' : '?';
+          apiUrl += `${separator}projectId=${projectFilter}`;
+        }
+
+        const response = await fetch(apiUrl);
 
         if (!response.ok) {
           throw new Error(`Failed to fetch rules: ${response.status} ${response.statusText}`);
@@ -306,17 +573,18 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         const data = await response.json();
         
         if (Array.isArray(data)) {
-          // Store all rules for client-side pagination
-          setAllRules(data);
-          // If metrics API failed, fallback to counting rules
-          if (!metricsResponse.ok) {
-            setTotalRules(data.length);
-          }
+          // Filter by selected users (client-side)
+          const filteredData = data.filter(rule => 
+            userFilter.length === 0 || userFilter.includes(rule.createdBy)
+          );
+          
+          // Store filtered rules for client-side pagination
+          setAllRules(filteredData);
+          // Update total count based on filtered results
+          setTotalRules(filteredData.length);
         } else {
           setAllRules([]);
-          if (!metricsResponse.ok) {
-            setTotalRules(0);
-          }
+          setTotalRules(0);
         }
       } catch (err) {
         console.error('Error fetching user rules:', err);
@@ -324,12 +592,13 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         toast.error('Failed to load user rules');
       } finally {
         setLoading(false);
+        setTableLoading(false);
       }
     };
 
-    // Only fetch data when username changes
+    // Fetch data when username or filters change
     fetchUserRules();
-  }, [username]);
+  }, [username, speciesFilter, projectFilter, userFilter]);
 
   // Fetch projects where user is a member
   useEffect(() => {
@@ -393,7 +662,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     setIsCreating(true);
     
     try {
-      const gbifAuth = localStorage.getItem('gbifAuth');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
       
       const response = await fetch(getAnnotationApiUrl('/project'), {
         method: 'POST',
@@ -403,7 +672,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         },
         body: JSON.stringify({
           name: newProjectName,
-          description: newProjectDescription || null,
+          description: newProjectDescription || '',
         }),
       });
 
@@ -454,7 +723,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     setIsDeleting(true);
     
     try {
-      const gbifAuth = localStorage.getItem('gbifAuth');
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
       
       const response = await fetch(getAnnotationApiUrl(`/project/${projectToDelete.id}`), {
         method: 'DELETE',
@@ -487,150 +756,122 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     }
   };
 
-  // Handle edit rule button click
-  const handleEditRule = (rule: UserRule) => {
-    setEditingRule(rule);
-    setDatasetQuery(rule.datasetKey || '');
-    setDatasetSuggestions([]);
-    setShowDatasetSuggestions(false);
-    setIsEditDialogOpen(true);
-  };
+  const handleEditProject = async () => {
+    if (!projectToEdit) return;
 
-  // Handle update rule
-  const handleUpdateRule = async () => {
-    if (!editingRule) return;
+    if (!editProjectName.trim()) {
+      toast.error('Project name is required');
+      return;
+    }
 
-    setIsUpdating(true);
-    
+    setIsEditingProject(true);
+
     try {
-      const gbifAuth = localStorage.getItem('gbifAuth');
-      
-      const response = await fetch(getAnnotationApiUrl(`/rule/${editingRule.id}`), {
+      const gbifAuth = sessionStorage.getItem('gbifAuth');
+
+      const response = await fetch(getAnnotationApiUrl(`/project/${projectToEdit.id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Basic ${gbifAuth}`,
         },
         body: JSON.stringify({
-          id: editingRule.id,
-          taxonKey: editingRule.taxonKey,
-          datasetKey: editingRule.datasetKey,
-          geometry: editingRule.geometry,
-          annotation: editingRule.annotation,
-          basisOfRecord: editingRule.basisOfRecord ? [editingRule.basisOfRecord] : null,
-          basisOfRecordNegated: false,
-          yearRange: editingRule.yearRange,
-          rulesetId: editingRule.rulesetId,
-          projectId: editingRule.projectId,
+          name: editProjectName.trim(),
+          description: editProjectDescription.trim(),
+          members: projectToEdit.members, // Keep existing members
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to update rule: ${response.status} ${response.statusText}`);
-      }
-
-      const updatedRule = await response.json();
-      
-      // Update the rule in the list
-      setAllRules(prev => prev.map(r => r.id === updatedRule.id ? updatedRule : r));
-      
-      // Close dialog and reset state
-      setIsEditDialogOpen(false);
-      setEditingRule(null);
-      setDatasetQuery('');
-      setDatasetSuggestions([]);
-      setShowDatasetSuggestions(false);
-      
-      toast.success('Rule updated successfully');
-    } catch (err) {
-      console.error('Error updating rule:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to update rule');
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  // Debounce function for dataset search
-  const debounce = <T extends (...args: any[]) => any>(func: T, wait: number): ((...args: Parameters<T>) => void) => {
-    let timeout: number;
-    return (...args: Parameters<T>) => {
-      clearTimeout(timeout);
-      timeout = window.setTimeout(() => func(...args), wait);
-    };
-  };
-
-  // Dataset search with debouncing
-  const searchDatasetsDebounced = useCallback(
-    debounce(async (query: string) => {
-      if (!query.trim()) {
-        setDatasetSuggestions([]);
-        setShowDatasetSuggestions(false);
-        return;
-      }
-
-      try {
-        const response = await fetch(`https://api.gbif.org/v1/dataset/suggest?q=${encodeURIComponent(query)}`);
-        if (response.ok) {
-          const suggestions = await response.json();
-          setDatasetSuggestions(suggestions);
-          setShowDatasetSuggestions(suggestions.length > 0);
+        if (response.status === 401) {
+          toast.error('Authentication failed. Please login again.');
+          return;
         }
-      } catch (error) {
-        console.warn('Failed to fetch dataset suggestions:', error);
+        throw new Error(`Failed to update project: ${response.status}`);
       }
-    }, 300),
-    []
-  );
 
-  // Handle dataset selection
-  const handleDatasetSelect = (dataset: any) => {
-    if (editingRule) {
-      setEditingRule({ ...editingRule, datasetKey: dataset.key });
-      setDatasetQuery(dataset.title);
-      setShowDatasetSuggestions(false);
+      const updatedProject = await response.json();
+
+      // Update project in the list
+      setProjects(prev => prev.map(p => p.id === projectToEdit.id ? updatedProject : p));
+
+      // Close dialog and reset form
+      setProjectToEdit(null);
+      setEditProjectName('');
+      setEditProjectDescription('');
+
+      toast.success('Project updated successfully');
+    } catch (err) {
+      console.error('Error updating project:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to update project');
+    } finally {
+      setIsEditingProject(false);
     }
   };
-
-  // Close suggestions when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => {
-      if (showDatasetSuggestions) {
-        setShowDatasetSuggestions(false);
-      }
-    };
-    
-    if (showDatasetSuggestions) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [showDatasetSuggestions]);
 
   // Prefetch species info for visible rules
   useEffect(() => {
-    rules.forEach(rule => {
-      if (rule.taxonKey && !speciesCache.has(rule.taxonKey)) {
+    console.log('useEffect running - allRules:', allRules.length, 'cache size:', speciesCache.size);
+    allRules.forEach(rule => {
+      if (rule.taxonKey && !fetchedTaxonKeys.current.has(rule.taxonKey)) {
+        console.log(`Requesting species for taxonKey: ${rule.taxonKey}`);
         fetchSpeciesInfo(rule.taxonKey);
       }
     });
-  }, [rules, speciesCache, fetchSpeciesInfo]);
+  }, [allRules, fetchSpeciesInfo]);
+
+  // Fetch community stats when stats tab is active
+  useEffect(() => {
+    if (activeTab === 'stats') {
+      const fetchStats = async () => {
+        try {
+          setStatsLoading(true);
+          setStatsError(null);
+
+          const [creatorsRes, projectsRes] = await Promise.all([
+            fetch(getAnnotationApiUrl('/stats/top-creators?limit=20')),
+            fetch(getAnnotationApiUrl('/stats/top-projects?limit=20'))
+          ]);
+
+          if (!creatorsRes.ok || !projectsRes.ok) {
+            throw new Error('Failed to fetch community statistics');
+          }
+
+          const [creators, projects] = await Promise.all([
+            creatorsRes.json(),
+            projectsRes.json()
+          ]);
+
+          setTopCreators(creators);
+          setTopProjects(projects);
+        } catch (err) {
+          setStatsError(err instanceof Error ? err.message : 'Failed to load statistics');
+        } finally {
+          setStatsLoading(false);
+        }
+      };
+
+      fetchStats();
+    }
+  }, [activeTab]);
 
   const handleViewRule = (rule: UserRule) => {
     if (onNavigateToRule) {
       onNavigateToRule(rule);
     } else {
       // Fallback: navigate to main app with rule context
-      window.location.href = `/`;
+      navigate('/');
     }
   };
 
   const handleViewRuleAPI = (ruleId: number) => {
-    window.open(`http://localhost:8080/occurrence/experimental/annotation/rule/${ruleId}`, '_blank');
+    window.open(getAnnotationApiUrl(`/rule/${ruleId}`), '_blank');
   };
 
   const handleDeleteRule = async (ruleId: number) => {
     console.log('Attempting to delete rule:', ruleId);
     
-    const gbifAuth = localStorage.getItem('gbifAuth');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to delete annotation rules');
       return;
@@ -683,6 +924,195 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     } catch (err) {
       console.error('Error deleting rule:', err);
       toast.error('Failed to delete rule');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
+    if (!gbifAuth) {
+      toast.error('Please login to GBIF to delete annotation rules');
+      return;
+    }
+
+    setIsBulkDeleting(true);
+    const rulesToDelete = Array.from(selectedRules);
+    const results = {
+      success: [] as number[],
+      failed: [] as number[],
+    };
+
+    try {
+      // Delete all selected rules
+      await Promise.all(
+        rulesToDelete.map(async (ruleId) => {
+          try {
+            const response = await fetch(
+              getAnnotationApiUrl(`/rule/${ruleId}`),
+              {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Basic ${gbifAuth}`,
+                },
+              }
+            );
+
+            if (response.ok) {
+              results.success.push(ruleId);
+            } else {
+              results.failed.push(ruleId);
+            }
+          } catch (err) {
+            console.error(`Error deleting rule ${ruleId}:`, err);
+            results.failed.push(ruleId);
+          }
+        })
+      );
+
+      // Update local state to remove successfully deleted rules
+      if (results.success.length > 0) {
+        setAllRules(prevRules => {
+          const newRules = prevRules.filter(rule => !results.success.includes(rule.id));
+          
+          // Update total count
+          setTotalRules(newRules.length);
+          
+          // Check if current page will be empty after deletion
+          const newTotalPages = Math.ceil(newRules.length / pageSize);
+          if (currentPage > newTotalPages && newTotalPages > 0) {
+            setCurrentPage(newTotalPages);
+          }
+          
+          return newRules;
+        });
+      }
+
+      // Clear selection
+      setSelectedRules(new Set());
+
+      // Show appropriate toast message
+      if (results.failed.length === 0) {
+        toast.success(`Successfully deleted ${results.success.length} rule${results.success.length > 1 ? 's' : ''}`);
+      } else if (results.success.length === 0) {
+        toast.error(`Failed to delete ${results.failed.length} rule${results.failed.length > 1 ? 's' : ''}`);
+      } else {
+        toast.warning(`Deleted ${results.success.length} rule${results.success.length > 1 ? 's' : ''}, but ${results.failed.length} failed`);
+      }
+    } catch (err) {
+      console.error('Error during bulk delete:', err);
+      toast.error('An error occurred during bulk delete');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const handleBulkEdit = async () => {
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
+    if (!gbifAuth) {
+      toast.error('Please login to GBIF to edit annotation rules');
+      return;
+    }
+
+    setIsBulkUpdating(true);
+    const rulesToEdit = Array.from(selectedRules);
+    const results = {
+      success: [] as number[],
+      failed: [] as number[],
+    };
+
+    try {
+      // Update all selected rules
+      await Promise.all(
+        rulesToEdit.map(async (ruleId) => {
+          try {
+            // Get the current rule data
+            const currentRule = allRules.find(r => r.id === ruleId);
+            if (!currentRule) {
+              results.failed.push(ruleId);
+              return;
+            }
+
+            const response = await fetch(
+              getAnnotationApiUrl(`/rule/${ruleId}`),
+              {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Basic ${gbifAuth}`,
+                },
+                body: JSON.stringify({
+                  id: ruleId,
+                  taxonKey: currentRule.taxonKey,
+                  geometry: currentRule.geometry,
+                  annotation: bulkEditAnnotation || currentRule.annotation,
+                  basisOfRecord: Array.isArray(currentRule.basisOfRecord) 
+                    ? currentRule.basisOfRecord 
+                    : (currentRule.basisOfRecord ? [currentRule.basisOfRecord] : null),
+                  basisOfRecordNegated: false,
+                  datasetKey: currentRule.datasetKey,
+                  yearRange: currentRule.yearRange,
+                  rulesetId: currentRule.rulesetId,
+                  projectId: bulkEditProjectId 
+                    ? (bulkEditProjectId === 'CLEAR' ? null : parseInt(bulkEditProjectId))
+                    : currentRule.projectId,
+                }),
+              }
+            );
+
+            if (response.ok) {
+              results.success.push(ruleId);
+            } else {
+              results.failed.push(ruleId);
+            }
+          } catch (err) {
+            console.error(`Error updating rule ${ruleId}:`, err);
+            results.failed.push(ruleId);
+          }
+        })
+      );
+
+      // Update local state for successfully updated rules
+      if (results.success.length > 0) {
+        setAllRules(prevRules =>
+          prevRules.map(rule => {
+            if (results.success.includes(rule.id)) {
+              const updates: any = { ...rule };
+              
+              // Update annotation if specified
+              if (bulkEditAnnotation) {
+                updates.annotation = bulkEditAnnotation;
+              }
+              
+              // Update projectId if specified
+              if (bulkEditProjectId) {
+                updates.projectId = bulkEditProjectId === 'CLEAR' ? null : parseInt(bulkEditProjectId);
+              }
+              
+              return updates;
+            }
+            return rule;
+          })
+        );
+      }
+
+      // Clear selection and close dialog
+      setSelectedRules(new Set());
+      setIsBulkEditDialogOpen(false);
+      setBulkEditAnnotation('');
+      setBulkEditProjectId('');
+
+      // Show appropriate toast message
+      if (results.failed.length === 0) {
+        toast.success(`Successfully updated ${results.success.length} rule${results.success.length > 1 ? 's' : ''}`);
+      } else if (results.success.length === 0) {
+        toast.error(`Failed to update ${results.failed.length} rule${results.failed.length > 1 ? 's' : ''}`);
+      } else {
+        toast.warning(`Updated ${results.success.length} rule${results.success.length > 1 ? 's' : ''}, but ${results.failed.length} failed`);
+      }
+    } catch (err) {
+      console.error('Error during bulk edit:', err);
+      toast.error('An error occurred during bulk edit');
+    } finally {
+      setIsBulkUpdating(false);
     }
   };
 
@@ -801,14 +1231,8 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                 Back to Map
               </Button>
             </Link>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                <User className="w-5 h-5 text-green-700" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{username}</h1>
-              </div>
-            </div>
+            <div className="flex-1"></div>
+            <LoginButton />
           </div>
         </div>
         
@@ -827,6 +1251,14 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                 <Folder className="w-4 h-4" />
                 Projects ({totalProjects})
               </TabsTrigger>
+              <TabsTrigger value="stats" className="gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Community Stats
+              </TabsTrigger>
+              <TabsTrigger value="downloads" className="gap-2">
+                <Download className="w-4 h-4" />
+                Download Annotator
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -839,12 +1271,22 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
               onSpeciesFilterChange={setSpeciesFilter}
               projectFilter={projectFilter}
               onProjectFilterChange={setProjectFilter}
-              projects={projects}
+              userFilter={userFilter}
+              onUserFilterChange={setUserFilter}
+              selectedProjectName={projects.find(p => p.id === projectFilter)?.name || null}
             />
           </div>
           
           {/* Rules Content */}
-          <div className="flex-1 overflow-auto p-6">
+          <div className="flex-1 overflow-auto p-6 relative">
+        {tableLoading && (
+          <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-2"></div>
+              <p className="text-sm text-gray-600">Loading rules...</p>
+            </div>
+          </div>
+        )}
         {filteredRules.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -862,15 +1304,103 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
           </div>
         ) : (
           <div className="max-w-full mx-auto">
+            {/* Bulk Actions Bar */}
+            {selectedRules.size > 0 && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-blue-900 font-medium">
+                    {selectedRules.size} rule{selectedRules.size !== 1 ? 's' : ''} selected
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedRules(new Set())}
+                    >
+                      Clear Selection
+                    </Button>
+                    {isOwnProfile && (
+                      <>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => setIsBulkEditDialogOpen(true)}
+                          disabled={isBulkUpdating}
+                        >
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Edit Selected
+                        </Button>
+                        <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={isBulkDeleting}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete Selected
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete {selectedRules.size} Rule{selectedRules.size !== 1 ? 's' : ''}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete {selectedRules.size} selected rule{selectedRules.size !== 1 ? 's' : ''}?
+                            This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel disabled={isBulkDeleting}>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              await handleBulkDelete();
+                            }}
+                            disabled={isBulkDeleting}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            {isBulkDeleting ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Deleting...
+                              </>
+                            ) : (
+                              'Delete Rules'
+                            )}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                    </>
+                  )}
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="bg-white rounded-lg border shadow-sm mb-8">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-20">ID</TableHead>
+                    <TableHead className="w-12">
+                      <input
+                        type="checkbox"
+                        checked={filteredRules.length > 0 && selectedRules.size === filteredRules.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedRules(new Set(filteredRules.map(r => r.id)));
+                          } else {
+                            setSelectedRules(new Set());
+                          }
+                        }}
+                        disabled={!isOwnProfile && !isAdmin()}
+                        className="rounded border-gray-300"
+                      />
+                    </TableHead>
                     <TableHead className="w-28">TaxonKey</TableHead>
                     <TableHead>Species</TableHead>
                     <TableHead className="w-24">Annotation</TableHead>
                     <TableHead className="w-32">Project</TableHead>
+                    <TableHead className="w-32">User</TableHead>
                     <TableHead className="w-32">Created</TableHead>
                     <TableHead className="w-28">Actions</TableHead>
                   </TableRow>
@@ -880,9 +1410,26 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                     const speciesInfo = rule.taxonKey ? speciesCache.get(rule.taxonKey) : null;
                     
                     return (
-                      <TableRow key={rule.id}>
+                      <TableRow 
+                        key={rule.id}
+                        className={selectedRules.has(rule.id) ? 'bg-blue-50' : ''}
+                      >
                         <TableCell>
-                          <div className="font-medium">#{rule.id}</div>
+                          <input
+                            type="checkbox"
+                            checked={selectedRules.has(rule.id)}
+                            onChange={(e) => {
+                              const newSelected = new Set(selectedRules);
+                              if (e.target.checked) {
+                                newSelected.add(rule.id);
+                              } else {
+                                newSelected.delete(rule.id);
+                              }
+                              setSelectedRules(newSelected);
+                            }}
+                            disabled={!isOwnRule(rule) && !isAdmin()}
+                            className="rounded border-gray-300"
+                          />
                         </TableCell>
                         
                         <TableCell>
@@ -960,6 +1507,15 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                         </TableCell>
                         
                         <TableCell>
+                          <Link
+                            to={`/user/${rule.createdBy}?tab=rules`}
+                            className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                          >
+                            {rule.createdBy}
+                          </Link>
+                        </TableCell>
+                        
+                        <TableCell>
                           <div className="text-sm text-gray-600">
                             {formatDate(rule.created)}
                           </div>
@@ -981,18 +1537,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                               <Eye className="w-4 h-4" />
                             </Button>
                             
-                            {!rule.deleted && isOwnProfile && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEditRule(rule)}
-                                title="Edit this rule"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                            )}
-                            
-                            {!rule.deleted && (
+                            {!rule.deleted && (isOwnRule(rule) || isAdmin()) && (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button
@@ -1053,8 +1598,8 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                       />
                     </PaginationItem>
                     
-                    {getPageNumbers().map((pageNum, index) => (
-                      <PaginationItem key={index}>
+                    {getPageNumbers().map((pageNum) => (
+                      <PaginationItem key={pageNum}>
                         {pageNum === 'ellipsis-start' || pageNum === 'ellipsis-end' ? (
                           <PaginationEllipsis />
                         ) : (
@@ -1218,6 +1763,30 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                           </TooltipContent>
                         </Tooltip>
                       )}
+
+                      {/* Edit Project Button */}
+                      {isOwnProfile && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setProjectToEdit(project);
+                                setEditProjectName(project.name);
+                                setEditProjectDescription(project.description);
+                              }}
+                              className="h-7 w-7 p-0 rounded-full text-gray-400 bg-gray-50 hover:text-blue-600 hover:bg-blue-50"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Edit project</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                       
                       {/* Set as Active Button */}
                       <Tooltip>
@@ -1295,189 +1864,315 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
             </div>
           )}
         </TabsContent>
+
+        {/* Community Stats Tab */}
+        <TabsContent value="stats" className="flex-1 overflow-auto m-0 px-6 pt-4 pb-6">
+          {statsLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <Loader2 className="inline-block animate-spin h-8 w-8 text-primary mb-2" />
+                <p className="text-muted-foreground">Loading community statistics...</p>
+              </div>
+            </div>
+          ) : statsError ? (
+            <div className="bg-destructive/10 text-destructive px-4 py-3 rounded">
+              <p className="font-medium">Error loading statistics</p>
+              <p className="text-sm">{statsError}</p>
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Most Prolific Creators */}
+              <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-primary" />
+                      Most Prolific Creators
+                    </CardTitle>
+                    <CardDescription>
+                      Users with the most annotation rules created
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-16">Rank</TableHead>
+                          <TableHead>Username</TableHead>
+                          <TableHead className="text-right">Rules</TableHead>
+                          <TableHead className="text-right">Supports</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {topCreators.map((creator, index) => (
+                          <TableRow key={creator.username}>
+                            <TableCell className="font-medium text-muted-foreground">
+                              #{index + 1}
+                            </TableCell>
+                            <TableCell>
+                              <Link 
+                                to={`/user/${creator.username}`}
+                                className="font-medium hover:underline"
+                              >
+                                {creator.username}
+                              </Link>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant="secondary">{creator.ruleCount}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <ThumbsUp className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-sm">{creator.totalSupports}</span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {topCreators.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                              No data available yet
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+
+                {/* Most Active Projects */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Folder className="h-5 w-5 text-primary" />
+                      Most Active Projects
+                    </CardTitle>
+                    <CardDescription>
+                      Projects with the most annotation rules
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-16">Rank</TableHead>
+                          <TableHead>Project</TableHead>
+                          <TableHead className="text-right">Rules</TableHead>
+                          <TableHead className="text-right">Supports</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {topProjects.map((project, index) => (
+                          <TableRow key={project.projectId}>
+                            <TableCell className="font-medium text-muted-foreground">
+                              #{index + 1}
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <Link 
+                                  to={`/project/${project.projectId}`}
+                                  className="font-medium hover:underline"
+                                >
+                                  {project.projectName}
+                                </Link>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  by {project.createdBy}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant="secondary">{project.ruleCount}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <ThumbsUp className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-sm">{project.totalSupports}</span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {topProjects.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                              No data available yet
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+          )}
+        </TabsContent>
+
+        {/* Downloads Tab */}
+        <TabsContent value="downloads" className="flex-1 overflow-auto m-0" forceMount>
+          <div className={activeTab === 'downloads' ? '' : 'hidden'}>
+            <DownloadAnnotator 
+              onResultsChange={(hasResults) => {
+                downloadAnnotatorHasResults.current = hasResults;
+              }}
+            />
+          </div>
+        </TabsContent>
+
         </Tabs>
       </div>
 
-      {/* Edit Rule Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+      {/* Bulk Edit Dialog */}
+      <Dialog open={isBulkEditDialogOpen} onOpenChange={setIsBulkEditDialogOpen}>
+        <DialogContent className="max-w-xl max-h-[85vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Edit Rule #{editingRule?.id}</DialogTitle>
+            <DialogTitle>Edit {selectedRules.size} Selected Rule{selectedRules.size !== 1 ? 's' : ''}</DialogTitle>
             <DialogDescription>
-              Update the annotation rule details. Changes will be saved immediately.
+              Update fields for all selected rules. Leave fields empty to keep existing values.
             </DialogDescription>
           </DialogHeader>
           
-          {editingRule && (
-            <div className="space-y-4 py-4 overflow-y-auto">
-              <div className="space-y-2">
-                <Label htmlFor="edit-annotation">Annotation Type</Label>
-                <select
-                  id="edit-annotation"
-                  className="w-full p-2 border rounded-md"
-                  value={editingRule.annotation}
-                  onChange={(e) => setEditingRule({ ...editingRule, annotation: e.target.value })}
-                >
-                  <option value="NATIVE">Native</option>
-                  <option value="INTRODUCED">Introduced</option>
-                  <option value="MANAGED">Managed</option>
-                  <option value="FORMER">Former</option>
-                  <option value="VAGRANT">Vagrant</option>
-                  <option value="SUSPICIOUS">Suspicious</option>
-                  <option value="OTHER">Other</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-basis">Basis of Record (optional)</Label>
-                <select
-                  id="edit-basis"
-                  className="w-full p-2 border rounded-md"
-                  value={editingRule.basisOfRecord || ''}
-                  onChange={(e) => setEditingRule({ ...editingRule, basisOfRecord: e.target.value || undefined })}
-                >
-                  <option value="">No filter</option>
-                  <option value="HUMAN_OBSERVATION">Human Observation</option>
-                  <option value="PRESERVED_SPECIMEN">Preserved Specimen</option>
-                  <option value="FOSSIL_SPECIMEN">Fossil Specimen</option>
-                  <option value="LIVING_SPECIMEN">Living Specimen</option>
-                  <option value="MACHINE_OBSERVATION">Machine Observation</option>
-                  <option value="MATERIAL_SAMPLE">Material Sample</option>
-                  <option value="OCCURRENCE">Occurrence</option>
-                </select>
-              </div>
-
-              <div className="space-y-2 relative">
-                <Label htmlFor="edit-dataset">Dataset (optional)</Label>
-                <div className="relative">
-                  <Input
-                    id="edit-dataset"
-                    type="text"
-                    value={datasetQuery}
-                    onChange={(e) => {
-                      setDatasetQuery(e.target.value);
-                      searchDatasetsDebounced(e.target.value);
-                    }}
-                    onFocus={() => {
-                      if (datasetSuggestions.length > 0) {
-                        setShowDatasetSuggestions(true);
-                      }
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder="Search for a dataset or leave empty for all datasets"
-                    className="text-sm"
-                  />
-                  {showDatasetSuggestions && (
-                    <div 
-                      className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {datasetSuggestions.map((dataset) => (
-                        <div
-                          key={dataset.key}
-                          className="p-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
-                          onClick={() => handleDatasetSelect(dataset)}
-                        >
-                          <div className="text-sm font-medium text-gray-900 truncate">
-                            {dataset.title}
-                          </div>
-                          <div className="text-xs text-gray-500 truncate">
-                            {dataset.key} • {dataset.type}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {editingRule?.datasetKey && (
-                  <div className="flex items-center justify-between text-xs text-gray-600 bg-blue-50 p-2 rounded">
-                    <span>Selected: <span className="font-medium">{editingRule.datasetKey}</span></span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setEditingRule({ ...editingRule, datasetKey: undefined });
-                        setDatasetQuery('');
-                      }}
-                      className="h-6 w-6 p-0 text-gray-500 hover:text-red-600"
-                    >
-                      ×
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-project">Project (optional)</Label>
-                <select
-                  id="edit-project"
-                  className="w-full p-2 border rounded-md"
-                  value={editingRule.projectId || ''}
-                  onChange={(e) => setEditingRule({ ...editingRule, projectId: e.target.value ? parseInt(e.target.value) : undefined })}
-                >
-                  <option value="">No project</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500">
-                  Select a project to organize this rule. Only projects where you are a member are shown.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-year-range">Year Range (optional)</Label>
-                <Input
-                  id="edit-year-range"
-                  placeholder="e.g., 1900,2023 or *,1990 or 2000,*"
-                  value={editingRule.yearRange || ''}
-                  onChange={(e) => setEditingRule({ ...editingRule, yearRange: e.target.value || undefined })}
-                />
-                <p className="text-xs text-gray-500">
-                  Format: startYear,endYear. Use * for no limit (e.g., *,2020 for before 2020)
-                </p>
-              </div>
-
-              <div className="bg-gray-50 p-3 rounded-md space-y-1 text-sm">
-                <div><strong>Species:</strong> {editingRule.taxonKey ? `${editingRule.taxonKey}` : 'All species'}</div>
-                <div><strong>Geometry:</strong> {editingRule.geometry.substring(0, 50)}...</div>
-                <div className="text-xs text-gray-500 mt-2">Note: Species and geometry cannot be edited</div>
-              </div>
+          <div className="space-y-3 py-2 overflow-y-auto flex-1">
+            <div className="space-y-1">
+              <Label htmlFor="bulk-annotation" className="text-sm">Annotation Type</Label>
+              <select
+                id="bulk-annotation"
+                className="w-full p-2 border rounded-md text-sm"
+                value={bulkEditAnnotation}
+                onChange={(e) => setBulkEditAnnotation(e.target.value)}
+              >
+                <option value="">Don't change</option>
+                <option value="NATIVE">Native</option>
+                <option value="INTRODUCED">Introduced</option>
+                <option value="MANAGED">Managed</option>
+                <option value="FORMER">Former</option>
+                <option value="VAGRANT">Vagrant</option>
+                <option value="SUSPICIOUS">Suspicious</option>
+                <option value="OTHER">Other</option>
+              </select>
             </div>
-          )}
 
-          <div className="flex justify-end gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="bulk-project" className="text-sm">Project</Label>
+              <select
+                id="bulk-project"
+                className="w-full p-2 border rounded-md text-sm"
+                value={bulkEditProjectId}
+                onChange={(e) => setBulkEditProjectId(e.target.value)}
+              >
+                <option value="">Don't change</option>
+                <option value="CLEAR">Remove from project</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="bg-blue-50 p-2 rounded-md text-xs text-blue-900">
+              <strong>Note:</strong> Only changed fields will be updated.
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2 border-t">
             <Button
               variant="outline"
+              size="sm"
               onClick={() => {
-                setIsEditDialogOpen(false);
-                setEditingRule(null);
-                setDatasetQuery('');
-                setDatasetSuggestions([]);
-                setShowDatasetSuggestions(false);
+                setIsBulkEditDialogOpen(false);
+                setBulkEditAnnotation('');
+                setBulkEditProjectId('');
               }}
-              disabled={isUpdating}
+              disabled={isBulkUpdating}
             >
               Cancel
             </Button>
             <Button
-              onClick={handleUpdateRule}
-              disabled={isUpdating}
+              size="sm"
+              onClick={handleBulkEdit}
+              disabled={isBulkUpdating || (!bulkEditAnnotation && !bulkEditProjectId)}
               className="bg-green-600 hover:bg-green-700"
             >
-              {isUpdating ? (
+              {isBulkUpdating ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Updating...
+                  Updating {selectedRules.size} rule{selectedRules.size !== 1 ? 's' : ''}...
                 </>
               ) : (
-                'Save Changes'
+                <>
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Update {selectedRules.size} Rule{selectedRules.size !== 1 ? 's' : ''}
+                </>
               )}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Project Dialog */}
+      <Dialog open={!!projectToEdit} onOpenChange={(open) => {
+        if (!open) {
+          setProjectToEdit(null);
+          setEditProjectName('');
+          setEditProjectDescription('');
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Project</DialogTitle>
+            <DialogDescription>
+              Update the project name and description
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            handleEditProject();
+          }} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-project-name">Project Name *</Label>
+              <Input
+                id="edit-project-name"
+                value={editProjectName}
+                onChange={(e) => setEditProjectName(e.target.value)}
+                placeholder="Enter project name"
+                required
+                disabled={isEditingProject}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-project-description">Description</Label>
+              <Textarea
+                id="edit-project-description"
+                value={editProjectDescription}
+                onChange={(e) => setEditProjectDescription(e.target.value)}
+                placeholder="Enter project description"
+                rows={4}
+                disabled={isEditingProject}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setProjectToEdit(null);
+                  setEditProjectName('');
+                  setEditProjectDescription('');
+                }}
+                disabled={isEditingProject}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isEditingProject}>
+                {isEditingProject ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  'Update Project'
+                )}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 

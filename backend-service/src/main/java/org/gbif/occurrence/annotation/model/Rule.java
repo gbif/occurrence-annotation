@@ -27,7 +27,8 @@ import lombok.NoArgsConstructor;
 @Builder
 public class Rule {
 
-  // The type of annotation applied to the range
+  // The type of annotation applied to the range (deprecated - kept for backwards compatibility)
+  @Deprecated
   public enum ANNOTATION_TYPE {
     NATIVE,
     INTRODUCED,
@@ -42,7 +43,7 @@ public class Rule {
   private Integer taxonKey;
   private String datasetKey;
   @NotNull private String geometry;
-  private ANNOTATION_TYPE annotation;
+  private String annotation; // Now accepts any string from project vocabulary
   private String[] basisOfRecord;
   @Builder.Default private Boolean basisOfRecordNegated = false;
   private String yearRange;

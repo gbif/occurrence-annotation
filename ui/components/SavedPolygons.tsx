@@ -1,32 +1,65 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { PolygonData } from '../App';
 import { Button } from './ui/button';
-import { Upload, Loader2, Trash2, MessageSquare } from 'lucide-react';
+import { Upload, Loader2, Trash2 } from 'lucide-react';
 import { Card } from './ui/card';
-import { Badge } from './ui/badge';
+// import { Badge } from './ui/badge'; // Unused
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { toast } from 'sonner';
-import { coordinatesToWKT } from '../utils/wktParser';
+import { coordinatesToWKT, parseWKTGeometry, isInvertedPolygon } from '../utils/wktParser';
+import { validatePolygonSize, getPolygonSizeStatus } from '../utils/geometryValidation';
 import { MiniMapPreview } from './MiniMapPreview';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
 import { getSelectedProjectName } from '../utils/projectSelection';
 import { Checkbox } from './ui/checkbox';
+import { CountrySelector } from './CountrySelector';
+import { useDebouncedCallback } from '../utils/useDebounce';
+
+// Vocabulary term interface
+interface VocabularyTerm {
+  term: string;
+  description?: string;
+  color: string;
+  locked: boolean;
+}
 
 // Helper function to generate species page URL
 const getSpeciesPageUrl = (taxonKey: number): string => {
-  const isDevelopment = import.meta.env.DEV;
-  const baseUrl = isDevelopment ? 'http://localhost:3000' : window.location.origin;
-  return `${baseUrl}/?taxonKey=${taxonKey}`;
+  return `https://www.gbif.org/species/${taxonKey}`;
+};
+
+// Component for fetching and displaying dataset title
+const DatasetTitleDisplay = ({ datasetKey }: { datasetKey: string }) => {
+  const [title, setTitle] = useState<string>(datasetKey);
+
+  useEffect(() => {
+    const fetchDatasetTitle = async () => {
+      try {
+        const response = await fetch(`https://api.gbif.org/v1/dataset/${datasetKey}`);
+        if (response.ok) {
+          const dataset = await response.json();
+          setTitle(dataset.title || datasetKey);
+        }
+      } catch (error) {
+        console.warn('Failed to fetch dataset title:', error);
+      }
+    };
+
+    fetchDatasetTitle();
+  }, [datasetKey]);
+
+  return <span className="font-semibold text-purple-600">{title}</span>;
 };
 
 // Component for clickable species name
-const SpeciesLink = ({ species, className = "" }: { 
+const SpeciesLink = ({ species, className = "", style }: { 
   species: { scientificName?: string; name?: string; key?: number }; 
   className?: string;
+  style?: React.CSSProperties;
 }) => {
   const displayName = species.scientificName || species.name || 'selected species';
   
@@ -37,14 +70,15 @@ const SpeciesLink = ({ species, className = "" }: {
         target="_blank" 
         rel="noopener noreferrer"
         className={`${className} hover:underline cursor-pointer`}
+        style={style}
         title={`View ${displayName} species page`}
       >
-        "{displayName}"
+        {displayName}
       </a>
     );
   }
   
-  return <span className={className}>"{displayName}"</span>;
+  return <span className={className} style={style}>{displayName}</span>;
 };
 
 // Searchable multi-select component for Basis of Record
@@ -274,15 +308,6 @@ function BasisOfRecordMultiSelect({
   );
 }
 
-// Simple debounce function
-function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
-  let timeout: number;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = window.setTimeout(() => func(...args), wait);
-  };
-}
-
 interface SavedPolygonsProps {
   polygons: PolygonData[];
   onDelete: (id: string) => void;
@@ -303,6 +328,7 @@ interface SaveToGBIFDialogProps {
   onSuccess: () => void;
   annotation: string;
   onRuleSavedToGBIF?: (polygonId?: string) => void;
+  autoOpen?: boolean;
 }
 
 interface ImportWKTDialogProps {
@@ -313,52 +339,47 @@ function ImportWKTDialog({ onImport }: ImportWKTDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [wktInput, setWktInput] = useState('');
 
-  const parseWKT = (wkt: string): [number, number][] | null => {
+  const parseWKT = (wkt: string): [number, number][] | [number, number][][] | null => {
     try {
-      // Remove extra whitespace and normalize
-      const normalized = wkt.trim().toUpperCase();
-      
-      // Match POLYGON pattern
-      const polygonMatch = normalized.match(/POLYGON\s*\(\s*\((.*?)\)\s*\)/);
-      if (!polygonMatch) {
-        throw new Error('Invalid WKT format. Expected: POLYGON((lon lat, lon lat, ...))');
+      const parsed = parseWKTGeometry(wkt);
+      if (!parsed) {
+        throw new Error('Failed to parse WKT geometry');
       }
 
-      const coordsString = polygonMatch[1];
-      const coordPairs = coordsString.split(',').map(pair => pair.trim());
-      
-      const coordinates: [number, number][] = [];
-      for (const pair of coordPairs) {
-        const [lonStr, latStr] = pair.split(/\s+/);
-        const lon = parseFloat(lonStr);
-        const lat = parseFloat(latStr);
-        
-        if (isNaN(lon) || isNaN(lat)) {
-          throw new Error('Invalid coordinate values');
-        }
-        
-        // Validate coordinate ranges
-        if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-          throw new Error('Coordinates out of valid range (lat: -90 to 90, lon: -180 to 180)');
-        }
-        
-        coordinates.push([lat, lon]); // Convert back to [lat, lng] for our internal format
+      // Handle MultiPolygon
+      if ('polygons' in parsed) {
+        // For multipolygons, return array of polygons
+        return parsed.polygons.map(p => p.outer);
       }
       
-      if (coordinates.length < 3) {
-        throw new Error('Polygon must have at least 3 points');
-      }
-      
-      // Remove the last point if it's a duplicate of the first (closing point)
-      if (coordinates.length > 3) {
-        const first = coordinates[0];
-        const last = coordinates[coordinates.length - 1];
-        if (first[0] === last[0] && first[1] === last[1]) {
-          coordinates.pop();
+      // Handle PolygonWithHoles (single polygon)
+      if ('holes' in parsed) {
+        // Check if it's actually an inverted polygon (outer ring covers world)
+        const isOriginallyInverted = isInvertedPolygon(parsed);
+        
+        if (isOriginallyInverted) {
+          // Inverted polygon - return all holes as editable regions
+          if (parsed.holes.length === 1) {
+            // Single hole - return as single polygon
+            return parsed.holes[0];
+          } else {
+            // Multiple holes - return as multipolygon
+            return parsed.holes;
+          }
+        } else {
+          // Normal polygon (not inverted)
+          if (parsed.holes.length > 0) {
+            toast.warning('Polygon has interior holes', {
+              description: 'Interior holes will be removed. Only the outer boundary will be imported.',
+              duration: 6000,
+            });
+          }
+          // Return outer ring
+          return parsed.outer;
         }
       }
       
-      return coordinates;
+      throw new Error('Unexpected geometry type');
     } catch (error) {
       throw error;
     }
@@ -366,10 +387,21 @@ function ImportWKTDialog({ onImport }: ImportWKTDialogProps) {
 
   const handleImport = () => {
     try {
-      const coordinates = parseWKT(wktInput);
-      if (coordinates) {
-        onImport(coordinates);
-        toast.success(`Polygon imported with ${coordinates.length} points`);
+      const result = parseWKT(wktInput);
+      if (result) {
+        // Check if it's a multipolygon (array of arrays)
+        const isMulti = Array.isArray(result[0]) && Array.isArray(result[0][0]);
+        
+        if (isMulti) {
+          onImport(result as [number, number][][], true);
+          const polygonCount = (result as [number, number][][]).length;
+          toast.success(`${polygonCount} polygon(s) imported`);
+        } else {
+          onImport(result as [number, number][]);
+          const pointCount = (result as [number, number][]).length;
+          toast.success(`Polygon imported with ${pointCount} points`);
+        }
+        
         setIsOpen(false);
         setWktInput('');
       }
@@ -443,6 +475,8 @@ function ImportWKTDialog({ onImport }: ImportWKTDialogProps) {
 }
 
 // Small GBIF logo component
+// Currently unused - commented out to avoid build warning
+/*
 function GBIFLogoSmall() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -451,20 +485,58 @@ function GBIFLogoSmall() {
     </svg>
   );
 }
+*/
 
-function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }: SaveToGBIFDialogProps) {
-  const [isOpen, setIsOpen] = useState(false);
+function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, autoOpen = false }: SaveToGBIFDialogProps) {
+  console.log('SaveToGBIFDialog rendering with polygon:', polygon);
+  
+  const [isOpen, setIsOpen] = useState(autoOpen);
   const [isLoading, setIsLoading] = useState(false);
   const [wktText, setWktText] = useState('');
   
-  // Complex rule state
+  // Calculate polygon size validation and status from WKT
+  const polygonSizeValidation = useMemo(() => {
+    if (!wktText || !wktText.trim()) {
+      return null;
+    }
+    return validatePolygonSize(wktText);
+  }, [wktText]);
+
+  const polygonSizeStatus = useMemo(() => {
+    if (!polygonSizeValidation) {
+      return null;
+    }
+    // Only show status if validation passed; otherwise errors are shown in validation check
+    if (!polygonSizeValidation.isValid) {
+      return null;
+    }
+    return getPolygonSizeStatus(polygonSizeValidation.vertexCount);
+  }, [polygonSizeValidation]);
+  
+  // Complex rule state - initialize with polygon attributes (including from edited rules)
   const [showComplexOptions, setShowComplexOptions] = useState(false);
-  const [selectedAnnotation, setSelectedAnnotation] = useState(annotation);
-  const [basisOfRecord, setBasisOfRecord] = useState<string[]>([]);
-  const [basisOfRecordNegated, setBasisOfRecordNegated] = useState<boolean>(false);
-  const [datasetKey, setDatasetKey] = useState<string>('');
-  const [yearRange, setYearRange] = useState<string>('');
+  const [selectedAnnotation, setSelectedAnnotation] = useState(polygon.annotation || annotation);
+  
+  // Use direct fields if available (from edited rules), fallback to initialFilters (from search)
+  const [basisOfRecord, setBasisOfRecord] = useState<string[]>(
+    polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord || []
+  );
+  const [basisOfRecordNegated, setBasisOfRecordNegated] = useState<boolean>(
+    polygon.basisOfRecordNegated || false
+  );
+  const [datasetKey, setDatasetKey] = useState<string>(
+    polygon.datasetKey || polygon.initialFilters?.datasetKey || ''
+  );
+  const [yearRange, setYearRange] = useState<string>(polygon.yearRange || '');
   const [basisOfRecordOptions, setBasisOfRecordOptions] = useState<string[]>([]);
+  
+  console.log('SaveToGBIFDialog initial state:', {
+    basisOfRecord: polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord,
+    basisOfRecordNegated: polygon.basisOfRecordNegated,
+    datasetKey: polygon.datasetKey || polygon.initialFilters?.datasetKey,
+    yearRange: polygon.yearRange,
+    editingOriginalRuleId: polygon.editingOriginalRuleId
+  });
   
   // Year range slider state
   const [yearRangeStart, setYearRangeStart] = useState<number>(1600);
@@ -476,15 +548,30 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
   const [datasetSuggestions, setDatasetSuggestions] = useState<any[]>([]);
   const [showDatasetSuggestions, setShowDatasetSuggestions] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<any>(null);
+  const [datasetTitle, setDatasetTitle] = useState<string>('');
   
   // WKT editing state
-  const [showWktEditor, setShowWktEditor] = useState(false);
+  // const [showWktEditor, setShowWktEditor] = useState(false); // Unused
+
+  // Comment state
+  const [ruleComment, setRuleComment] = useState('');
 
   // Selected project name (if any) for reminding where new rules will be saved
   const selectedProjectName = getSelectedProjectName();
 
   // Year range validation state
   const [yearRangeError, setYearRangeError] = useState<string>('');
+  
+  // Vocabulary state
+  const [vocabulary, setVocabulary] = useState<VocabularyTerm[]>([
+    { term: 'SUSPICIOUS', color: '#ef4444', locked: true },
+    { term: 'NATIVE', color: '#22c55e', locked: false },
+    { term: 'MANAGED', color: '#a855f7', locked: false },
+    { term: 'FORMER', color: '#f97316', locked: false },
+    { term: 'VAGRANT', color: '#06b6d4', locked: false },
+    { term: 'INTRODUCED', color: '#3b82f6', locked: false },
+  ]);
+  const [loadingVocabulary, setLoadingVocabulary] = useState(false);
 
   // Validate year range input
   const validateYearRange = (value: string): string => {
@@ -567,6 +654,48 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
     }
   }, [isOpen, polygon.coordinates, polygon.inverted]);
 
+  // Auto-open dialog and fetch dataset details if initialFilters exist
+  useEffect(() => {
+    console.log('SaveToGBIF autoOpen effect:', { autoOpen, hasInitialFilters: !!polygon.initialFilters, initialFilters: polygon.initialFilters });
+    if (autoOpen && polygon.initialFilters) {
+      console.log('Auto-opening SaveToGBIF dialog with filters:', polygon.initialFilters);
+      setIsOpen(true);
+      
+      // Enable complex options if we have initial filters
+      setShowComplexOptions(true);
+      
+      // Set basis of record values if provided
+      if (polygon.initialFilters.basisOfRecord && polygon.initialFilters.basisOfRecord.length > 0) {
+        console.log('Setting basisOfRecord from initialFilters:', polygon.initialFilters.basisOfRecord);
+        setBasisOfRecord(polygon.initialFilters.basisOfRecord);
+      }
+      
+      // If there's an initial datasetKey, fetch its details to pre-fill the dataset selector
+      if (polygon.initialFilters.datasetKey) {
+        const datasetKeyValue = polygon.initialFilters.datasetKey;
+        console.log('Setting datasetKey from initialFilters:', datasetKeyValue);
+        setDatasetKey(datasetKeyValue);
+        
+        const fetchDatasetDetails = async () => {
+          try {
+            const response = await fetch(`https://api.gbif.org/v1/dataset/${datasetKeyValue}`);
+            if (response.ok) {
+              const dataset = await response.json();
+              setSelectedDataset(dataset);
+              setDatasetQuery(dataset.title || '');
+              setDatasetTitle(dataset.title || datasetKeyValue);
+              console.log('Fetched dataset details:', dataset.title);
+            }
+          } catch (error) {
+            console.warn('Failed to fetch dataset details:', error);
+            setDatasetTitle(datasetKeyValue);
+          }
+        };
+        fetchDatasetDetails();
+      }
+    }
+  }, [autoOpen, polygon.initialFilters]);
+
   // Fetch basis of record options from GBIF API
   useEffect(() => {
     const fetchBasisOfRecordOptions = async () => {
@@ -585,6 +714,41 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
 
     fetchBasisOfRecordOptions();
   }, []);
+
+  // Fetch vocabulary based on polygon's project or selected project
+  useEffect(() => {
+    if (!isOpen) return; // Only fetch when dialog is open
+
+    const fetchVocabulary = async () => {
+      // Use polygon's projectId if available, otherwise fall back to selected project
+      const projectId = polygon.projectId ?? localStorage.getItem('selectedProjectId');
+      
+      if (!projectId) {
+        // No project selected, use default vocabulary
+        return;
+      }
+
+      setLoadingVocabulary(true);
+      try {
+        const response = await fetch(getAnnotationApiUrl(`/project/${projectId}/vocabulary`));
+        
+        if (!response.ok) {
+          console.error('Failed to fetch vocabulary, using defaults');
+          return;
+        }
+
+        const data = await response.json();
+        setVocabulary(data);
+      } catch (error) {
+        console.error('Error fetching vocabulary:', error);
+        // Keep default vocabulary on error
+      } finally {
+        setLoadingVocabulary(false);
+      }
+    };
+
+    fetchVocabulary();
+  }, [isOpen, polygon.projectId]); // Fetch when dialog opens or polygon.projectId changes
 
   // Update yearRange string when slider values change
   useEffect(() => {
@@ -610,8 +774,8 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
   }, [showDatasetSuggestions]);
 
   // Function to search datasets with debouncing
-  const searchDatasetsDebounced = useCallback(
-    debounce(async (query: string) => {
+  const searchDatasetsDebounced = useDebouncedCallback(
+    async (query: string) => {
       if (!query.trim()) {
         setDatasetSuggestions([]);
         setShowDatasetSuggestions(false);
@@ -628,8 +792,8 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
       } catch (error) {
         console.warn('Failed to fetch dataset suggestions:', error);
       }
-    }, 300),
-    []
+    },
+    300
   );
 
   // Function to search datasets (immediate call for focus)
@@ -772,8 +936,8 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
     }
     
     // Check if user is logged in
-    const gbifAuth = localStorage.getItem('gbifAuth');
-    const gbifUser = localStorage.getItem('gbifUser');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
+    const gbifUser = sessionStorage.getItem('gbifUser');
     
     if (!gbifAuth || !gbifUser) {
       console.log('SaveToGBIF: No GBIF auth found');
@@ -807,6 +971,18 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
         return;
       }
       
+      // Validate polygon size (vertex count and WKT length)
+      const sizeValidation = validatePolygonSize(wktGeometry);
+      if (!sizeValidation.isValid) {
+        console.log('SaveToGBIF: Polygon size validation failed:', sizeValidation.error);
+        toast.error('⚠️ Polygon too large', {
+          description: sizeValidation.error || 'Use the scissors tool in the editing menu to simplify your polygon.'
+        });
+        setIsLoading(false);
+        return;
+      }
+      console.log('SaveToGBIF: Polygon size validation passed:', sizeValidation.vertexCount, 'vertices');
+      
       // Get selected project ID from localStorage
       const selectedProjectId = localStorage.getItem('selectedProjectId');
       
@@ -819,21 +995,17 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
         annotation: showComplexOptions ? selectedAnnotation : annotation,
       };
 
-      // Add complex rule fields if enabled
-      if (showComplexOptions) {
-        if (basisOfRecord.length > 0) {
-          payload.basisOfRecord = basisOfRecord;
-          payload.basisOfRecordNegated = basisOfRecordNegated;
-        }
-        if (datasetKey.trim()) {
-          payload.datasetKey = datasetKey.trim();
-        }
-        if (yearRange.trim()) {
-          payload.yearRange = yearRange.trim();
-        }
+      // Add complex rule fields if they have values (regardless of showComplexOptions state)
+      if (basisOfRecord.length > 0) {
+        payload.basisOfRecord = basisOfRecord;
+        payload.basisOfRecordNegated = basisOfRecordNegated;
       }
-
-      // console.log('Saving to GBIF:', payload);
+      if (datasetKey.trim()) {
+        payload.datasetKey = datasetKey.trim();
+      }
+      if (yearRange.trim()) {
+        payload.yearRange = yearRange.trim();
+      }
 
       // Make the API request
       const response = await fetch(
@@ -854,8 +1026,8 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
         
         if (response.status === 401) {
           toast.error('Authentication failed. Please login again.');
-          localStorage.removeItem('gbifAuth');
-          localStorage.removeItem('gbifUser');
+          sessionStorage.removeItem('gbifAuth');
+          sessionStorage.removeItem('gbifUser');
         } else if (response.status === 403) {
           toast.error('Access denied. Check your permissions for this project.');
         } else {
@@ -866,6 +1038,31 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
 
       const result = await response.json();
       console.log('Rule saved successfully:', result);
+      
+      // Post the comment if one was provided
+      if (result && result.id && ruleComment.trim()) {
+        try {
+          const commentResponse = await fetch(
+            getAnnotationApiUrl(`/rule/${result.id}/comment`),
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Basic ${gbifAuth}`,
+              },
+              body: JSON.stringify({ comment: ruleComment.trim() }),
+            }
+          );
+          
+          if (commentResponse.ok) {
+            console.log('Comment posted successfully');
+          } else {
+            console.warn('Failed to post comment:', commentResponse.statusText);
+          }
+        } catch (err) {
+          console.warn('Error posting comment:', err);
+        }
+      }
       
       // Post any pending comments for this polygon
       if (result && result.id) {
@@ -892,8 +1089,8 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
   };
 
   const getLoginStatus = () => {
-    const gbifAuth = localStorage.getItem('gbifAuth');
-    const gbifUser = localStorage.getItem('gbifUser');
+    const gbifAuth = sessionStorage.getItem('gbifAuth');
+    const gbifUser = sessionStorage.getItem('gbifUser');
     return !!(gbifAuth && gbifUser);
   };
 
@@ -962,6 +1159,9 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
       <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>Save Rule to GBIF</DialogTitle>
+          <DialogDescription>
+            Configure rule options and annotation type
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 overflow-y-auto flex-1 pr-2">
           {/* Warning Messages */}
@@ -1039,14 +1239,17 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
                       value={selectedAnnotation}
                       onChange={(e) => setSelectedAnnotation(e.target.value)}
                       className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      disabled={loadingVocabulary}
                     >
-                      <option value="SUSPICIOUS">SUSPICIOUS</option>
-                      <option value="MANAGED">MANAGED</option>
-                      <option value="FORMER">FORMER</option>
-                      <option value="VAGRANT">VAGRANT</option>
-                      <option value="NATIVE">NATIVE</option>
-                      <option value="INTRODUCED">INTRODUCED</option>
+                      {vocabulary.map((term) => (
+                        <option key={term.term} value={term.term}>
+                          {term.term}
+                        </option>
+                      ))}
                     </select>
+                    {loadingVocabulary && (
+                      <p className="text-xs text-gray-500">Loading annotation options...</p>
+                    )}
                   </div>
 
                   {/* Warning for non-SUSPICIOUS annotations */}
@@ -1199,7 +1402,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
                 {/* Complex Rule Display */}
                 <div className="mt-4 p-3 rounded-lg border border-gray-200 bg-gray-50">
                   <p className="text-base text-gray-800">
-                    This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of <SpeciesLink species={polygon.species} className="font-bold" />
+                    This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of {polygon.species && <SpeciesLink species={polygon.species} className="font-bold" />}
                     {basisOfRecord && basisOfRecord.length > 0 && (
                       basisOfRecordNegated ? (
                         <> with basis of record <span className="font-bold">NOT "{basisOfRecord.map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
@@ -1213,15 +1416,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
                     {(yearRange || (yearRangeStart !== 1600 || yearRangeEnd !== 2025)) && (
                       <> from years <span className="font-bold">{yearRange || (yearRangeStart === yearRangeEnd ? yearRangeStart : `${yearRangeStart}-${yearRangeEnd}`)}</span></>
                     )}
-                    {} within the <span className="font-bold">polygon area</span> as <span className={`font-bold ${
-                      selectedAnnotation === 'SUSPICIOUS' ? 'text-red-600' :
-                      selectedAnnotation === 'NATIVE' ? 'text-green-600' :
-                      selectedAnnotation === 'MANAGED' ? 'text-blue-600' :
-                      selectedAnnotation === 'FORMER' ? 'text-purple-600' :
-                      selectedAnnotation === 'VAGRANT' ? 'text-orange-600' :
-                      selectedAnnotation === 'INTRODUCED' ? 'text-amber-600' :
-                      'text-red-600'
-                    }`}>{selectedAnnotation.toLowerCase()}</span>.
+                    {} within the <span className="font-bold">polygon area</span> as <span className="font-bold" style={{ color: vocabulary.find(v => v.term.toUpperCase() === selectedAnnotation.toUpperCase())?.color || '#ef4444' }}>{selectedAnnotation.toLowerCase()}</span>.
                   </p>
                 </div>
               </div>
@@ -1231,27 +1426,83 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
               /* Simple Rule Display */
               <div className="p-3 rounded-lg border border-gray-200">
                 <p className="text-base text-gray-800">
-                  This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of <SpeciesLink species={polygon.species} className="font-bold" /> within the <span className="font-bold">polygon area</span> as <span className="font-bold text-red-600">suspicious</span>.
+                  This rule will designate all <span className="font-bold">future</span> and <span className="font-bold">past</span> occurrence records of {polygon.species && <SpeciesLink species={polygon.species} className="font-bold" />}
+                  {(polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord) && (polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord || []).length > 0 && (
+                    polygon.basisOfRecordNegated ? (
+                      <> with basis of record <span className="font-bold">NOT "{(polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord || []).map(b => b.replace(/_/g, ' ')).join(', ')}"</span></>
+                    ) : (
+                      <> with basis of record <span className="font-bold text-blue-600">{(polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord || []).map(b => b.replace(/_/g, ' ')).join(', ')}</span></>
+                    )
+                  )}
+                  {(polygon.datasetKey || polygon.initialFilters?.datasetKey) && datasetTitle && (
+                    <> from dataset <span className="font-bold text-purple-600">{datasetTitle}</span></>
+                  )}
+                  {polygon.yearRange && (
+                    <> from years <span className="font-bold">{polygon.yearRange}</span></>
+                  )} within the <span className="font-bold">polygon area</span> as <span className="font-bold" style={{ color: vocabulary.find(v => v.term.toUpperCase() === (polygon.annotation || annotation).toUpperCase())?.color || '#ef4444' }}>{(polygon.annotation || annotation).toLowerCase()}</span>.
                 </p>
               </div>
             )}
           </div>
 
 
+          {/* Comment field */}
+          <div className="space-y-2">
+            <Label htmlFor="rule-comment" className="text-sm font-medium">
+              Comment (optional)
+            </Label>
+            <Textarea
+              id="rule-comment"
+              value={ruleComment}
+              onChange={(e) => setRuleComment(e.target.value)}
+              placeholder="Add a comment to explain this rule..."
+              className="resize-none"
+              rows={3}
+            />
+            <p className="text-xs text-gray-500">
+              This comment will be saved with the rule
+            </p>
+          </div>
+
+          {/* Polygon size warning */}
+          {polygonSizeStatus && (polygonSizeStatus.severity === 'warning' || polygonSizeStatus.severity === 'error') && (
+            <div className={`p-3 ${polygonSizeStatus.severity === 'error' ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'} border rounded-lg`}>
+              <div className="flex items-start gap-2">
+                <div className={`text-sm ${polygonSizeStatus.severity === 'error' ? 'text-red-600' : 'text-yellow-600'}`}>⚠️</div>
+                <div className={`text-sm ${polygonSizeStatus.severity === 'error' ? 'text-red-700' : 'text-yellow-700'}`}>
+                  <p className="font-medium">
+                    {polygonSizeStatus.severity === 'error' ? 'Polygon exceeds size limit' : 'Polygon approaching size limit'}
+                  </p>
+                  <p className="mt-1">
+                    {polygonSizeStatus.severity === 'error' 
+                      ? 'Your polygon has too many vertices and cannot be saved. ' 
+                      : 'Your polygon is approaching the maximum vertex limit. '}
+                    Use the <strong>scissors tool</strong> in the editing menu to simplify your polygon.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Polygon info */}
           <div className="text-sm text-gray-600 space-y-1">
-            <div className="flex items-center justify-between">
+            {polygonSizeStatus && (
+              <p className="flex items-center gap-2">
+                <span>Geometry:</span>
+                <span className={`font-medium ${polygonSizeStatus.color}`}>
+                  {polygonSizeStatus.message}
+                </span>
+                {polygonSizeStatus.severity === 'error' && (
+                  <span className="text-xs text-red-600">⚠️ Exceeds limit</span>
+                )}
+                {polygonSizeStatus.severity === 'warning' && (
+                  <span className="text-xs text-yellow-600">⚠️ Approaching limit</span>
+                )}
+              </p>
+            )}
+            {!polygonSizeStatus && (
               <p>Geometry: {polygon.coordinates.length} vertices</p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowWktEditor(!showWktEditor)}
-                className="h-6 px-2 text-xs text-blue-600 hover:text-blue-800"
-              >
-                {showWktEditor ? 'Hide WKT' : 'Edit WKT'}
-              </Button>
-            </div>
+            )}
             {polygon.inverted && (
               <p className="text-amber-600">⚠️ This polygon is inverted (excludes the area inside)</p>
             )}
@@ -1277,24 +1528,6 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
               </p>
             )}
           </div>
-
-          {/* WKT Geometry Editor (Collapsible) */}
-          {showWktEditor && (
-            <div className="space-y-2 p-3 bg-gray-50 rounded border">
-              <Label htmlFor={`wkt-${polygon.id}`} className="text-xs text-gray-600">WKT Geometry (Advanced)</Label>
-              <Textarea
-                id={`wkt-${polygon.id}`}
-                value={wktText}
-                onChange={(e) => setWktText(e.target.value)}
-                placeholder="POLYGON((...)) or MULTIPOLYGON(...)"
-                className="resize-none font-mono text-xs"
-                rows={3}
-              />
-              <p className="text-xs text-gray-500">
-                Edit the WKT geometry if needed before saving
-              </p>
-            </div>
-          )}
         </div>
         
         {/* Sticky Footer with Buttons */}
@@ -1322,16 +1555,25 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF }:
   );
 }
 
-function PolygonPreview({ coordinates, annotation = 'SUSPICIOUS', isMultiPolygon = false, onClick }: { coordinates: [number, number][] | [number, number][][], annotation?: string, isMultiPolygon?: boolean, onClick?: () => void }) {
+// Polygon preview component
+// Currently unused - commented out to avoid build warning
+/*
+function PolygonPreview({ 
+  coordinates, 
+  annotation = 'SUSPICIOUS', 
+  isMultiPolygon = false, 
+  onClick,
+  vocabulary 
+}: { 
+  coordinates: [number, number][] | [number, number][][], 
+  annotation?: string, 
+  isMultiPolygon?: boolean, 
+  onClick?: () => void,
+  vocabulary?: VocabularyTerm[]
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    console.log('🖼️ POLYGON PREVIEW RENDERING (Canvas):', {
-      annotation,
-      isMultiPolygon,
-      polygonCount: isMultiPolygon ? (coordinates as [number, number][][]).length : 1
-    });
-
     const canvas = canvasRef.current;
     if (!canvas) return;
     
@@ -1368,6 +1610,35 @@ function PolygonPreview({ coordinates, annotation = 'SUSPICIOUS', isMultiPolygon
     // Scale to fit canvas
     const scale = Math.min(width / lngRange, height / latRange);
 
+    // Helper function to convert hex color to RGBA
+    const hexToRgba = (hex: string, alpha: number): string => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+
+    // Build color map from vocabulary if provided, otherwise use defaults
+    const annotationColors: { [key: string]: { fill: string; fillRgba: string; stroke: string; strokeRgba: string } } = vocabulary && vocabulary.length > 0
+      ? vocabulary.reduce((acc, term) => {
+          acc[term.term.toUpperCase()] = {
+            fill: term.color,
+            fillRgba: hexToRgba(term.color, 0.1),
+            stroke: term.color,
+            strokeRgba: hexToRgba(term.color, 0.6),
+          };
+          return acc;
+        }, {} as { [key: string]: { fill: string; fillRgba: string; stroke: string; strokeRgba: string } })
+      : {
+          SUSPICIOUS: { fill: '#ef4444', fillRgba: 'rgba(239, 68, 68, 0.1)', stroke: '#dc2626', strokeRgba: 'rgba(220, 38, 38, 0.6)' },
+          NATIVE: { fill: '#10b981', fillRgba: 'rgba(16, 185, 129, 0.1)', stroke: '#059669', strokeRgba: 'rgba(5, 150, 105, 0.6)' },
+          MANAGED: { fill: '#3b82f6', fillRgba: 'rgba(59, 130, 246, 0.1)', stroke: '#2563eb', strokeRgba: 'rgba(37, 99, 235, 0.6)' },
+          FORMER: { fill: '#a855f7', fillRgba: 'rgba(168, 85, 247, 0.1)', stroke: '#9333ea', strokeRgba: 'rgba(147, 51, 234, 0.6)' },
+          VAGRANT: { fill: '#f97316', fillRgba: 'rgba(249, 115, 22, 0.1)', stroke: '#ea580c', strokeRgba: 'rgba(234, 88, 12, 0.6)' },
+          INTRODUCED: { fill: '#d97706', fillRgba: 'rgba(217, 119, 6, 0.1)', stroke: '#b45309', strokeRgba: 'rgba(180, 83, 9, 0.6)' },
+        };
+    const color = annotationColors[annotation.toUpperCase()] || annotationColors.SUSPICIOUS;
+
     // Draw all polygons
     polygons.forEach(polyCoords => {
       ctx.beginPath();
@@ -1382,17 +1653,6 @@ function PolygonPreview({ coordinates, annotation = 'SUSPICIOUS', isMultiPolygon
         }
       });
       ctx.closePath();
-
-    // Get color based on annotation type
-    const annotationColors: { [key: string]: { fill: string; fillRgba: string; stroke: string; strokeRgba: string } } = {
-      SUSPICIOUS: { fill: '#ef4444', fillRgba: 'rgba(239, 68, 68, 0.1)', stroke: '#dc2626', strokeRgba: 'rgba(220, 38, 38, 0.6)' },
-      NATIVE: { fill: '#10b981', fillRgba: 'rgba(16, 185, 129, 0.1)', stroke: '#059669', strokeRgba: 'rgba(5, 150, 105, 0.6)' },
-      MANAGED: { fill: '#3b82f6', fillRgba: 'rgba(59, 130, 246, 0.1)', stroke: '#2563eb', strokeRgba: 'rgba(37, 99, 235, 0.6)' },
-      FORMER: { fill: '#a855f7', fillRgba: 'rgba(168, 85, 247, 0.1)', stroke: '#9333ea', strokeRgba: 'rgba(147, 51, 234, 0.6)' },
-      VAGRANT: { fill: '#f97316', fillRgba: 'rgba(249, 115, 22, 0.1)', stroke: '#ea580c', strokeRgba: 'rgba(234, 88, 12, 0.6)' },
-      INTRODUCED: { fill: '#d97706', fillRgba: 'rgba(217, 119, 6, 0.1)', stroke: '#b45309', strokeRgba: 'rgba(180, 83, 9, 0.6)' },
-    };
-    const color = annotationColors[annotation.toUpperCase()] || annotationColors.SUSPICIOUS;
 
       // Fill and stroke each polygon
       ctx.fillStyle = color.fillRgba;
@@ -1411,7 +1671,7 @@ function PolygonPreview({ coordinates, annotation = 'SUSPICIOUS', isMultiPolygon
         ctx.fill();
       });
     });
-  }, [coordinates, annotation, isMultiPolygon]);
+  }, [coordinates, annotation, isMultiPolygon, vocabulary]);
 
   return (
     <canvas
@@ -1423,30 +1683,36 @@ function PolygonPreview({ coordinates, annotation = 'SUSPICIOUS', isMultiPolygon
     />
   );
 }
+*/
 
 function PolygonCard({ 
   polygon, 
   onDelete, 
-  onToggleInvert,
-  onUpdateAnnotation,
+  // onToggleInvert, // Unused
+  // onUpdateAnnotation, // Unused
   onNavigateToPolygon,
-  onRuleSavedToGBIF
+  onRuleSavedToGBIF,
+  vocabulary
 }: { 
   polygon: PolygonData; 
   onDelete: (id: string) => void;
-  onToggleInvert: (id: string) => void;
-  onUpdateAnnotation?: (id: string, annotation: string) => void;
+  // onToggleInvert: (id: string) => void; // Unused
+  // onUpdateAnnotation?: (id: string, annotation: string) => void; // Unused
   onNavigateToPolygon?: (lat: number, lng: number) => void;
   onRuleSavedToGBIF?: () => void;
+  vocabulary?: VocabularyTerm[];
 }) {
   const annotation = polygon.annotation || 'SUSPICIOUS'; // Use polygon annotation or default to SUSPICIOUS
   
   // Comment functionality state
-  const [showCommentSection, setShowCommentSection] = useState(false);
-  const [newComment, setNewComment] = useState('');
-  const [submittingComment, setSubmittingComment] = useState(false);
+  // Unused - commented out to avoid build warning
+  // const [newComment, setNewComment] = useState('');
+  // const [showCommentSection, setShowCommentSection] = useState(false);
+  // const [submittingComment, setSubmittingComment] = useState(false);
 
   // Handle adding comments to polygons
+  // Unused - commented out to avoid build warning
+  /*
   const handleAddComment = async () => {
     console.log('handleAddComment called');
     
@@ -1472,7 +1738,7 @@ function PolygonCard({
       
       // Try to get username if logged in, but don't require it
       try {
-        const gbifAuthStr = localStorage.getItem('gbifAuth');
+        const gbifAuthStr = sessionStorage.getItem('gbifAuth');
         if (gbifAuthStr) {
           const gbifAuth = JSON.parse(gbifAuthStr);
           if (gbifAuth.userName) {
@@ -1534,8 +1800,11 @@ function PolygonCard({
       setSubmittingComment(false);
     }
   };
+  */
 
   // Get comment count for a polygon
+  // Unused - commented out to avoid build warning
+  /*
   const getCommentCount = (): number => {
     try {
       const existingComments = JSON.parse(localStorage.getItem('polygonComments') || '[]');
@@ -1544,8 +1813,11 @@ function PolygonCard({
       return 0;
     }
   };
+  */
 
   // Get pending comment count
+  // Unused - commented out to avoid build warning
+  /*
   const getPendingCommentCount = (): number => {
     try {
       const existingComments = JSON.parse(localStorage.getItem('polygonComments') || '[]');
@@ -1556,6 +1828,7 @@ function PolygonCard({
       return 0;
     }
   };
+  */
 
   const polygonCount = polygon.isMultiPolygon 
     ? (polygon.coordinates as [number, number][][]).length 
@@ -1586,6 +1859,7 @@ function PolygonCard({
                 width={120}
                 height={80}
                 className="rounded-md shadow-sm"
+                vocabulary={vocabulary}
               />
             </div>
             <p className="text-gray-400 text-xs">
@@ -1600,15 +1874,35 @@ function PolygonCard({
         {polygon.species && (
           <div className="space-y-1">
             <p className="text-sm">
-              <span className="text-gray-500">This</span> <span className="font-semibold text-gray-700">proposed</span> <span className="text-gray-500">rule will designate all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <SpeciesLink species={polygon.species} className="font-semibold" style={{color: '#4C9C2E'}} /> <span className="text-gray-500">within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className={`font-semibold ${
-                annotation === 'SUSPICIOUS' ? 'text-red-600' :
-                annotation === 'NATIVE' ? 'text-green-600' :
-                annotation === 'MANAGED' ? 'text-blue-600' :
-                annotation === 'FORMER' ? 'text-purple-600' :
-                annotation === 'VAGRANT' ? 'text-orange-600' :
-                annotation === 'INTRODUCED' ? 'text-amber-600' :
-                'text-red-600'
-              }`}>{annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
+              <span className="text-gray-500">This</span> <span className="font-semibold text-gray-700">proposed</span> <span className="text-gray-500">rule will designate all</span> <span className="font-semibold">future</span> <span className="text-gray-500">and</span> <span className="font-semibold">past</span> <span className="text-gray-500">occurrence records of</span> <SpeciesLink species={polygon.species} className="font-semibold" style={{color: '#4C9C2E'}} />
+              {(polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord) && (polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord || []).length > 0 && (
+                polygon.basisOfRecordNegated ? (
+                  <>
+                    <span className="text-gray-500"> with basis of record </span>
+                    <span className="font-semibold">NOT "{(polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord || []).map(b => b.replace(/_/g, ' ')).join(', ')}"</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-gray-500"> with basis of record </span>
+                    <span className="font-semibold text-blue-600">
+                      {(polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord || []).map(b => b.replace(/_/g, ' ')).join(', ')}
+                    </span>
+                  </>
+                )
+              )}
+              {(polygon.datasetKey || polygon.initialFilters?.datasetKey) && (
+                <>
+                  <span className="text-gray-500"> from dataset </span>
+                  <DatasetTitleDisplay datasetKey={polygon.datasetKey || polygon.initialFilters?.datasetKey || ''} />
+                </>
+              )}
+              {polygon.yearRange && (
+                <>
+                  <span className="text-gray-500"> from years </span>
+                  <span className="font-semibold">{polygon.yearRange}</span>
+                </>
+              )}
+              <span className="text-gray-500"> within the</span> <span className="font-semibold">polygon area</span> <span className="text-gray-500">as</span> <span className="font-semibold" style={{ color: vocabulary?.find(v => v.term.toUpperCase() === annotation.toUpperCase())?.color || '#ef4444' }}>{annotation.toLowerCase()}</span><span className="text-gray-500">.</span>
             </p>
           </div>
         )}
@@ -1622,31 +1916,6 @@ function PolygonCard({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  onClick={() => setShowCommentSection(!showCommentSection)}
-                  className={`h-9 w-9 ${
-                    getPendingCommentCount() > 0 
-                      ? 'border-amber-300 text-amber-600 hover:bg-amber-50' 
-                      : getCommentCount() > 0 
-                        ? 'border-blue-300 text-blue-600 hover:bg-blue-50' 
-                        : ''
-                  } ${showCommentSection ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
-                >
-                  <MessageSquare className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Add comment{getCommentCount() > 0 ? ` (${getPendingCommentCount()} pending)` : ''}</p>
-                {getPendingCommentCount() > 0 && (
-                  <p className="text-xs text-amber-500">Comments will post to GBIF when rule is saved</p>
-                )}
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
                 <div>
                   <SaveToGBIFDialog 
                     polygon={polygon}
@@ -1655,6 +1924,7 @@ function PolygonCard({
                       // Could refresh annotation rules here if needed
                     }}
                     onRuleSavedToGBIF={onRuleSavedToGBIF}
+                    autoOpen={polygon.fromSearch === true && !!polygon.initialFilters && (!!polygon.initialFilters.datasetKey || (polygon.initialFilters.basisOfRecord && polygon.initialFilters.basisOfRecord.length > 0))}
                   />
                 </div>
               </TooltipTrigger>
@@ -1682,63 +1952,6 @@ function PolygonCard({
           </TooltipProvider>
         </div>
       </div>
-
-      {/* Inline Comment Section */}
-      {showCommentSection && (
-        <div className="mt-3 p-3 border-t border-gray-200 space-y-3">
-          {getPendingCommentCount() > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded p-2">
-              <p className="text-xs font-medium text-amber-800 mb-1">
-                {getPendingCommentCount()} pending comment(s):
-              </p>
-              <div className="space-y-1 max-h-20 overflow-y-auto">
-                {JSON.parse(localStorage.getItem('polygonComments') || '[]')
-                  .filter((comment: any) => comment.polygonId === polygon.id && comment.status === 'pending')
-                  .map((comment: any, index: number) => (
-                    <p key={index} className="text-xs text-amber-700 bg-white px-2 py-1 rounded">
-                      "{comment.comment}"{comment.user ? ` - ${comment.user}` : ''}
-                    </p>
-                  ))}
-              </div>
-            </div>
-          )}
-          
-          <div className="space-y-2">
-            <Textarea
-              id={`comment-${polygon.id}`}
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Add a comment..."
-              className="resize-none text-sm"
-              rows={2}
-            />
-          </div>
-          
-          <div className="flex gap-2 justify-end">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => {
-                setShowCommentSection(false);
-                setNewComment('');
-              }}
-              disabled={submittingComment}
-              className="text-xs"
-            >
-              Cancel
-            </Button>
-            <Button 
-              size="sm"
-              onClick={handleAddComment}
-              disabled={!newComment.trim() || submittingComment}
-              className="text-xs"
-            >
-              {submittingComment && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-              Add
-            </Button>
-          </div>
-        </div>
-      )}
     </Card>
   );
 }
@@ -1760,27 +1973,88 @@ function calculatePolygonCenter(coordinates: [number, number][] | [number, numbe
 export function SavedPolygons({ 
   polygons, 
   onDelete, 
-  editingPolygonId, 
-  onToggleInvert, 
+  // editingPolygonId, // Unused
+  // onToggleInvert, // Unused
   onImportWKT, 
-  onUpdateAnnotation,
-  currentPolygon = null,
-  isCurrentInverted = false,
-  onCurrentAnnotationChange,
-  currentAnnotation = 'SUSPICIOUS',
+  // onUpdateAnnotation, // Unused
+  // currentPolygon = null, // Unused
+  // isCurrentInverted = false, // Unused
+  // onCurrentAnnotationChange, // Unused
+  // currentAnnotation = 'SUSPICIOUS', // Unused
   onNavigateToPolygon,
   onRuleSavedToGBIF,
 }: SavedPolygonsProps) {
+  // Vocabulary state for polygon colors
+  const [vocabulary, setVocabulary] = useState<VocabularyTerm[]>([
+    { term: 'SUSPICIOUS', description: 'Suspicious occurrence', color: '#ef4444', locked: true },
+    { term: 'NATIVE', description: 'Native species', color: '#22c55e', locked: false },
+    { term: 'MANAGED', description: 'Managed population', color: '#a855f7', locked: false },
+    { term: 'FORMER', description: 'Former population', color: '#f97316', locked: false },
+    { term: 'VAGRANT', description: 'Vagrant occurrence', color: '#06b6d4', locked: false },
+    { term: 'INTRODUCED', description: 'Introduced species', color: '#3b82f6', locked: false },
+  ]);
+
+  // Fetch vocabulary based on polygon project IDs (memoized to avoid refetching on coordinate changes)
+  useEffect(() => {
+    const fetchVocabularyForPolygons = async () => {
+      // Collect unique project IDs from all polygons
+      const projectIds = new Set<number>();
+      polygons.forEach(p => {
+        if (p.projectId) {
+          projectIds.add(p.projectId);
+        }
+      });
+
+      // If no project IDs, check if there's a selected project
+      if (projectIds.size === 0) {
+        const selectedProjectId = localStorage.getItem('selectedProjectId');
+        if (selectedProjectId) {
+          projectIds.add(parseInt(selectedProjectId));
+        }
+      }
+
+      if (projectIds.size === 0) {
+        // No projects to fetch vocabulary for, use defaults
+        return;
+      }
+
+      try {
+        // Fetch vocabulary for the first project ID found
+        // Note: This component displays polygons from a single editing context,
+        // so all polygons typically share the same project
+        const firstProjectId = Array.from(projectIds)[0];
+        const response = await fetch(getAnnotationApiUrl(`/project/${firstProjectId}/vocabulary`));
+        
+        if (!response.ok) {
+          console.error('Failed to fetch vocabulary, using defaults');
+          return;
+        }
+
+        const data = await response.json();
+        setVocabulary(data);
+      } catch (error) {
+        console.error('Error fetching vocabulary:', error);
+        // Keep default vocabulary on error
+      }
+    };
+
+    fetchVocabularyForPolygons();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polygons.map(p => p.projectId).join(',')]); // Only refetch when project IDs change
+
   if (polygons.length === 0) {
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-gray-700 text-sm">Active Rules (0)</h3>
-          {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
+          <div className="flex gap-2">
+            {onImportWKT && <CountrySelector onCountriesSelected={(coords) => onImportWKT(coords, true)} />}
+            {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
+          </div>
         </div>
         <div className="text-center py-8">
           <p className="text-gray-500">No active rules yet</p>
-          <p className="text-gray-400 text-sm mt-1">Draw a polygon on the map or import WKT</p>
+          <p className="text-gray-400 text-sm mt-1">Draw a polygon on the map, select political boundaries, or import WKT</p>
         </div>
       </div>
     );
@@ -1793,7 +2067,10 @@ export function SavedPolygons({
       <div className="border-2 rounded-lg p-4" style={{ borderColor: '#4C9C2E', backgroundColor: '#4C9C2E08' }}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-sm" style={{ color: '#4C9C2E' }}>Active Rules ({polygons.length})</h3>
-          {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
+          <div className="flex gap-2">
+            {onImportWKT && <CountrySelector onCountriesSelected={(coords) => onImportWKT(coords, true)} />}
+            {onImportWKT && <ImportWKTDialog onImport={onImportWKT} />}
+          </div>
         </div>
         <div className="space-y-3">
           {polygons.map((polygon) => (
@@ -1801,10 +2078,9 @@ export function SavedPolygons({
               key={polygon.id}
               polygon={polygon}
               onDelete={onDelete}
-              onToggleInvert={onToggleInvert}
-              onUpdateAnnotation={onUpdateAnnotation}
               onNavigateToPolygon={onNavigateToPolygon}
               onRuleSavedToGBIF={onRuleSavedToGBIF}
+              vocabulary={vocabulary}
             />
           ))}
         </div>

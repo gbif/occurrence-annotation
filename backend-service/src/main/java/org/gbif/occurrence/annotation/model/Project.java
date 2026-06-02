@@ -31,6 +31,7 @@ public class Project {
   @NotNull @NotBlank private String name;
   @NotNull private String description;
   private String[] members;
+  private VocabularyTerm[] customVocabulary;
   private Date created;
   private String createdBy;
   private Date modified;

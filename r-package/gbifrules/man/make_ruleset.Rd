@@ -4,7 +4,13 @@
 \alias{make_ruleset}
 \title{Make Ruleset}
 \usage{
-make_ruleset(projectId = NULL, name = NULL, description = NULL)
+make_ruleset(
+  projectId = NULL,
+  name = NULL,
+  description = NULL,
+  user = NULL,
+  pwd = NULL
+)
 }
 \arguments{
 \item{projectId}{the id of the project the ruleset should belong to.}
@@ -12,6 +18,10 @@ make_ruleset(projectId = NULL, name = NULL, description = NULL)
 \item{name}{the name of the project.}
 
 \item{description}{describe the project.}
+
+\item{user}{(character) Optional username for authentication. Defaults to GBIF_USER environment variable.}
+
+\item{pwd}{(character) Optional password for authentication. Defaults to GBIF_PWD environment variable.}
 }
 \value{
 The rulesetId and projectId of the ruleset as a list.

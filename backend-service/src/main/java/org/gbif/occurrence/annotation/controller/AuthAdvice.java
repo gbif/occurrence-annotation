@@ -32,6 +32,25 @@ public class AuthAdvice {
     return ex.getMessage();
   }
 
+  @ResponseBody
+  @ExceptionHandler(IllegalArgumentException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  ErrorResponse badRequest(IllegalArgumentException ex) {
+    return new ErrorResponse(ex.getMessage());
+  }
+
+  public static class ErrorResponse {
+    private final String message;
+
+    public ErrorResponse(String message) {
+      this.message = message;
+    }
+
+    public String getMessage() {
+      return message;
+    }
+  }
+
   public static class NotAuthorisedException extends RuntimeException {
     public NotAuthorisedException(String message) {
       super(message);

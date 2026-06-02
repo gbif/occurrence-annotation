@@ -6,6 +6,20 @@
 .Rproj.user
 **/fixtures
 
+# R package build artifacts
+r-package/boundary-polygons/cache/
+r-package/boundary-polygons/isea3h-data/
+r-package/boundary-polygons/natural-earth-data/
+r-package/boundary-polygons/output/
+r-package/boundary-polygons/generate_ocean_polygon.R
+r-package/boundary-polygons/README.md
+
+# R script artifacts (when run from root)
+cache/
+isea3h-data/
+natural-earth-data/
+output/
+
 .history
 
 # Copilot customization files
@@ -15,12 +29,30 @@
 Start-DockerClean.ps1
 backend-service/start-docker-wsl.sh
 
-# Docker files for local development
-backend-service/Dockerfile
-backend-service/Dockerfile.multistage
-backend-service/docker-compose.yml
-backend-service/docker-compose.test.yml
+# Deployment scripts
+ui/deploy.ps1
+ui/deploy.sh
+ui/deploy-dist-only.sh
+ui/*.tar.gz
+ui/*.zip
+
+# Podman/Docker files for local development (not tracked)
+backend-service/Dockerfile*
+backend-service/docker-compose*
+backend-service/PODMAN-SETUP.md*
+backend-service/deploy-podman.ps1*
 backend-service/.dockerignore
+
+# Docker volumes and data
+**/docker-volumes/
+**/.docker/
+
+# Docker build context
+**/.dockerignore
+
+# Docker override files
+docker-compose.override.yml
+**/docker-compose.override.yml
 
 # Vite build artifacts and UI dependencies
 ui/node_modules/.vite/deps/
@@ -33,7 +65,9 @@ ui/node_modules/
 **/node_modules/
 
 # Environment files
+ui/.env
 ui/.env.local
+ui/.env.production
 ui/.env.*.local
 
 # Build outputs

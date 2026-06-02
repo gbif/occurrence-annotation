@@ -4,10 +4,14 @@
 \alias{delete_project}
 \title{Delete a project}
 \usage{
-delete_project(id)
+delete_project(id, user = NULL, pwd = NULL)
 }
 \arguments{
 \item{id}{the id of the project}
+
+\item{user}{(character) Optional username for authentication. Defaults to GBIF_USER environment variable.}
+
+\item{pwd}{(character) Optional password for authentication. Defaults to GBIF_PWD environment variable.}
 }
 \value{
 list of information about deleted project

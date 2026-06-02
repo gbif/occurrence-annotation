@@ -5,9 +5,12 @@ import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Card } from './ui/card';
 import { Separator } from './ui/separator';
-import { Search, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Plus, Minus } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { Search, ExternalLink, Loader2, MapPin, Calendar, User, Database, Eye, Plus, Minus, Bot } from 'lucide-react';
 import { toast } from 'sonner';
 import { SelectedSpecies } from './SpeciesSelector';
+import { LocationQualityPanel } from './LocationQualityPanel';
+import { isAdmin } from '../utils/authHelpers';
 
 interface GBIFOccurrence {
   key: number;
@@ -54,6 +57,10 @@ export function InvestigateArea({
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [selectedOccurrenceForQualityCheck, setSelectedOccurrenceForQualityCheck] = useState<number | null>(null);
+  
+  // Check if user is admin
+  const userIsAdmin = isAdmin();
 
   // Notify parent of radius changes
   useEffect(() => {
@@ -62,10 +69,7 @@ export function InvestigateArea({
 
   // Function to be called when user clicks on map in investigate mode
   const investigateArea = useCallback(async (lat: number, lng: number) => {
-    console.log('🔍 InvestigateArea: Function called with coordinates:', { lat, lng, selectedSpecies: selectedSpecies?.scientificName, isInvestigateMode });
-    
     if (!selectedSpecies || !isInvestigateMode) {
-      console.log('🔍 InvestigateArea: Aborting - missing species or not in investigate mode');
       return;
     }
     
@@ -74,8 +78,6 @@ export function InvestigateArea({
     setIsDialogOpen(true);
     setOccurrences([]); // Clear previous results
     setOffset(0); // Reset pagination
-    
-    console.log('🔍 InvestigateArea: Starting search with radius:', searchRadius);
     
     await fetchOccurrences(lat, lng, 0, false);
   }, [selectedSpecies, isInvestigateMode, searchRadius]);
@@ -93,8 +95,6 @@ export function InvestigateArea({
       const east = lng + lngAdjustment;
       const west = lng - lngAdjustment;
       
-      console.log('🔍 InvestigateArea: Search bounds:', { north, south, east, west, radiusKm: searchRadius/1000, offset: currentOffset });
-      
       // Search for occurrences within the bounding box with pagination
       const apiUrl = `https://api.gbif.org/v1/occurrence/search?` +
         `taxonKey=${selectedSpecies?.key}&` +
@@ -104,18 +104,13 @@ export function InvestigateArea({
         `limit=20&` +
         `offset=${currentOffset}`;
       
-      console.log('🔍 InvestigateArea: API URL:', apiUrl);
-      
       const response = await fetch(apiUrl);
-      
-      console.log('🔍 InvestigateArea: API response status:', response.status);
       
       if (!response.ok) {
         throw new Error('Failed to fetch GBIF occurrences');
       }
       
       const data = await response.json();
-      console.log('🔍 InvestigateArea: API response data:', data);
       
       // Set total count and calculate if there are more results
       setTotalCount(data.count || 0);
@@ -200,10 +195,8 @@ export function InvestigateArea({
   // Expose the investigation function globally so MapComponent can call it
   useEffect(() => {
     if (isInvestigateMode) {
-      console.log('🔍 InvestigateArea: Setting up global investigate function');
       (window as any).__investigateArea = investigateArea;
     } else {
-      console.log('🔍 InvestigateArea: Removing global investigate function');
       (window as any).__investigateArea = null;
     }
     
@@ -252,7 +245,6 @@ export function InvestigateArea({
           size="icon"
           onClick={() => {
             const newMode = !isInvestigateMode;
-            console.log('🔍 InvestigateArea: Toggle investigate mode to:', newMode);
             onToggleInvestigateMode(newMode);
           }}
           disabled={!selectedSpecies}
@@ -315,8 +307,8 @@ export function InvestigateArea({
                   {investigationPoint.lat.toFixed(4)}, {investigationPoint.lng.toFixed(4)} 
                   ({(searchRadius/1000)}km radius)
                   {totalCount > 0 && (
-                    <span className="block text-sm text-gray-600 mt-1">
-                      Showing {occurrences.length} of {totalCount} total occurrences
+                    <span className="text-sm text-gray-600 ml-2">
+                      • Showing {occurrences.length} of {totalCount} total occurrences
                     </span>
                   )}
                 </>
@@ -433,7 +425,7 @@ export function InvestigateArea({
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs"
-                            onClick={() => window.open(`https://www.gbif.org/occurrence/${occurrence.key}`, '_blank')}
+                            onClick={() => window.open(`https://www.gbif.org/occurrence/${occurrence.key}`, '_blank', 'noopener,noreferrer')}
                           >
                             <ExternalLink className="w-3 h-3 mr-1" />
                             View on GBIF
@@ -443,11 +435,33 @@ export function InvestigateArea({
                               size="sm"
                               variant="outline"
                               className="h-7 text-xs"
-                              onClick={() => window.open(`https://www.gbif.org/dataset/${occurrence.datasetKey}`, '_blank')}
+                              onClick={() => window.open(`https://www.gbif.org/dataset/${occurrence.datasetKey}`, '_blank', 'noopener,noreferrer')}
                             >
                               <Database className="w-3 h-3 mr-1" />
                               Dataset
                             </Button>
+                          )}
+                          {userIsAdmin && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs"
+                                    onClick={() => {
+                                      setSelectedOccurrenceForQualityCheck(occurrence.key);
+                                    }}
+                                  >
+                                    <Bot className="w-3 h-3 mr-1" />
+                                    AI Check
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>AI-powered location quality check</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           )}
                         </div>
                       </div>
@@ -482,6 +496,12 @@ export function InvestigateArea({
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      {/* AI Location Quality Check Panel */}
+      <LocationQualityPanel
+        gbifid={selectedOccurrenceForQualityCheck}
+        onClose={() => setSelectedOccurrenceForQualityCheck(null)}
+      />
     </>
   );
 }

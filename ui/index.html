@@ -4,6 +4,23 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/annotations/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Content Security Policy (defense-in-depth).
+      Notes:
+      - 'unsafe-inline' on style-src is required by shadcn/Radix runtime styles.
+      - connect-src includes localhost:8080 for local dev; production deployments should
+        override this via HTTP CSP header without localhost.
+      - img-src includes OSM tile hosts used by pigeon-maps.
+      - manifest-src/worker-src/media-src explicitly set to 'self' (not inherited from default-src).
+      - trusted-types prepared for future enforcement; React 18.2 doesn't support TT yet, so
+        require-trusted-types-for would break the app. Use 'allow-duplicates' * for now.
+      - font-src and style-src no longer include Google Fonts (self-hosted in /public/fonts/).
+      - frame-ancestors / HSTS should also be set at the proxy/CDN for full coverage.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://tile.gbif.org https://*.arcgisonline.com https://api.gbif.org; font-src 'self' data:; connect-src 'self' https://api.gbif.org https://api.openai.com http://localhost:8080; manifest-src 'self'; worker-src 'self'; media-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; trusted-types * 'allow-duplicates'; upgrade-insecure-requests"
+    />
     <title>GBIF Occurrence Annotations</title>
   </head>
   <body>

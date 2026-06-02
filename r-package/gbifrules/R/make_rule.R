@@ -14,6 +14,8 @@
 #' @param createdBy (character) Optional user ID of rule creator. If not provided, automatically set from GBIF_USER environment variable.
 #' @param deleted (character) Optional deletion timestamp (ISO format).
 #' @param deletedBy (character) Optional user ID who deleted the rule.
+#' @param user (character) Optional username for authentication. Defaults to GBIF_USER environment variable.
+#' @param pwd (character) Optional password for authentication. Defaults to GBIF_PWD environment variable.
 #' @param ... Additional named parameters to include in the rule payload.
 #'
 #' @return
@@ -65,6 +67,8 @@ make_rule <- function(
                     createdBy = NULL,
                     deleted = NULL,
                     deletedBy = NULL,
+                    user = NULL,
+                    pwd = NULL,
                     ...) {
 
   # Basic validation
@@ -109,6 +113,6 @@ make_rule <- function(
 	url <- gbifrules_url("rule")
 	# Use gbifrules_body to compact/flatten where appropriate
 	req_body <- gbifrules_body(body)
-	gbifrules_post(url, req_body)
+	gbifrules_post(url, req_body, user, pwd)
 }
 

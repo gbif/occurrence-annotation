@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -12,6 +13,7 @@ interface GBIFUser {
   firstName?: string;
   lastName?: string;
   email?: string;
+  roles?: string[];
 }
 
 export function LoginButton() {
@@ -21,15 +23,19 @@ export function LoginButton() {
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState<GBIFUser | null>(null);
 
-  // Load user from localStorage on mount
+  // Load user from sessionStorage on mount. Purge any legacy copy in
+  // localStorage left behind by older builds.
   useEffect(() => {
-    const savedUser = localStorage.getItem('gbifUser');
+    if (localStorage.getItem('gbifUser') !== null) {
+      localStorage.removeItem('gbifUser');
+    }
+    const savedUser = sessionStorage.getItem('gbifUser');
     if (savedUser) {
       try {
         setUser(JSON.parse(savedUser));
       } catch (error) {
         console.error('Error loading user:', error);
-        localStorage.removeItem('gbifUser');
+        sessionStorage.removeItem('gbifUser');
       }
     }
   }, []);
@@ -72,11 +78,12 @@ export function LoginButton() {
         firstName: userData.firstName,
         lastName: userData.lastName,
         email: userData.email,
+        roles: userData.roles || [],
       };
 
       setUser(userInfo);
-      localStorage.setItem('gbifUser', JSON.stringify(userInfo));
-      localStorage.setItem('gbifAuth', credentials);
+      sessionStorage.setItem('gbifUser', JSON.stringify(userInfo));
+      sessionStorage.setItem('gbifAuth', credentials);
       
       toast.success(`Welcome, ${userInfo.firstName || userInfo.userName}!`);
       setIsOpen(false);
@@ -92,6 +99,9 @@ export function LoginButton() {
 
   const handleLogout = () => {
     setUser(null);
+    sessionStorage.removeItem('gbifUser');
+    sessionStorage.removeItem('gbifAuth');
+    // Also clear any legacy copies in localStorage.
     localStorage.removeItem('gbifUser');
     localStorage.removeItem('gbifAuth');
     toast.success('Logged out successfully');
@@ -104,11 +114,18 @@ export function LoginButton() {
           <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors cursor-pointer">
             <User className="w-4 h-4 text-green-700" />
             <div className="text-sm">
-              <p className="text-green-900">
-                {user.firstName && user.lastName 
-                  ? `${user.firstName} ${user.lastName}` 
-                  : user.userName}
-              </p>
+              <div className="flex items-center gap-1">
+                <p className="text-green-900">
+                  {user.firstName && user.lastName 
+                    ? `${user.firstName} ${user.lastName}` 
+                    : user.userName}
+                </p>
+                {user.roles?.includes('REGISTRY_ADMIN') && (
+                  <Badge variant="destructive" className="text-xs px-1 py-0 h-4">
+                    ADMIN
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
         </Link>

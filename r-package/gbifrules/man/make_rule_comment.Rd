@@ -4,12 +4,16 @@
 \alias{make_rule_comment}
 \title{Make a comment on rule.}
 \usage{
-make_rule_comment(id = NULL, comment = NULL)
+make_rule_comment(id = NULL, comment = NULL, user = NULL, pwd = NULL)
 }
 \arguments{
 \item{id}{id of the rule you want to leave a comment on.}
 
 \item{comment}{comment.}
+
+\item{user}{(character) Optional username for authentication. Defaults to GBIF_USER environment variable.}
+
+\item{pwd}{(character) Optional password for authentication. Defaults to GBIF_PWD environment variable.}
 }
 \value{
 A `tibble`.

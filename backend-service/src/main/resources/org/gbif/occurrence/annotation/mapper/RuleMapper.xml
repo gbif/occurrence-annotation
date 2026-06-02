@@ -114,6 +114,10 @@
         UPDATE rule SET deleted = now(), deleted_by = #{username} WHERE project_id = #{projectId} AND DELETED IS NULL
     </update>
 
+    <select id="countActiveByCreatedBy" resultType="int">
+        SELECT COUNT(*) FROM rule WHERE created_by = #{createdBy} AND deleted IS NULL
+    </select>
+
     <update id="addSupport" parameterType="map">
         UPDATE rule SET supported_by = ARRAY_APPEND(supported_by, #{username}::TEXT)
         WHERE id = #{id} AND NOT #{username} = ANY(supported_by)

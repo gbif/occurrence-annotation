@@ -15,6 +15,7 @@ import {
 } from './ui/alert-dialog';
 import { Calendar, Eye, ExternalLink, Loader2, Trash2 } from 'lucide-react';
 import { getSpeciesInfo } from '../utils/speciesCache';
+import { getAnnotationApiUrl } from '../utils/apiConfig';
 
 interface UserRule {
   id: number;
@@ -258,7 +259,7 @@ export function UserRuleCard({ rule, onViewRule, onDeleteRule, highlightTaxonKey
             size="sm"
             onClick={() => {
               // Open rule details in new tab
-              window.open(`http://localhost:8080/occurrence/experimental/annotation/rule/${rule.id}`, '_blank');
+              window.open(getAnnotationApiUrl(`/rule/${rule.id}`), '_blank');
             }}
             title="View rule details in API"
           >

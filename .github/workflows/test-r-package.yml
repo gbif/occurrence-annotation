@@ -9,6 +9,8 @@ jobs:
     env:
       GBIF_USER: ${{ secrets.GBIF_USER }}
       GBIF_PWD: ${{ secrets.GBIF_PWD }}
+      GBIF_USER_NON_ADMIN: ${{ secrets.GBIF_USER_NON_ADMIN }}
+      GBIF_PWD_NON_ADMIN: ${{ secrets.GBIF_PWD_NON_ADMIN }}
       GBIFRULES_URL: http://localhost:8080/occurrence/experimental/annotation/
       GBIFRULES_GITHUB_ACTIONS: true
 
@@ -27,14 +29,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Execute SQL setup
-        run: |
-          cat backend-service/src/main/resources/schema.sql | PGPASSWORD=password psql -h localhost -U postgres annotation -v ON_ERROR_STOP=1
-
-      - name: Sanity check
-        run: |
-          PGPASSWORD=password psql -h localhost -U postgres annotation -c "\dt"
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -42,10 +36,40 @@ jobs:
           java-version: '17'
           cache: 'maven'
 
-      - name: Build and run Spring Boot App
+      - name: Build Spring Boot App
+        run: |
+          cd backend-service
+          mvn clean install -DskipTests
+
+      - name: Apply DB changelog (Liquibase)
+        run: |
+          mvn -B -f backend-service/pom.xml liquibase:update \
+            -Dliquibase.url=jdbc:postgresql://localhost:5432/annotation \
+            -Dliquibase.username=postgres \
+            -Dliquibase.password=password
+
+      - name: Sanity check
+        run: |
+          PGPASSWORD=password psql -h localhost -U postgres annotation -c "\dt"
+
+      - name: Run Spring Boot App in background
         run: |
           cd backend-service
           nohup mvn spring-boot:run > spring_boot.log 2>&1 &
+
+      - name: Wait for Spring Boot to be ready
+        run: |
+          echo "Waiting for Spring Boot application to start..."
+          for i in {1..60}; do
+            if curl -f http://localhost:8080/occurrence/experimental/annotation/rule 2>/dev/null; then
+              echo "Backend is ready!"
+              break
+            fi
+            echo "Attempt $i: Backend not ready yet, waiting 2 seconds..."
+            sleep 2
+          done
+          # Verify it's actually up
+          curl -f http://localhost:8080/occurrence/experimental/annotation/rule || (echo "Backend failed to start" && cat backend-service/spring_boot.log && exit 1)
 
       - name: Install libcurl and Others
         run: |
@@ -66,13 +90,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libudunits2-dev libgdal-dev libgeos-dev libproj-dev
 
-      - name: Install package dependencies (remotes)
-        run: |
-          list.files()
-          setwd("r-package/gbifrules")
-          install.packages("remotes")
-          remotes::install_deps(dependencies = TRUE)
-        shell: Rscript {0}
+      - name: Install package dependencies (cached)
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          working-directory: r-package/gbifrules
+          dependencies: '"all"'  # all deps including Suggests (same as remotes::install_deps(dependencies = TRUE))
 
       - name: Test R package
         run: R CMD check r-package/gbifrules

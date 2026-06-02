@@ -64,7 +64,7 @@ public class RulesetController implements Controller<Ruleset> {
   @PostMapping
   @Secured("USER")
   @Override
-  public Ruleset create(@Valid @RequestBody Ruleset ruleset) {
+  public Ruleset create(@RequestBody Ruleset ruleset) {
     String username = getLoggedInUser();
     ruleset.setCreatedBy(username);
     ruleset.setMembers(new String[] {username}); // creator is always a member
@@ -100,6 +100,9 @@ public class RulesetController implements Controller<Ruleset> {
   @Override
   public Ruleset delete(@PathVariable(value = "id") int id) {
     Ruleset existing = rulesetMapper.get(id);
+    if (existing == null) {
+      throw new IllegalArgumentException("Ruleset not found: " + id);
+    }
     assertCreatorOrAdmin(existing.getCreatedBy());
     String username = getLoggedInUser();
     rulesetMapper.delete(id, username);
