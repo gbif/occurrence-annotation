@@ -1,3 +1,5 @@
+# testthat::test_file("tests/testthat/test-clean_download.R")
+
 library(testthat)
 library(dplyr)
 library(sf)
