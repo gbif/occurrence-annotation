@@ -11,6 +11,8 @@
 #' @examples 
 #' \dontrun{
 #' get_rule()
+#' get_rule(1)
+#' get_rule(taxonKey=1)
 #' }
 get_rule <- function(id=NULL,limit=NULL,offset=NULL,...) {
   
