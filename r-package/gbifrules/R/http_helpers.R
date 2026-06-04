@@ -13,7 +13,6 @@ gbifrules_post <- function(url, body, user = NULL, pwd = NULL) {
     httr2::req_method("POST") |>
     httr2::req_auth_basic(auth_user, auth_pwd) |>
     httr2::req_body_json(body) |>
-    httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
     httr2::req_perform() |>
     httr2::resp_body_json()
 }
@@ -31,7 +30,6 @@ gbifrules_delete <- function(url, user = NULL, pwd = NULL) {
   resp <- httr2::request(url) |>
     httr2::req_method("DELETE") |>
     httr2::req_auth_basic(auth_user, auth_pwd) |>
-    httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
     httr2::req_perform()
   
   # Check if response has content before trying to parse JSON
@@ -57,8 +55,7 @@ gbifrules_get <- function(url, query, user = NULL, pwd = NULL) {
   auth_pwd <- if(is.null(pwd)) Sys.getenv("GBIF_PWD", "") else pwd
   
   req <- httr2::request(url) |>
-    httr2::req_url_query(!!!query) |>
-    httr2::req_options(http_version = 1.1)  # Force HTTP/1.1
+    httr2::req_url_query(!!!query)
   
   # Add authentication if credentials are provided
   if (auth_user != "" && auth_pwd != "") {
@@ -87,7 +84,6 @@ gbifrules_put <- function(url, body, user = NULL, pwd = NULL) {
     httr2::req_method("PUT") |>
     httr2::req_auth_basic(auth_user, auth_pwd) |>
     httr2::req_body_json(body) |>
-    httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
     httr2::req_perform() |>
     httr2::resp_body_json()
 }
@@ -100,7 +96,6 @@ gbifrules_get_ <- function(url,query) {
   
   httr2::request(url) |>
     httr2::req_url_query(!!!query) |>
-    httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
     httr2::req_perform() |>
     httr2::resp_body_json() 
 }
@@ -113,7 +108,6 @@ gbifrules_get_id <- function(url) {
   # Wrap entire request in tryCatch to handle any errors
   result <- tryCatch({
     resp <- httr2::request(url) |>
-      httr2::req_options(http_version = 1.1) |>  # Force HTTP/1.1
       httr2::req_perform()
     
     # Try to get the body
@@ -175,8 +169,7 @@ gbifrules_get_id_ <- function(url, user = NULL, pwd = NULL) {
   auth_pwd <- if(is.null(pwd)) Sys.getenv("GBIF_PWD", "") else pwd
   
   req <- httr2::request(url) |>
-    httr2::req_error(is_error = \(resp) FALSE) |>  # Don't auto-error on HTTP errors
-    httr2::req_options(http_version = 1.1)  # Force HTTP/1.1
+    httr2::req_error(is_error = \(resp) FALSE)  # Don't auto-error on HTTP errors
   
   # Add authentication if credentials are provided
   if (auth_user != "" && auth_pwd != "") {
