@@ -93,7 +93,7 @@ public class RuleController implements Controller<Rule> {
   @Parameter(name = "offset", description = "The offset for paging")
   @GetMapping
   public List<Rule> list(
-      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String taxonKey,
       @RequestParam(required = false) String datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
@@ -133,7 +133,7 @@ public class RuleController implements Controller<Rule> {
   @GetMapping("/my")
   @Secured("USER")
   public List<Rule> getMyRules(
-      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String taxonKey,
       @RequestParam(required = false) String datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
@@ -168,7 +168,7 @@ public class RuleController implements Controller<Rule> {
   @GetMapping("/supported")
   @Secured("USER")
   public List<Rule> getSupportedRules(
-      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String taxonKey,
       @RequestParam(required = false) String datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
@@ -203,7 +203,7 @@ public class RuleController implements Controller<Rule> {
   @GetMapping("/contested")
   @Secured("USER")
   public List<Rule> getContestedRules(
-      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String taxonKey,
       @RequestParam(required = false) String datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,

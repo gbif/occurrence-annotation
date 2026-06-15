@@ -445,72 +445,40 @@ export function AnnotationRules({
       
       try {
         // Collect taxon keys to fetch based on showHigherOrderRules
-        const taxonKeys: { key: number; level: string }[] = [];
+        const taxonKeys: { key: string; level: string; scientificName: string }[] = [];
         
         // Always include the selected species/taxon
-        taxonKeys.push({ key: selectedSpecies.key, level: 'selected' });
+        taxonKeys.push({ 
+          key: selectedSpecies.key, 
+          level: 'selected',
+          scientificName: selectedSpecies.scientificName
+        });
         
-        // Add higher order taxonomic levels if enabled
-        if (showHigherOrderRules) {
-          if (selectedSpecies.genusKey && selectedSpecies.genusKey !== selectedSpecies.key) {
-            taxonKeys.push({ key: selectedSpecies.genusKey, level: 'genus' });
-          }
-          if (selectedSpecies.familyKey) {
-            taxonKeys.push({ key: selectedSpecies.familyKey, level: 'family' });
-          }
-          if (selectedSpecies.orderKey) {
-            taxonKeys.push({ key: selectedSpecies.orderKey, level: 'order' });
-          }
-          if (selectedSpecies.classKey) {
-            taxonKeys.push({ key: selectedSpecies.classKey, level: 'class' });
-          }
-          if (selectedSpecies.phylumKey) {
-            taxonKeys.push({ key: selectedSpecies.phylumKey, level: 'phylum' });
-          }
-          if (selectedSpecies.kingdomKey) {
-            taxonKeys.push({ key: selectedSpecies.kingdomKey, level: 'kingdom' });
-          }
+        // Add higher order taxonomic levels if enabled (from classification)
+        if (showHigherOrderRules && selectedSpecies.classification) {
+          // Process classification in reverse order to go from kingdom down to genus
+          selectedSpecies.classification.forEach(classEntry => {
+            // Skip if it's the same as the selected species
+            if (classEntry.taxonID !== selectedSpecies.key) {
+              taxonKeys.push({
+                key: classEntry.taxonID,
+                level: classEntry.taxonRank.toLowerCase(),
+                scientificName: classEntry.scientificName
+              });
+            }
+          });
         }
         
         // Create mapping from taxon keys to scientific names
-        const taxonKeyToScientificName = new Map<number, string>();
-        
-        // Fetch scientific names for all taxon keys
-        const scientificNamePromises = taxonKeys.map(async ({ key, level }) => {
-          if (level === 'selected') {
-            taxonKeyToScientificName.set(key, selectedSpecies.scientificName);
-            return;
-          }
-          
-          try {
-            // Fetch the scientific name from GBIF species API
-            const response = await fetch(getGbifApiUrl(`/species/${key}`));
-            if (response.ok) {
-              const speciesData = await response.json();
-              taxonKeyToScientificName.set(key, speciesData.scientificName || speciesData.canonicalName || 'Unknown taxon');
-            } else {
-              // Fallback for higher taxonomic levels
-              const fallbackName = level === 'genus' 
-                ? selectedSpecies.scientificName.split(' ')[0] 
-                : `${level.charAt(0).toUpperCase() + level.slice(1)} of ${selectedSpecies.scientificName.split(' ')[0]}`;
-              taxonKeyToScientificName.set(key, fallbackName);
-            }
-          } catch (error) {
-            console.error(`Error fetching scientific name for taxon ${key}:`, error);
-            const fallbackName = level === 'genus' 
-              ? selectedSpecies.scientificName.split(' ')[0] 
-              : `${level.charAt(0).toUpperCase() + level.slice(1)} of ${selectedSpecies.scientificName.split(' ')[0]}`;
-            taxonKeyToScientificName.set(key, fallbackName);
-          }
+        const taxonKeyToScientificName = new Map<string, string>();
+        taxonKeys.forEach(({ key, scientificName }) => {
+          taxonKeyToScientificName.set(key, scientificName);
         });
-        
-        // Wait for all scientific names to be fetched
-        await Promise.all(scientificNamePromises);
 
         // Build the base query parameters
-        const buildQueryUrl = (taxonKey: number) => {
+        const buildQueryUrl = (taxonKey: string) => {
           const params = new URLSearchParams();
-          params.append('taxonKey', taxonKey.toString());
+          params.append('taxonKey', taxonKey);
           if (filterProjectId) {
             params.append('projectId', filterProjectId.toString());
           }

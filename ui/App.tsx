@@ -170,21 +170,18 @@ export default function App() {
     
     if (taxonKey) {
       try {
-        // Fetch species details from GBIF API using the taxon key
-        const response = await fetch(getGbifApiUrl(`/species/${taxonKey}`));
+        // Fetch species details from GBIF v2 API using the taxon key
+        const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
+        const response = await fetch(
+          `https://api.gbif.org/v2/experimental/taxon/${GBIF_BACKBONE_UUID}/${taxonKey}/info`
+        );
         if (response.ok) {
-          const speciesData = await response.json();
+          const infoData = await response.json();
           const species: SelectedSpecies = {
-            name: speciesData.canonicalName || speciesData.scientificName,
-            scientificName: speciesData.scientificName,
-            key: speciesData.key,
-            speciesKey: speciesData.speciesKey,
-            genusKey: speciesData.genusKey,
-            familyKey: speciesData.familyKey,
-            orderKey: speciesData.orderKey,
-            classKey: speciesData.classKey,
-            phylumKey: speciesData.phylumKey,
-            kingdomKey: speciesData.kingdomKey,
+            name: infoData.scientificName,
+            scientificName: infoData.scientificName,
+            key: taxonKey,
+            classification: infoData.classification,
           };
           setSelectedSpecies(species);
           toast.success(`Loaded species: ${species.scientificName}`);
@@ -1234,7 +1231,7 @@ export default function App() {
           <div className="flex items-center justify-between mb-3">
             <h3 className="flex-1 text-sm">Previous Rules</h3>
             <div className="flex items-center gap-1">
-              {selectedSpecies && (selectedSpecies.genusKey || selectedSpecies.familyKey || selectedSpecies.orderKey || selectedSpecies.classKey || selectedSpecies.phylumKey || selectedSpecies.kingdomKey) && (
+              {selectedSpecies && selectedSpecies.classification && selectedSpecies.classification.length > 0 && (
                 <Button
                   variant="ghost"
                   size="sm"

@@ -24,7 +24,7 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface RuleMapper {
   List<Rule> list(
-      @Param("taxonKey") Integer taxonKey,
+      @Param("taxonKey") String taxonKey,
       @Param("datasetKey") String datasetKey,
       @Param("rulesetId") Integer rulesetId,
       @Param("projectId") Integer projectId,
@@ -63,7 +63,7 @@ public interface RuleMapper {
 
   List<RuleMetrics> metrics(
       @Param("username") String username,
-      @Param("taxonKey") Integer taxonKey,
+      @Param("taxonKey") String taxonKey,
       @Param("datasetKey") String datasetKey,
       @Param("rulesetId") Integer rulesetId,
       @Param("projectId") Integer projectId);

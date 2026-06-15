@@ -318,7 +318,7 @@ public class RuleControllerTest {
       roles = {"USER"})
   public void testCreateRuleWithNegatedBasisOfRecordDefaults() throws Exception {
     Rule rule = new Rule();
-    rule.setTaxonKey(99999);
+    rule.setTaxonKey("99999");
     rule.setGeometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))");
     rule.setAnnotation("SUSPICIOUS");
     rule.setBasisOfRecord(new String[] {"HUMAN_OBSERVATION"});
@@ -342,7 +342,7 @@ public class RuleControllerTest {
       roles = {"USER"})
   public void testCreateRuleWithExplicitlyNegatedBasisOfRecord() throws Exception {
     Rule rule = new Rule();
-    rule.setTaxonKey(88888);
+    rule.setTaxonKey("88888");
     rule.setGeometry("POLYGON((10 10, 10 11, 11 11, 11 10, 10 10))");
     rule.setAnnotation("SUSPICIOUS");
     rule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN", "PRESERVED_SPECIMEN"});
@@ -369,7 +369,7 @@ public class RuleControllerTest {
   public void testFilterRulesByBasisOfRecordAndNegated() throws Exception {
     // Create a negated rule first
     Rule negatedRule = new Rule();
-    negatedRule.setTaxonKey(77777);
+    negatedRule.setTaxonKey("77777");
     negatedRule.setGeometry("POLYGON((20 20, 20 21, 21 21, 21 20, 20 20))");
     negatedRule.setAnnotation("SUSPICIOUS");
     negatedRule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
@@ -531,7 +531,7 @@ public class RuleControllerTest {
         objectMapper.readValue(projectResponse, org.gbif.occurrence.annotation.model.Project.class);
 
     // Create rules with different taxon keys in the same project
-    int targetTaxonKey = 55555;
+    String targetTaxonKey = "55555";
 
     Rule rule1 =
         Rule.builder()
@@ -552,7 +552,7 @@ public class RuleControllerTest {
 
     Rule rule2 =
         Rule.builder()
-            .taxonKey(66666)
+            .taxonKey("66666")
             .datasetKey("dataset-combined-2")
             .geometry("POLYGON((1 1, 1 2, 2 2, 2 1, 1 1))")
             .annotation("INTRODUCED")

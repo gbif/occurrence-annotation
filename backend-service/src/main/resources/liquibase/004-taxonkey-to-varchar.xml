@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="4" author="gbif-annotation">
+    <comment>Convert taxon_key from INT to VARCHAR(50) to support GBIF v2 experimental taxonomy identifiers</comment>
+    
+    <!-- Convert taxon_key column type from INT to VARCHAR(50) -->
+    <!-- PostgreSQL will automatically cast existing numeric values to strings -->
+    <modifyDataType tableName="rule" columnName="taxon_key" newDataType="VARCHAR(50)"/>
+    
+    <rollback>
+      <!-- Rollback only works if all values are numeric strings -->
+      <modifyDataType tableName="rule" columnName="taxon_key" newDataType="INT"/>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>
