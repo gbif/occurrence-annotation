@@ -411,7 +411,7 @@ public class RuleController implements Controller<Rule> {
   @GetMapping("/metrics")
   public org.gbif.occurrence.annotation.model.RuleMetrics metrics(
       @RequestParam(required = false) String username,
-      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String taxonKey,
       @RequestParam(required = false) String datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId) {
