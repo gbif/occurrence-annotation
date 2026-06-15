@@ -520,7 +520,7 @@ public class RuleMapperTest {
     Rule rule = createTestRule();
     rule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
     rule.setBasisOfRecordNegated(true);
-    rule.setTaxonKey(33333);
+    rule.setTaxonKey("33333");
     ruleMapper.create(rule);
 
     // Filter by both basisOfRecord and negated
@@ -557,13 +557,13 @@ public class RuleMapperTest {
     Rule negatedRule = createTestRule();
     negatedRule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
     negatedRule.setBasisOfRecordNegated(true);
-    negatedRule.setTaxonKey(22222);
+    negatedRule.setTaxonKey("22222");
     ruleMapper.create(negatedRule);
 
     Rule normalRule = createTestRule();
     normalRule.setBasisOfRecord(new String[] {"HUMAN_OBSERVATION"});
     normalRule.setBasisOfRecordNegated(false);
-    normalRule.setTaxonKey(11111);
+    normalRule.setTaxonKey("11111");
     ruleMapper.create(normalRule);
 
     // Test without negated filter - should return both types
@@ -681,17 +681,17 @@ public class RuleMapperTest {
     // Create 3 rules for test-user-deleted
     Rule rule1 = createTestRule();
     rule1.setCreatedBy("test-user-deleted");
-    rule1.setTaxonKey(32345);
+    rule1.setTaxonKey("32345");
     ruleMapper.create(rule1);
 
     Rule rule2 = createTestRule();
     rule2.setCreatedBy("test-user-deleted");
-    rule2.setTaxonKey(32346);
+    rule2.setTaxonKey("32346");
     ruleMapper.create(rule2);
 
     Rule rule3 = createTestRule();
     rule3.setCreatedBy("test-user-deleted");
-    rule3.setTaxonKey(32347);
+    rule3.setTaxonKey("32347");
     ruleMapper.create(rule3);
 
     // Count should be 3
