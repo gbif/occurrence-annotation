@@ -650,7 +650,7 @@ public class RuleMapperTest {
     for (int i = 0; i < 3; i++) {
       Rule rule = createTestRule();
       rule.setCreatedBy("test-user-count");
-      rule.setTaxonKey(12345 + i); // Different taxon keys to avoid conflicts
+      rule.setTaxonKey("12345" + i); // Different taxon keys to avoid conflicts
       ruleMapper.create(rule);
     }
 
@@ -662,7 +662,7 @@ public class RuleMapperTest {
     for (int i = 0; i < 2; i++) {
       Rule rule = createTestRule();
       rule.setCreatedBy("another-user");
-      rule.setTaxonKey(22345 + i); // Different taxon keys
+      rule.setTaxonKey("22345" + i); // Different taxon keys
       ruleMapper.create(rule);
     }
 
