@@ -93,7 +93,7 @@ public class RuleControllerTest {
   public void testCreateRuleWithArrayBasisOfRecord() throws Exception {
     Rule rule =
         Rule.builder()
-            .taxonKey(12345)
+            .taxonKey("12345")
             .datasetKey("test-dataset-key")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")
@@ -123,7 +123,7 @@ public class RuleControllerTest {
   public void testCreateRuleWithSingleBasisOfRecord() throws Exception {
     Rule rule =
         Rule.builder()
-            .taxonKey(67890)
+            .taxonKey("67890")
             .datasetKey("test-dataset-key-2")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("INTRODUCED")
@@ -152,7 +152,7 @@ public class RuleControllerTest {
   public void testCreateRuleWithNullBasisOfRecord() throws Exception {
     Rule rule =
         Rule.builder()
-            .taxonKey(11111)
+            .taxonKey("11111")
             .datasetKey("test-dataset-key-3")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("SUSPICIOUS")
@@ -180,7 +180,7 @@ public class RuleControllerTest {
   public void testCreateRuleWithEmptyBasisOfRecord() throws Exception {
     Rule rule =
         Rule.builder()
-            .taxonKey(22222)
+            .taxonKey("22222")
             .datasetKey("test-dataset-key-4")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("VAGRANT")
@@ -209,7 +209,7 @@ public class RuleControllerTest {
     // First, create a rule
     Rule rule =
         Rule.builder()
-            .taxonKey(33333)
+            .taxonKey("33333")
             .datasetKey("test-dataset-key-5")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("FORMER")
@@ -278,7 +278,7 @@ public class RuleControllerTest {
   public void testCreateRuleWithNegatedBasisOfRecord() throws Exception {
     Rule rule =
         Rule.builder()
-            .taxonKey(44444)
+            .taxonKey("44444")
             .datasetKey("test-dataset-key-negated")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("SUSPICIOUS")
@@ -456,7 +456,7 @@ public class RuleControllerTest {
     // Create rules in different projects
     Rule ruleInProject1 =
         Rule.builder()
-            .taxonKey(11111)
+            .taxonKey("11111")
             .datasetKey("dataset-project1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")
@@ -473,7 +473,7 @@ public class RuleControllerTest {
 
     Rule ruleInProject2 =
         Rule.builder()
-            .taxonKey(22222)
+            .taxonKey("22222")
             .datasetKey("dataset-project2")
             .geometry("POLYGON((1 1, 1 2, 2 2, 2 1, 1 1))")
             .annotation("INTRODUCED")
@@ -595,7 +595,7 @@ public class RuleControllerTest {
     // Project 1 only has 'test-user' as member, not 'non-member-user'
     Rule rule =
         Rule.builder()
-            .taxonKey(12345)
+            .taxonKey("12345")
             .datasetKey("test-dataset")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")
@@ -624,7 +624,7 @@ public class RuleControllerTest {
     // Project 1 has 'test-user' as member
     Rule rule =
         Rule.builder()
-            .taxonKey(54321)
+            .taxonKey("54321")
             .datasetKey("member-dataset")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("INTRODUCED")
@@ -651,7 +651,7 @@ public class RuleControllerTest {
     // Users can create rules without a projectId (orphan rules)
     Rule rule =
         Rule.builder()
-            .taxonKey(99999)
+            .taxonKey("99999")
             .datasetKey("orphan-dataset")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("SUSPICIOUS")
@@ -692,7 +692,7 @@ public class RuleControllerTest {
     // Create a rule without project as non-member-user
     Rule originalRule =
         Rule.builder()
-            .taxonKey(11111)
+            .taxonKey("11111")
             .datasetKey("update-test-dataset")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("VAGRANT")
@@ -737,7 +737,7 @@ public class RuleControllerTest {
     // Create a rule in project 1 where test-user is a member
     Rule rule =
         Rule.builder()
-            .taxonKey(77777)
+            .taxonKey("77777")
             .datasetKey("same-project-dataset")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")

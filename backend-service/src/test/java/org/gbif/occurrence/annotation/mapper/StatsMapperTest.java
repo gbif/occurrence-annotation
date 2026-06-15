@@ -74,7 +74,7 @@ public class StatsMapperTest {
   private void createTestRule(String createdBy, Integer projectId) {
     Rule rule =
         Rule.builder()
-            .taxonKey(12345)
+            .taxonKey("12345")
             .datasetKey("test-dataset-key")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")
