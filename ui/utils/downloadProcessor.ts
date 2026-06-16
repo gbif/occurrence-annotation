@@ -124,7 +124,7 @@ function matchesYearRangeFilter(
 
 /**
  * Test if a record's taxonomy matches a rule's taxon key
- * Supports both numeric (GBIF v1) and string (GBIF v2 experimental) taxon keys
+ * Supports both numeric (traditional GBIF backbone) and string (COL XR alphanumeric) taxon keys
  * @param includeHigherOrder If true, checks all ranks; if false, only checks taxonKey/speciesKey
  * @returns Object with matched boolean and the rank that matched (if any)
  */

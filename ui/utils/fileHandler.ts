@@ -119,7 +119,7 @@ export async function extractAndParseDownload(
           if (!isNaN(numValue)) {
             taxonKeySet.add(numValue);
           } else {
-            // Keep as string for GBIF v2 experimental keys like "CQ4M"
+            // Keep as string for COL XR alphanumeric keys like "CQ4M"
             taxonKeySet.add(String(value));
           }
         }
