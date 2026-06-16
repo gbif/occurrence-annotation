@@ -28,7 +28,7 @@ test_that("make_rule creates simple rule with required parameters", {
   )
   
   expect_type(r, "list")
-  expect_equal(r$taxonKey, -70)
+  expect_equal(r$taxonKey, "-70")
   expect_equal(r$geometry, test_geometry)
   expect_equal(r$annotation, "SUSPICIOUS")
 
@@ -47,7 +47,7 @@ test_that("make_rule creates complex rule with basisOfRecord array", {
   )
   
   expect_type(r, "list")
-  expect_equal(r$taxonKey, -70)
+  expect_equal(r$taxonKey, "-70")
   expect_equal(r$annotation, "SUSPICIOUS")
   expect_equal(r$basisOfRecord, list("MACHINE_OBSERVATION", "HUMAN_OBSERVATION"))
   
@@ -66,7 +66,7 @@ test_that("make_rule creates rule with metadata fields", {
   )
   
   expect_type(r, "list")
-  expect_equal(r$taxonKey, -70)
+  expect_equal(r$taxonKey, "-70")
   expect_equal(r$annotation, "SUSPICIOUS")
   expect_equal(r$basisOfRecordNegated, TRUE)
 
@@ -121,7 +121,7 @@ test_that("make_rule creates full complex rule with allowed optional fields", {
   )
   
   expect_type(r, "list")
-  expect_equal(r$taxonKey, -70)
+  expect_equal(r$taxonKey, "-70")
   expect_equal(r$geometry, test_geometry)
   expect_equal(r$annotation, "SUSPICIOUS")
   expect_equal(r$basisOfRecord, list("MACHINE_OBSERVATION", "HUMAN_OBSERVATION", "LITERATURE"))
