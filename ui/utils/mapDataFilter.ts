@@ -23,11 +23,11 @@ export interface SpeciesHierarchy {
 }
 
 export interface FilteredMapData {
-  speciesKeys: number[];
+  speciesKeys: (string | number)[];
   relevantRules: AnnotationRule[];
   flaggedPoints: MapPoint[];
   passingPoints: MapPoint[];
-  speciesInfo: Map<number, SpeciesHierarchy>;
+  speciesInfo: Map<string | number, SpeciesHierarchy>;
 }
 
 /**
@@ -62,9 +62,9 @@ export function filterSpeciesForMap(
   );
 
   // Group by taxonKey and count records, also collect hierarchy info
-  const speciesRecordCounts = new Map<number, number>();
-  const speciesNames = new Map<number, string>();
-  const speciesHierarchies = new Map<number, SpeciesHierarchy>();
+  const speciesRecordCounts = new Map<string | number, number>();
+  const speciesNames = new Map<string | number, string>();
+  const speciesHierarchies = new Map<string | number, SpeciesHierarchy>();
   
   relevantMatches.forEach(match => {
     if (match.taxonKey) {
@@ -112,7 +112,7 @@ export function filterSpeciesForMap(
   const topSpeciesSet = new Set(topSpeciesKeys);
 
   // Build speciesInfo map with hierarchy information
-  const speciesInfo = new Map<number, SpeciesHierarchy>();
+  const speciesInfo = new Map<string | number, SpeciesHierarchy>();
   sortedSpecies.forEach(([key, count]) => {
     const hierarchy = speciesHierarchies.get(key);
     if (hierarchy) {
@@ -132,7 +132,11 @@ export function filterSpeciesForMap(
   // Build set of ALL taxonomic keys (species + all hierarchical levels) for top species
   const allHierarchicalKeys = new Set<number>();
   sortedSpecies.forEach(([key]) => {
-    allHierarchicalKeys.add(key); // Add species itself
+    // Convert to number if possible for hierarchical key matching
+    const numKey = typeof key === 'number' ? key : parseInt(String(key), 10);
+    if (!isNaN(numKey)) {
+      allHierarchicalKeys.add(numKey); // Add species itself
+    }
     const hierarchy = speciesHierarchies.get(key);
     if (hierarchy) {
       if (hierarchy.genusKey) allHierarchicalKeys.add(hierarchy.genusKey);
@@ -145,9 +149,11 @@ export function filterSpeciesForMap(
   });
 
   // Filter rules to include both species-level AND higher taxonomic level rules
-  const relevantRules = rules.filter(rule => 
-    rule.taxonKey && allHierarchicalKeys.has(rule.taxonKey)
-  );
+  const relevantRules = rules.filter(rule => {
+    if (!rule.taxonKey) return false;
+    const taxonKeyNum = typeof rule.taxonKey === 'number' ? rule.taxonKey : parseInt(String(rule.taxonKey), 10);
+    return !isNaN(taxonKeyNum) && allHierarchicalKeys.has(taxonKeyNum);
+  });
 
   // Build record index to rule IDs mapping - include ALL matches for top species
   const recordToRulesMap = new Map<number, number[]>();

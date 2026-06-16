@@ -28,7 +28,7 @@ interface VocabularyTerm {
 }
 
 // Helper function to generate species page URL
-const getSpeciesPageUrl = (taxonKey: number): string => {
+const getSpeciesPageUrl = (taxonKey: string | number): string => {
   return `https://www.gbif.org/species/${taxonKey}`;
 };
 
@@ -57,7 +57,7 @@ const DatasetTitleDisplay = ({ datasetKey }: { datasetKey: string }) => {
 
 // Component for clickable species name
 const SpeciesLink = ({ species, className = "", style }: { 
-  species: { scientificName?: string; name?: string; key?: number }; 
+  species: { scientificName?: string; name?: string; key?: string | number }; 
   className?: string;
   style?: React.CSSProperties;
 }) => {

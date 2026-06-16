@@ -9,8 +9,8 @@ interface DownloadResultsMapProps {
   rules: AnnotationRule[];
   flaggedPoints: MapPoint[];
   passingPoints?: MapPoint[];
-  speciesInfo: Map<number, SpeciesHierarchy>;
-  selectedSpecies?: number | null;
+  speciesInfo: Map<string | number, SpeciesHierarchy>;
+  selectedSpecies?: string | number | null;
   vocabulary?: Array<{term: string, color: string}>;
 }
 
@@ -145,7 +145,8 @@ export function DownloadResultsMap({
     const hierarchy = speciesInfo.get(selectedSpecies);
     
     // Build set of all taxon keys in the hierarchy (species + all parent taxa)
-    const hierarchyKeys = new Set<number>([selectedSpecies]);
+    const numericSpeciesKey = typeof selectedSpecies === 'number' ? selectedSpecies : parseInt(String(selectedSpecies), 10);
+    const hierarchyKeys = new Set<number>(isNaN(numericSpeciesKey) ? [] : [numericSpeciesKey]);
     if (hierarchy) {
       if (hierarchy.genusKey) hierarchyKeys.add(hierarchy.genusKey);
       if (hierarchy.familyKey) hierarchyKeys.add(hierarchy.familyKey);
@@ -156,7 +157,7 @@ export function DownloadResultsMap({
     }
     
     // Filter rules to those matching any level in the hierarchy
-    return rules.filter(r => hierarchyKeys.has(r.taxonKey));
+    return rules.filter(r => r.taxonKey !== null && hierarchyKeys.has(Number(r.taxonKey)));
   }, [rules, selectedSpecies, speciesInfo]);
 
   // Count how many records each rule flagged for the current species

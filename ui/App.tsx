@@ -403,7 +403,7 @@ export default function App() {
     
     // Update the selected species
     setSelectedSpecies({
-      key: taxon.key,
+      key: String(taxon.key),
       scientificName: taxon.scientificName,
       name: taxon.scientificName
     });
@@ -959,13 +959,14 @@ export default function App() {
 
       // Fetch species data if we don't have it or if it's different from current
       let species = selectedSpecies;
-      if (!species || species.key !== rule.taxonKey) {
+      const ruleKeyStr = String(rule.taxonKey);
+      if (!species || species.key !== ruleKeyStr) {
         try {
           const speciesResponse = await fetch(getGbifApiUrl(`/species/${rule.taxonKey}`));
           if (speciesResponse.ok) {
             const speciesData = await speciesResponse.json();
             species = {
-              key: rule.taxonKey,
+              key: ruleKeyStr,
               scientificName: speciesData.scientificName || rule.scientificName || 'Unknown',
               name: speciesData.scientificName || rule.scientificName || 'Unknown'
             };
@@ -976,7 +977,7 @@ export default function App() {
           } else {
             // Fallback to rule's scientific name if available
             species = {
-              key: rule.taxonKey,
+              key: ruleKeyStr,
               scientificName: rule.scientificName || 'Unknown',
               name: rule.scientificName || 'Unknown'
             };
@@ -986,7 +987,7 @@ export default function App() {
           console.error('Failed to fetch species data:', err);
           // Fallback to rule's scientific name
           species = {
-            key: rule.taxonKey,
+            key: ruleKeyStr,
             scientificName: rule.scientificName || 'Unknown',
             name: rule.scientificName || 'Unknown'
           };

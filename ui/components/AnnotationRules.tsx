@@ -12,7 +12,7 @@ import { SelectedSpecies } from './SpeciesSelector';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { MiniMapPreview } from './MiniMapPreview';
-import { getAnnotationApiUrl, getGbifApiUrl } from '../utils/apiConfig';
+import { getAnnotationApiUrl } from '../utils/apiConfig';
 
 interface VocabularyTerm {
   term: string;
@@ -34,7 +34,7 @@ import {
 } from './ui/alert-dialog';
 
 // Helper function to generate species page URL
-const getSpeciesPageUrl = (taxonKey: number): string => {
+const getSpeciesPageUrl = (taxonKey: string | number): string => {
   return `https://www.gbif.org/species/${taxonKey}`;
 };
 
@@ -254,7 +254,7 @@ const SpeciesLink = ({
   style = {} 
 }: { 
   scientificName: string; 
-  taxonKey?: number; 
+  taxonKey?: string | number; 
   className?: string; 
   style?: React.CSSProperties;
 }) => {
@@ -501,7 +501,7 @@ export function AnnotationRules({
           return data.map(rule => ({
             ...rule,
             taxonomicLevel: level,
-            scientificName: taxonKeyToScientificName.get(rule.taxonKey) || 'Unknown taxon',
+            scientificName: taxonKeyToScientificName.get(String(rule.taxonKey)) || 'Unknown taxon',
           }));
         });
         
