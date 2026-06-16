@@ -110,7 +110,7 @@ public class RuleControllerTest {
                 .content(objectMapper.writeValueAsString(rule)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id", notNullValue()))
-        .andExpect(jsonPath("$.taxonKey", is(12345)))
+        .andExpect(jsonPath("$.taxonKey", is("12345")))
         .andExpect(jsonPath("$.basisOfRecord", hasSize(2)))
         .andExpect(jsonPath("$.basisOfRecord[0]", is("PRESERVED_SPECIMEN")))
         .andExpect(jsonPath("$.basisOfRecord[1]", is("HUMAN_OBSERVATION")));
@@ -140,7 +140,7 @@ public class RuleControllerTest {
                 .content(objectMapper.writeValueAsString(rule)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id", notNullValue()))
-        .andExpect(jsonPath("$.taxonKey", is(67890)))
+        .andExpect(jsonPath("$.taxonKey", is("67890")))
         .andExpect(jsonPath("$.basisOfRecord", hasSize(1)))
         .andExpect(jsonPath("$.basisOfRecord[0]", is("MACHINE_OBSERVATION")));
   }
@@ -169,7 +169,7 @@ public class RuleControllerTest {
                 .content(objectMapper.writeValueAsString(rule)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id", notNullValue()))
-        .andExpect(jsonPath("$.taxonKey", is(11111)))
+        .andExpect(jsonPath("$.taxonKey", is("11111")))
         .andExpect(jsonPath("$.basisOfRecord").doesNotExist());
   }
 
@@ -197,7 +197,7 @@ public class RuleControllerTest {
                 .content(objectMapper.writeValueAsString(rule)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id", notNullValue()))
-        .andExpect(jsonPath("$.taxonKey", is(22222)))
+        .andExpect(jsonPath("$.taxonKey", is("22222")))
         .andExpect(jsonPath("$.basisOfRecord", hasSize(0)));
   }
 
@@ -238,7 +238,7 @@ public class RuleControllerTest {
         .perform(get("/occurrence/experimental/annotation/rule/{id}", createdRule.getId()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id", is(createdRule.getId())))
-        .andExpect(jsonPath("$.taxonKey", is(33333)))
+        .andExpect(jsonPath("$.taxonKey", is("33333")))
         .andExpect(jsonPath("$.basisOfRecord", hasSize(3)))
         .andExpect(jsonPath("$.basisOfRecord[0]", is("PRESERVED_SPECIMEN")))
         .andExpect(jsonPath("$.basisOfRecord[1]", is("FOSSIL_SPECIMEN")))
@@ -296,7 +296,7 @@ public class RuleControllerTest {
                 .content(objectMapper.writeValueAsString(rule)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id", notNullValue()))
-        .andExpect(jsonPath("$.taxonKey", is(44444)))
+        .andExpect(jsonPath("$.taxonKey", is("44444")))
         .andExpect(jsonPath("$.basisOfRecord", hasSize(2)))
         .andExpect(jsonPath("$.basisOfRecord[0]", is("FOSSIL_SPECIMEN")))
         .andExpect(jsonPath("$.basisOfRecord[1]", is("PRESERVED_SPECIMEN")))
