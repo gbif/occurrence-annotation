@@ -1,7 +1,7 @@
 #' Update an existing annotation rule
 #'
 #' @param id (integer) Rule ID to update (required).
-#' @param taxonKey (integer or character) GBIF taxonKey for which rule applies to. Can be numeric (traditional GBIF backbone) or string (GBIF v2 experimental identifiers like "CQ4M").
+#' @param taxonKey (integer or character) GBIF taxonKey for which rule applies to. Can be numeric (traditional GBIF backbone) or string (COL XR alphanumeric identifiers like "CQ4M").
 #' @param geometry (character) WKT text string defining the geographic boundary of the rule.
 #' @param annotation (character) Annotation type from controlled vocabulary (e.g., "SUSPICIOUS", "INTRODUCED", "NATIVE").
 #' @param basisOfRecord (character vector) Optional vector of basis of record values to which the rule applies.
