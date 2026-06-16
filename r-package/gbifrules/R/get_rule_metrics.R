@@ -4,7 +4,7 @@
 #' taxa, supports, and contests. Can be filtered by various parameters.
 #'
 #' @param username (character) Optional username to filter metrics for a specific user.
-#' @param taxonKey (integer) Optional taxon key to filter by.
+#' @param taxonKey (integer or character) Optional taxon key to filter by.
 #' @param datasetKey (character) Optional dataset key to filter by.
 #' @param rulesetId (integer) Optional ruleset ID to filter by.
 #' @param projectId (integer) Optional project ID to filter by.

@@ -1,6 +1,6 @@
 #' Create a new annotation rule
 #'
-#' @param taxonKey (integer) GBIF taxonKey for which rule applies to (required).
+#' @param taxonKey (integer or character) GBIF taxonKey for which rule applies to (required). Can be numeric (traditional GBIF backbone) or string (GBIF v2 experimental identifiers like "CQ4M").
 #' @param geometry (character) WKT text string defining the geographic boundary of the rule (required).
 #' @param annotation (character) Annotation type from controlled vocabulary (e.g., "SUSPICIOUS", "INTRODUCED", "NATIVE") (required).
 #' @param basisOfRecord (character vector) Optional vector of basis of record values to which the rule applies (e.g., c("MACHINE_OBSERVATION", "HUMAN_OBSERVATION")).
@@ -83,7 +83,7 @@ make_rule <- function(
 
   # Build request body with allowed fields. Preserve vectors (e.g. basisOfRecord)
   body <- list(
-    taxonKey = as.integer(taxonKey),
+    taxonKey = as.character(taxonKey),
     geometry = as.character(geometry),
     annotation = as.character(annotation)
   )

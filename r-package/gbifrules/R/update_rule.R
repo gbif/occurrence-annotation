@@ -1,7 +1,7 @@
 #' Update an existing annotation rule
 #'
 #' @param id (integer) Rule ID to update (required).
-#' @param taxonKey (integer) GBIF taxonKey for which rule applies to.
+#' @param taxonKey (integer or character) GBIF taxonKey for which rule applies to. Can be numeric (traditional GBIF backbone) or string (GBIF v2 experimental identifiers like "CQ4M").
 #' @param geometry (character) WKT text string defining the geographic boundary of the rule.
 #' @param annotation (character) Annotation type from controlled vocabulary (e.g., "SUSPICIOUS", "INTRODUCED", "NATIVE").
 #' @param basisOfRecord (character vector) Optional vector of basis of record values to which the rule applies.
@@ -71,7 +71,7 @@ update_rule <- function(
   }
 
   # Update only provided fields
-  if (!is.null(taxonKey)) existing_rule$taxonKey <- as.integer(taxonKey)
+  if (!is.null(taxonKey)) existing_rule$taxonKey <- as.character(taxonKey)
   if (!is.null(geometry)) existing_rule$geometry <- as.character(geometry)
   if (!is.null(annotation)) existing_rule$annotation <- as.character(annotation)
   if (!is.null(basisOfRecord)) existing_rule$basisOfRecord <- as.list(as.character(basisOfRecord))
