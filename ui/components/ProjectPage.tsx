@@ -61,7 +61,7 @@ interface ProjectRule {
   createdBy: string;
   created: string;
   geometry: string;
-  taxonKey?: number;
+  taxonKey?: string;
   datasetKey?: string;
   annotation: string;
   basisOfRecord?: string;
@@ -114,8 +114,8 @@ export function ProjectPage() {
   const [pageSize] = useState(20);
   
   // Species cache for rule table
-  const [speciesCache, setSpeciesCache] = useState<Map<number, SpeciesInfo>>(new Map());
-  const fetchedTaxonKeys = useRef<Set<number>>(new Set());
+  const [speciesCache, setSpeciesCache] = useState<Map<string, SpeciesInfo>>(new Map());
+  const fetchedTaxonKeys = useRef<Set<string>>(new Set());
 
   // Add member dialog state
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
@@ -189,7 +189,7 @@ export function ProjectPage() {
   };
 
   // Fetch species info for a rule
-  const fetchSpeciesInfo = useCallback(async (taxonKey: number) => {
+  const fetchSpeciesInfo = useCallback(async (taxonKey: string) => {
     fetchedTaxonKeys.current.add(taxonKey);
     
     try {

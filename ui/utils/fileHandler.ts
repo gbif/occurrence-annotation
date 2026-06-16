@@ -24,7 +24,7 @@ export interface ParsedDownload {
   columns: string[];
   filename: string;
   recordCount: number;
-  uniqueTaxonKeys: number[];
+  uniqueTaxonKeys: (string | number)[];
 }
 
 /**
@@ -106,20 +106,35 @@ export async function extractAndParseDownload(
       );
     }
     
-    // Extract unique taxon keys from all taxonomic ranks
-    const taxonKeySet = new Set<number>();
+    // Extract unique taxon keys from all taxonomic ranks (supports both numeric and string keys)
+    const taxonKeySet = new Set<string | number>();
     const taxonomicFields = ['taxonKey', 'speciesKey', 'genusKey', 'familyKey', 'orderKey', 'classKey', 'phylumKey', 'kingdomKey'];
     
     records.forEach(record => {
       taxonomicFields.forEach(field => {
         const value = record[field];
-        if (value && !isNaN(Number(value))) {
-          taxonKeySet.add(Number(value));
+        if (value) {
+          // Try to parse as number first (GBIF v1)
+          const numValue = Number(value);
+          if (!isNaN(numValue)) {
+            taxonKeySet.add(numValue);
+          } else {
+            // Keep as string for GBIF v2 experimental keys like "CQ4M"
+            taxonKeySet.add(String(value));
+          }
         }
       });
     });
     
-    const uniqueTaxonKeys = Array.from(taxonKeySet).sort((a, b) => a - b);
+    const uniqueTaxonKeys = Array.from(taxonKeySet).sort((a, b) => {
+      // Sort: numbers first (numerically), then strings (alphabetically)
+      const aNum = typeof a === 'number';
+      const bNum = typeof b === 'number';
+      if (aNum && bNum) return a - b;
+      if (aNum) return -1;
+      if (bNum) return 1;
+      return String(a).localeCompare(String(b));
+    });
     
     onProgress?.('Complete', 100);
     

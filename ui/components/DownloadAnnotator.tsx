@@ -34,6 +34,9 @@ import { getAnnotationApiUrl } from '../utils/apiConfig';
 import { DownloadResultsMap } from './DownloadResultsMap';
 import { filterSpeciesForMap, selectPointsForDisplay, type FilteredMapData } from '../utils/mapDataFilter';
 
+// GBIF Backbone Checklist UUID for v2 API
+const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
+
 type ProcessingStage = 'idle' | 'uploading' | 'parsing' | 'fetching-rules' | 'processing' | 'complete' | 'error';
 
 interface ProgressInfo {
@@ -532,7 +535,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
     }
 
     try {
-      const response = await fetch(`https://api.gbif.org/v1/species/${taxonKey}`);
+      const response = await fetch(`https://api.gbif.org/v2/experimental/taxon/${GBIF_BACKBONE_UUID}/${taxonKey}`);
       if (response.ok) {
         const data = await response.json();
         const name = data.scientificName || data.canonicalName || `Taxon ${taxonKey}`;
@@ -604,7 +607,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
    */
   const fetchTaxonomicHierarchy = async (taxonKey: number): Promise<number[]> => {
     try {
-      const url = `https://api.gbif.org/v1/species/${taxonKey}`;
+      const url = `https://api.gbif.org/v2/experimental/taxon/${GBIF_BACKBONE_UUID}/${taxonKey}/info`;
       const response = await fetch(url);
       if (!response.ok) {
         console.warn(`Failed to fetch taxonomy for ${taxonKey}`);
@@ -612,15 +615,19 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
       }
       const data = await response.json();
       
-      // Extract parent keys from the response
+      // Extract parent keys from classification array (v2 API)
       const parentKeys: number[] = [];
-      const hierarchyFields = ['genusKey', 'familyKey', 'orderKey', 'classKey', 'phylumKey', 'kingdomKey'];
-      
-      hierarchyFields.forEach(field => {
-        if (data[field] && typeof data[field] === 'number') {
-          parentKeys.push(data[field]);
-        }
-      });
+      if (Array.isArray(data.classification)) {
+        data.classification.forEach((entry: any) => {
+          if (entry.taxonID && entry.taxonID !== taxonKey.toString()) {
+            // Try to parse as number, fallback to string
+            const parsedKey = parseInt(entry.taxonID, 10);
+            if (!isNaN(parsedKey)) {
+              parentKeys.push(parsedKey);
+            }
+          }
+        });
+      }
       
       return parentKeys;
     } catch (error) {
@@ -632,11 +639,15 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
   /**
    * Expand taxonKeys to include all parent taxonomic ranks
    */
-  const expandTaxonKeysWithHierarchy = async (taxonKeys: number[]): Promise<number[]> => {
-    const allKeys = new Set<number>(taxonKeys);
+  const expandTaxonKeysWithHierarchy = async (taxonKeys: (string | number)[]): Promise<(string | number)[]> => {
+    const allKeys = new Set<string | number>(taxonKeys);
     
-    // Fetch hierarchy for each key in parallel
-    const hierarchyPromises = taxonKeys.map(key => fetchTaxonomicHierarchy(key));
+    // Separate numeric and string keys
+    const numericKeys = taxonKeys.filter(k => typeof k === 'number') as number[];
+    const stringKeys = taxonKeys.filter(k => typeof k === 'string');
+    
+    // Fetch hierarchy only for numeric keys (GBIF v1)
+    const hierarchyPromises = numericKeys.map(key => fetchTaxonomicHierarchy(key));
     const hierarchies = await Promise.all(hierarchyPromises);
     
     // Add all parent keys to the set
@@ -644,7 +655,18 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
       parentKeys.forEach(key => allKeys.add(key));
     });
     
-    const expandedKeys = Array.from(allKeys).sort((a, b) => a - b);
+    // String keys don't have hierarchies in v2 API, keep as-is
+    stringKeys.forEach(key => allKeys.add(key));
+    
+    const expandedKeys = Array.from(allKeys).sort((a, b) => {
+      // Sort: numbers first (numerically), then strings (alphabetically)
+      const aNum = typeof a === 'number';
+      const bNum = typeof b === 'number';
+      if (aNum && bNum) return a - b;
+      if (aNum) return -1;
+      if (bNum) return 1;
+      return String(a).localeCompare(String(b));
+    });
     return expandedKeys;
   };
 
@@ -654,18 +676,31 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
    */
   const enrichRecordsWithHierarchy = async (
     records: OccurrenceRecord[],
-    uniqueTaxonKeys: number[]
+    uniqueTaxonKeys: (string | number)[]
   ): Promise<OccurrenceRecord[]> => {
-    // Build a map of taxonKey -> hierarchy data
+    // Build a map of taxonKey -> hierarchy data (only for numeric keys)
     const hierarchyMap = new Map<number, any>();
     
-    const hierarchyPromises = uniqueTaxonKeys.map(async (taxonKey) => {
+    // Only enrich numeric taxon keys (GBIF v1)
+    const numericTaxonKeys = uniqueTaxonKeys.filter(k => typeof k === 'number') as number[];
+    
+    const hierarchyPromises = numericTaxonKeys.map(async (taxonKey) => {
       try {
-        const url = `https://api.gbif.org/v1/species/${taxonKey}`;
+        const url = `https://api.gbif.org/v2/experimental/taxon/${GBIF_BACKBONE_UUID}/${taxonKey}/info`;
         const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
-          hierarchyMap.set(taxonKey, data);
+          // Convert v2 classification array to v1-style hierarchy fields for compatibility
+          const hierarchyData: any = {};
+          if (Array.isArray(data.classification)) {
+            data.classification.forEach((entry: any) => {
+              const rank = entry.taxonRank?.toLowerCase();
+              if (rank && entry.taxonID) {
+                hierarchyData[`${rank}Key`] = entry.taxonID;
+              }
+            });
+          }
+          hierarchyMap.set(taxonKey, hierarchyData);
         }
       } catch (error) {
         console.warn(`Failed to fetch hierarchy for ${taxonKey}:`, error);
@@ -713,7 +748,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
     setSelectedProjectsDetails(selectedProjectsDetails.filter(p => p.id !== projectId));
   };
 
-  const fetchRulesForTaxonKeys = async (taxonKeys: number[]): Promise<AnnotationRule[]> => {
+  const fetchRulesForTaxonKeys = async (taxonKeys: (string | number)[]): Promise<AnnotationRule[]> => {
     const allRules: AnnotationRule[] = [];
     
     // Always fetch rules for all taxon keys (including higher-order ranks)
@@ -733,8 +768,8 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
       // Fetch rules for each taxonKey in parallel
       const batchPromises = batch.map(async taxonKey => {
         try {
-          // Build URL with filters
-          let url = getAnnotationApiUrl(`/rule?taxonKey=${taxonKey}`);
+          // Build URL with filters (URL encode taxonKey to handle special chars in string keys)
+          let url = getAnnotationApiUrl(`/rule?taxonKey=${encodeURIComponent(taxonKey)}`);
           
           // Add project filter if selected
           if (selectedProjects.length > 0) {

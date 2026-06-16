@@ -4,7 +4,7 @@ import type { AnnotationMatch } from './annotationReport';
 
 export interface AnnotationRule {
   id: number;
-  taxonKey: number;
+  taxonKey: string | number | null;
   datasetKey: string | null;
   geometry: string; // WKT format
   annotation: string;
@@ -124,22 +124,60 @@ function matchesYearRangeFilter(
 
 /**
  * Test if a record's taxonomy matches a rule's taxon key
+ * Supports both numeric (GBIF v1) and string (GBIF v2 experimental) taxon keys
  * @param includeHigherOrder If true, checks all ranks; if false, only checks taxonKey/speciesKey
  * @returns Object with matched boolean and the rank that matched (if any)
  */
 function matchesTaxonomy(
   record: OccurrenceRecord,
-  ruleTaxonKey: number,
+  ruleTaxonKey: string | number | null,
   includeHigherOrder: boolean = true
 ): { matched: boolean; rank?: string } {
+  // If rule has no taxon key filter, accept all
+  if (!ruleTaxonKey) {
+    return { matched: true };
+  }
+  
   // Define which fields to check based on includeHigherOrder
   const taxonomicFields = includeHigherOrder
     ? ['taxonKey', 'speciesKey', 'genusKey', 'familyKey', 'orderKey', 'classKey', 'phylumKey', 'kingdomKey']
     : ['taxonKey', 'speciesKey']; // Only species-level when higher-order is disabled
   
+  // Normalize rule taxon key for comparison
+  const ruleKeyStr = String(ruleTaxonKey);
+  const ruleKeyNum = typeof ruleTaxonKey === 'number' ? ruleTaxonKey : parseInt(ruleKeyStr, 10);
+  const isNumericRule = !isNaN(ruleKeyNum);
+  
+  // Debug logging for string taxon keys
+  const isStringTaxonKey = typeof ruleTaxonKey === 'string' && isNaN(parseInt(ruleTaxonKey, 10));
+  if (isStringTaxonKey && window.console) {
+    console.log(`[Taxonomy Match Debug] Rule taxonKey: "${ruleKeyStr}" (string)`);
+    console.log(`[Taxonomy Match Debug] Checking fields:`, taxonomicFields);
+  }
+  
   for (const field of taxonomicFields) {
     const value = record[field];
-    if (value && parseInt(value, 10) === ruleTaxonKey) {
+    if (!value) continue;
+    
+    // Try both string and numeric comparison
+    const recordKeyStr = String(value);
+    const recordKeyNum = parseInt(recordKeyStr, 10);
+    
+    // Debug logging
+    if (isStringTaxonKey && window.console) {
+      console.log(`[Taxonomy Match Debug] ${field}: "${recordKeyStr}" vs rule "${ruleKeyStr}"`);
+    }
+    
+    // Match if either:
+    // 1. String values match exactly (for alphanumeric keys like "CQ4M")
+    // 2. Numeric values match (for traditional numeric keys)
+    const stringMatch = recordKeyStr === ruleKeyStr;
+    const numericMatch = isNumericRule && !isNaN(recordKeyNum) && recordKeyNum === ruleKeyNum;
+    
+    if (stringMatch || numericMatch) {
+      if (isStringTaxonKey && window.console) {
+        console.log(`[Taxonomy Match Debug] ✓ Match found at ${field}!`);
+      }
       // Convert field name to display rank
       const rankMap: Record<string, string> = {
         'taxonKey': 'species',
@@ -155,6 +193,10 @@ function matchesTaxonomy(
     }
   }
   
+  if (isStringTaxonKey && window.console) {
+    console.log(`[Taxonomy Match Debug] ✗ No match found for "${ruleKeyStr}"`);
+  }
+  
   return { matched: false };
 }
 
@@ -167,11 +209,20 @@ function applyRuleToRecord(
   rule: AnnotationRule,
   includeHigherOrder: boolean = true
 ): AnnotationMatch | null {
+  // Debug logging for string taxon keys
+  const isStringTaxonKey = typeof rule.taxonKey === 'string' && isNaN(parseInt(String(rule.taxonKey), 10));
+  const debugMode = isStringTaxonKey && recordIndex < 5; // Only log first 5 records for string rules
+  
+  if (debugMode && window.console) {
+    console.log(`\n[Rule Match Debug] Record ${recordIndex}, Rule ${rule.id} (${rule.annotation}), TaxonKey: "${rule.taxonKey}"`);
+  }
+  
   // Extract coordinates
   const latStr = record.decimalLatitude;
   const lonStr = record.decimalLongitude;
   
   if (!latStr || !lonStr) {
+    if (debugMode && window.console) console.log(`  ✗ No coordinates`);
     return null; // No coordinates
   }
   
@@ -179,6 +230,7 @@ function applyRuleToRecord(
   const lon = parseFloat(lonStr);
   
   if (!validateCoordinates(lat, lon)) {
+    if (debugMode && window.console) console.log(`  ✗ Invalid coordinates: ${lat}, ${lon}`);
     return null; // Invalid coordinates
   }
   
@@ -186,15 +238,21 @@ function applyRuleToRecord(
   const matchedSpatially = testPointInPolygon(lat, lon, rule.geometry);
   
   if (!matchedSpatially) {
+    if (debugMode && window.console) console.log(`  ✗ Not in polygon: ${lat}, ${lon}`);
     return null; // Not in polygon, no need to check other filters
   }
+  
+  if (debugMode && window.console) console.log(`  ✓ Spatial match: ${lat}, ${lon}`);
   
   // Step 2: Test taxonomic match
   const taxonomyResult = matchesTaxonomy(record, rule.taxonKey, includeHigherOrder);
   
   if (!taxonomyResult.matched) {
+    if (debugMode && window.console) console.log(`  ✗ Taxonomy mismatch`);
     return null; // Doesn't match taxonomy
   }
+  
+  if (debugMode && window.console) console.log(`  ✓ Taxonomy match (${taxonomyResult.rank})`);
   
   // Step 3: Test basis of record filter (if applicable)
   const matchedBasisOfRecord = matchesBasisOfRecordFilter(
@@ -204,6 +262,7 @@ function applyRuleToRecord(
   );
   
   if (!matchedBasisOfRecord) {
+    if (debugMode && window.console) console.log(`  ✗ Basis of record mismatch`);
     return null; // Doesn't match basis of record filter
   }
   
@@ -214,6 +273,7 @@ function applyRuleToRecord(
   );
   
   if (!matchedDatasetKey) {
+    if (debugMode && window.console) console.log(`  ✗ Dataset key mismatch`);
     return null; // Doesn't match dataset key filter
   }
   
@@ -221,8 +281,11 @@ function applyRuleToRecord(
   const matchedYear = matchesYearRangeFilter(record.year, rule.yearRange);
   
   if (!matchedYear) {
+    if (debugMode && window.console) console.log(`  ✗ Year range mismatch`);
     return null; // Doesn't match year range filter
   }
+  
+  if (debugMode && window.console) console.log(`  ✓✓✓ FULL MATCH! Record ${recordIndex} matched rule ${rule.id}`);
   
   // All filters passed - record matches this rule
   return {
@@ -255,6 +318,15 @@ export async function processDownload(
   
   // Filter out deleted rules
   const activeRules = rules.filter(rule => !rule.deleted);
+  
+  // Debug: Log string taxon keys
+  const stringTaxonKeyRules = activeRules.filter(r => typeof r.taxonKey === 'string' && isNaN(parseInt(String(r.taxonKey), 10)));
+  if (stringTaxonKeyRules.length > 0 && window.console) {
+    console.log(`[Download Processor] Found ${stringTaxonKeyRules.length} rules with string taxon keys:`);
+    stringTaxonKeyRules.forEach(r => {
+      console.log(`  Rule ${r.id}: taxonKey="${r.taxonKey}" (type: ${typeof r.taxonKey}), annotation="${r.annotation}"`);
+    });
+  }
   
   if (activeRules.length === 0) {
     onProgress?.({

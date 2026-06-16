@@ -22,6 +22,9 @@ output/
 
 .history
 
+# utility scripts
+utility/
+
 # Copilot customization files
 .github/copilot-instructions.md
 

@@ -345,8 +345,8 @@ export default function App() {
         
         // Extract unique taxon keys
         const uniqueTaxonKeys = Array.from(new Set(
-          rules.map((rule: any) => rule.taxonKey).filter((key: number | undefined) => key !== undefined)
-        )) as number[];
+          rules.map((rule: any) => rule.taxonKey).filter((key: string | undefined) => key !== undefined)
+        )) as string[];
         
         // Fetch all species info in parallel using speciesCache
         const speciesResults = await Promise.allSettled(

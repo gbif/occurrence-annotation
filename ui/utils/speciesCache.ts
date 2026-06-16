@@ -1,23 +1,26 @@
-// Simple in-memory cache for species information
-const speciesCache = new Map<number, any>();
+// GBIF Backbone Checklist UUID for v2 API
+const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
 
-export const getSpeciesInfo = async (taxonKey: number) => {
+// Simple in-memory cache for species information
+const speciesCache = new Map<string, any>();
+
+export const getSpeciesInfo = async (taxonKey: string) => {
   // Check cache first
   if (speciesCache.has(taxonKey)) {
     return speciesCache.get(taxonKey);
   }
 
   try {
-    const response = await fetch(`https://api.gbif.org/v1/species/${taxonKey}`);
+    const response = await fetch(`https://api.gbif.org/v2/experimental/taxon/${GBIF_BACKBONE_UUID}/${taxonKey}`);
     
     if (response.ok) {
       const data = await response.json();
       const speciesInfo = {
-        key: data.key,
+        key: data.taxonID,
         scientificName: data.scientificName,
         canonicalName: data.canonicalName,
         vernacularName: data.vernacularNames?.[0]?.vernacularName,
-        rank: data.rank,
+        rank: data.taxonRank,
       };
       
       // Cache the result
