@@ -130,12 +130,15 @@ export function filterSpeciesForMap(
   });
 
   // Build set of ALL taxonomic keys (species + all hierarchical levels) for top species
-  const allHierarchicalKeys = new Set<number>();
+  // Support both numeric (GBIF backbone) and string (COL XR) taxon keys
+  const allHierarchicalKeys = new Set<string | number>();
   sortedSpecies.forEach(([key]) => {
-    // Convert to number if possible for hierarchical key matching
+    // Add species key directly (supports both numeric and string)
+    allHierarchicalKeys.add(key);
+    // Also add numeric form if parseable for backwards compatibility
     const numKey = typeof key === 'number' ? key : parseInt(String(key), 10);
     if (!isNaN(numKey)) {
-      allHierarchicalKeys.add(numKey); // Add species itself
+      allHierarchicalKeys.add(numKey);
     }
     const hierarchy = speciesHierarchies.get(key);
     if (hierarchy) {
@@ -151,6 +154,8 @@ export function filterSpeciesForMap(
   // Filter rules to include both species-level AND higher taxonomic level rules
   const relevantRules = rules.filter(rule => {
     if (!rule.taxonKey) return false;
+    // Check both string and numeric forms for COL XR compatibility
+    if (allHierarchicalKeys.has(rule.taxonKey)) return true;
     const taxonKeyNum = typeof rule.taxonKey === 'number' ? rule.taxonKey : parseInt(String(rule.taxonKey), 10);
     return !isNaN(taxonKeyNum) && allHierarchicalKeys.has(taxonKeyNum);
   });

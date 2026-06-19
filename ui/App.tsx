@@ -962,7 +962,11 @@ export default function App() {
       const ruleKeyStr = String(rule.taxonKey);
       if (!species || species.key !== ruleKeyStr) {
         try {
-          const speciesResponse = await fetch(getGbifApiUrl(`/species/${rule.taxonKey}`));
+          // Use v2 experimental endpoint for COL XR compatibility
+          const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
+          const speciesResponse = await fetch(
+            `https://api.gbif.org/v2/experimental/taxon/${GBIF_BACKBONE_UUID}/${rule.taxonKey}/info`
+          );
           if (speciesResponse.ok) {
             const speciesData = await speciesResponse.json();
             species = {

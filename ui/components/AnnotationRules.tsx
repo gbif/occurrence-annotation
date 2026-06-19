@@ -33,9 +33,9 @@ import {
   AlertDialogTrigger,
 } from './ui/alert-dialog';
 
-// Helper function to generate species page URL
+// Helper function to generate taxon page URL (supports both numeric GBIF backbone keys and alphanumeric COL XR identifiers)
 const getSpeciesPageUrl = (taxonKey: string | number): string => {
-  return `https://www.gbif.org/species/${taxonKey}`;
+  return `https://www.gbif.org/taxon/${taxonKey}`;
 };
 
 // Searchable multi-select component for Basis of Record
