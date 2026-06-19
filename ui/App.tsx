@@ -7,7 +7,7 @@ import { LoginButton } from './components/LoginButton';
 import { AnnotationRules, AnnotationRule } from './components/AnnotationRules';
 import { OccurrenceFilterOptions } from './components/OccurrenceFilters';
 import { toast } from 'sonner';
-import { getGbifApiUrl, getAnnotationApiUrl } from './utils/apiConfig';
+import { getAnnotationApiUrl } from './utils/apiConfig';
 import { parseWKTGeometry, PolygonWithHoles, MultiPolygon, isInvertedPolygon } from './utils/wktParser';
 import { unionPolygons } from './utils/spatialOperations';
 import { getSpeciesInfo } from './utils/speciesCache';
