@@ -45,6 +45,7 @@ backend-service/docker-compose*
 backend-service/PODMAN-SETUP.md*
 backend-service/deploy-podman.ps1*
 backend-service/.dockerignore
+backend-service/scripts/
 
 # Docker volumes and data
 **/docker-volumes/
