@@ -1,6 +1,6 @@
 -- Database initialization script for occurrence annotation service
 -- Combines liquibase/schema.sql + all migrations for docker-entrypoint-initdb.d
--- This script is idempotent and can be run multiple times safely
+-- WARNING: Destructive. Drops existing tables; intended for local/dev or fresh container initialization only.
 
 -- Baseline schema (from liquibase/schema.sql)
 DROP TABLE IF EXISTS comment;
