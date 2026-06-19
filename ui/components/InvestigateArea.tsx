@@ -12,7 +12,7 @@ import { SelectedSpecies } from './SpeciesSelector';
 import { LocationQualityPanel } from './LocationQualityPanel';
 import { isAdmin } from '../utils/authHelpers';
 
-// COL checklist UUID for taxon key resolution
+// COL (Catalogue of Life Extended Release) checklist UUID
 const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
 
 interface GBIFOccurrence {

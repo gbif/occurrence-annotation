@@ -19,6 +19,9 @@ import { Checkbox } from './ui/checkbox';
 import { CountrySelector } from './CountrySelector';
 import { useDebouncedCallback } from '../utils/useDebounce';
 
+// COL (Catalogue of Life Extended Release) checklist UUID
+const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
+
 // Vocabulary term interface
 interface VocabularyTerm {
   term: string;
@@ -885,6 +888,7 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
         
         // Build the GBIF occurrence search URL
         const params = new URLSearchParams({
+          checklistKey: GBIF_BACKBONE_UUID,
           taxonKey: polygon.species.key.toString(),
           geometry: wktGeometry,
           limit: '0', // We only want the count

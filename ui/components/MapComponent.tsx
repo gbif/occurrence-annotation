@@ -19,6 +19,8 @@ import { subtractOceanFromPolygon, bufferPolygon, bufferMultiPolygon, eraseFromP
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { getDatasetInfo } from '../utils/datasetCache';
 
+// COL (Catalogue of Life Extended Release) checklist UUID
+const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
 
 interface VocabularyTerm {
   term: string;
@@ -584,6 +586,7 @@ export function MapComponent({
       
       // Build API URL with occurrence filters
       const params = new URLSearchParams({
+        checklistKey: GBIF_BACKBONE_UUID,
         taxonKey: selectedSpecies.key,
         hasCoordinate: 'true',
         decimalLatitude: `${south},${north}`,
