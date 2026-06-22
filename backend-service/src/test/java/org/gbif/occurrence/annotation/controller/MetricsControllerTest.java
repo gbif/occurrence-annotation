@@ -96,7 +96,7 @@ public class MetricsControllerTest {
     // Create a rule for this project
     Rule rule1 =
         Rule.builder()
-            .taxonKey(12345)
+            .taxonKey("12345")
             .datasetKey("dataset-metrics-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")
@@ -226,7 +226,7 @@ public class MetricsControllerTest {
     // Create rules in this project
     Rule rule1 =
         Rule.builder()
-            .taxonKey(11111)
+            .taxonKey("11111")
             .datasetKey("dataset-project-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")
@@ -243,7 +243,7 @@ public class MetricsControllerTest {
 
     Rule rule2 =
         Rule.builder()
-            .taxonKey(22222)
+            .taxonKey("22222")
             .datasetKey("dataset-project-2")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("INTRODUCED")
@@ -292,7 +292,7 @@ public class MetricsControllerTest {
     Project createdProject = objectMapper.readValue(projectResponse, Project.class);
 
     // Create multiple rules for the same taxon
-    int testTaxonKey = 99999;
+    String testTaxonKey = "99999";
 
     Rule rule1 =
         Rule.builder()
@@ -365,7 +365,7 @@ public class MetricsControllerTest {
     // Create a rule
     Rule rule =
         Rule.builder()
-            .taxonKey(88888)
+            .taxonKey("88888")
             .datasetKey("dataset-multi-filter")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")

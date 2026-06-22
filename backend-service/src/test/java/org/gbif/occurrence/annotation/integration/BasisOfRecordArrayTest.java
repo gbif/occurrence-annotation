@@ -26,7 +26,7 @@ public class BasisOfRecordArrayTest {
     // Test that Rule model can handle array basisOfRecord
     Rule rule =
         Rule.builder()
-            .taxonKey(12345)
+            .taxonKey("12345")
             .datasetKey("test-dataset")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")
@@ -48,7 +48,7 @@ public class BasisOfRecordArrayTest {
   public void testRuleModelWithNullBasisOfRecord() {
     Rule rule =
         Rule.builder()
-            .taxonKey(12345)
+            .taxonKey("12345")
             .datasetKey("test-dataset")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")
@@ -67,7 +67,7 @@ public class BasisOfRecordArrayTest {
   public void testRuleModelWithEmptyBasisOfRecord() {
     Rule rule =
         Rule.builder()
-            .taxonKey(12345)
+            .taxonKey("12345")
             .datasetKey("test-dataset")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")
@@ -87,7 +87,7 @@ public class BasisOfRecordArrayTest {
   public void testRuleModelWithSingleBasisOfRecord() {
     Rule rule =
         Rule.builder()
-            .taxonKey(12345)
+            .taxonKey("12345")
             .datasetKey("test-dataset")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")

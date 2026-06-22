@@ -19,6 +19,8 @@ import { subtractOceanFromPolygon, bufferPolygon, bufferMultiPolygon, eraseFromP
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { getDatasetInfo } from '../utils/datasetCache';
 
+// COL (Catalogue of Life Extended Release) checklist UUID
+const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
 
 interface VocabularyTerm {
   term: string;
@@ -31,7 +33,7 @@ interface MapComponentProps {
   selectedSpecies: {
     name: string;
     scientificName: string;
-    key: number;
+    key: string;
   } | null;
   savedPolygons: PolygonData[];
   currentPolygon: [number, number][] | null;
@@ -422,13 +424,14 @@ export function MapComponent({
   }, []);
 
   // Helper function to build GBIF occurrence tile URL with filters
-  const buildGbifTileUrl = (tileZoom: number, x: number, y: number, taxonKey: number) => {
+  const buildGbifTileUrl = (tileZoom: number, x: number, y: number, taxonKey: string) => {
     const baseUrl = `https://api.gbif.org/v2/map/occurrence/adhoc/${tileZoom}/${x}/${y}@2x.png`;
     const params = new URLSearchParams({
+      checklistKey: '7ddf754f-d193-4cc9-b351-99906754a03b',
       srs: 'EPSG:3857',
       style: 'scaled.circles',
       mode: 'GEO_CENTROID',
-      taxonKey: taxonKey.toString()
+      taxonKey: taxonKey
     });
 
     // Add occurrence status filter (defaults to PRESENT only if not explicitly set to false)
@@ -583,7 +586,8 @@ export function MapComponent({
       
       // Build API URL with occurrence filters
       const params = new URLSearchParams({
-        taxonKey: selectedSpecies.key.toString(),
+        checklistKey: GBIF_BACKBONE_UUID,
+        taxonKey: selectedSpecies.key,
         hasCoordinate: 'true',
         decimalLatitude: `${south},${north}`,
         decimalLongitude: `${west},${east}`,

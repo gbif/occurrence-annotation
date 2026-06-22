@@ -9,8 +9,8 @@ interface DownloadResultsMapProps {
   rules: AnnotationRule[];
   flaggedPoints: MapPoint[];
   passingPoints?: MapPoint[];
-  speciesInfo: Map<number, SpeciesHierarchy>;
-  selectedSpecies?: number | null;
+  speciesInfo: Map<string | number, SpeciesHierarchy>;
+  selectedSpecies?: string | number | null;
   vocabulary?: Array<{term: string, color: string}>;
 }
 
@@ -145,7 +145,12 @@ export function DownloadResultsMap({
     const hierarchy = speciesInfo.get(selectedSpecies);
     
     // Build set of all taxon keys in the hierarchy (species + all parent taxa)
-    const hierarchyKeys = new Set<number>([selectedSpecies]);
+    // Support both numeric (GBIF backbone) and string (COL XR) taxon keys
+    const hierarchyKeys = new Set<string | number>([selectedSpecies]);
+    const numericSpeciesKey = typeof selectedSpecies === 'number' ? selectedSpecies : parseInt(String(selectedSpecies), 10);
+    if (!isNaN(numericSpeciesKey)) {
+      hierarchyKeys.add(numericSpeciesKey);
+    }
     if (hierarchy) {
       if (hierarchy.genusKey) hierarchyKeys.add(hierarchy.genusKey);
       if (hierarchy.familyKey) hierarchyKeys.add(hierarchy.familyKey);
@@ -156,7 +161,13 @@ export function DownloadResultsMap({
     }
     
     // Filter rules to those matching any level in the hierarchy
-    return rules.filter(r => hierarchyKeys.has(r.taxonKey));
+    // Check both string and numeric forms for COL XR compatibility
+    return rules.filter(r => {
+      if (r.taxonKey === null) return false;
+      if (hierarchyKeys.has(r.taxonKey)) return true;
+      const numKey = typeof r.taxonKey === 'number' ? r.taxonKey : parseInt(String(r.taxonKey), 10);
+      return !isNaN(numKey) && hierarchyKeys.has(numKey);
+    });
   }, [rules, selectedSpecies, speciesInfo]);
 
   // Count how many records each rule flagged for the current species

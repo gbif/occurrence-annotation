@@ -93,7 +93,7 @@ public class RuleControllerTest {
   public void testCreateRuleWithArrayBasisOfRecord() throws Exception {
     Rule rule =
         Rule.builder()
-            .taxonKey(12345)
+            .taxonKey("12345")
             .datasetKey("test-dataset-key")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")
@@ -110,7 +110,7 @@ public class RuleControllerTest {
                 .content(objectMapper.writeValueAsString(rule)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id", notNullValue()))
-        .andExpect(jsonPath("$.taxonKey", is(12345)))
+        .andExpect(jsonPath("$.taxonKey", is("12345")))
         .andExpect(jsonPath("$.basisOfRecord", hasSize(2)))
         .andExpect(jsonPath("$.basisOfRecord[0]", is("PRESERVED_SPECIMEN")))
         .andExpect(jsonPath("$.basisOfRecord[1]", is("HUMAN_OBSERVATION")));
@@ -123,7 +123,7 @@ public class RuleControllerTest {
   public void testCreateRuleWithSingleBasisOfRecord() throws Exception {
     Rule rule =
         Rule.builder()
-            .taxonKey(67890)
+            .taxonKey("67890")
             .datasetKey("test-dataset-key-2")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("INTRODUCED")
@@ -140,7 +140,7 @@ public class RuleControllerTest {
                 .content(objectMapper.writeValueAsString(rule)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id", notNullValue()))
-        .andExpect(jsonPath("$.taxonKey", is(67890)))
+        .andExpect(jsonPath("$.taxonKey", is("67890")))
         .andExpect(jsonPath("$.basisOfRecord", hasSize(1)))
         .andExpect(jsonPath("$.basisOfRecord[0]", is("MACHINE_OBSERVATION")));
   }
@@ -152,7 +152,7 @@ public class RuleControllerTest {
   public void testCreateRuleWithNullBasisOfRecord() throws Exception {
     Rule rule =
         Rule.builder()
-            .taxonKey(11111)
+            .taxonKey("11111")
             .datasetKey("test-dataset-key-3")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("SUSPICIOUS")
@@ -169,7 +169,7 @@ public class RuleControllerTest {
                 .content(objectMapper.writeValueAsString(rule)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id", notNullValue()))
-        .andExpect(jsonPath("$.taxonKey", is(11111)))
+        .andExpect(jsonPath("$.taxonKey", is("11111")))
         .andExpect(jsonPath("$.basisOfRecord").doesNotExist());
   }
 
@@ -180,7 +180,7 @@ public class RuleControllerTest {
   public void testCreateRuleWithEmptyBasisOfRecord() throws Exception {
     Rule rule =
         Rule.builder()
-            .taxonKey(22222)
+            .taxonKey("22222")
             .datasetKey("test-dataset-key-4")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("VAGRANT")
@@ -197,7 +197,7 @@ public class RuleControllerTest {
                 .content(objectMapper.writeValueAsString(rule)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id", notNullValue()))
-        .andExpect(jsonPath("$.taxonKey", is(22222)))
+        .andExpect(jsonPath("$.taxonKey", is("22222")))
         .andExpect(jsonPath("$.basisOfRecord", hasSize(0)));
   }
 
@@ -209,7 +209,7 @@ public class RuleControllerTest {
     // First, create a rule
     Rule rule =
         Rule.builder()
-            .taxonKey(33333)
+            .taxonKey("33333")
             .datasetKey("test-dataset-key-5")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("FORMER")
@@ -238,7 +238,7 @@ public class RuleControllerTest {
         .perform(get("/occurrence/experimental/annotation/rule/{id}", createdRule.getId()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id", is(createdRule.getId())))
-        .andExpect(jsonPath("$.taxonKey", is(33333)))
+        .andExpect(jsonPath("$.taxonKey", is("33333")))
         .andExpect(jsonPath("$.basisOfRecord", hasSize(3)))
         .andExpect(jsonPath("$.basisOfRecord[0]", is("PRESERVED_SPECIMEN")))
         .andExpect(jsonPath("$.basisOfRecord[1]", is("FOSSIL_SPECIMEN")))
@@ -278,7 +278,7 @@ public class RuleControllerTest {
   public void testCreateRuleWithNegatedBasisOfRecord() throws Exception {
     Rule rule =
         Rule.builder()
-            .taxonKey(44444)
+            .taxonKey("44444")
             .datasetKey("test-dataset-key-negated")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("SUSPICIOUS")
@@ -296,7 +296,7 @@ public class RuleControllerTest {
                 .content(objectMapper.writeValueAsString(rule)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id", notNullValue()))
-        .andExpect(jsonPath("$.taxonKey", is(44444)))
+        .andExpect(jsonPath("$.taxonKey", is("44444")))
         .andExpect(jsonPath("$.basisOfRecord", hasSize(2)))
         .andExpect(jsonPath("$.basisOfRecord[0]", is("FOSSIL_SPECIMEN")))
         .andExpect(jsonPath("$.basisOfRecord[1]", is("PRESERVED_SPECIMEN")))
@@ -318,7 +318,7 @@ public class RuleControllerTest {
       roles = {"USER"})
   public void testCreateRuleWithNegatedBasisOfRecordDefaults() throws Exception {
     Rule rule = new Rule();
-    rule.setTaxonKey(99999);
+    rule.setTaxonKey("99999");
     rule.setGeometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))");
     rule.setAnnotation("SUSPICIOUS");
     rule.setBasisOfRecord(new String[] {"HUMAN_OBSERVATION"});
@@ -342,7 +342,7 @@ public class RuleControllerTest {
       roles = {"USER"})
   public void testCreateRuleWithExplicitlyNegatedBasisOfRecord() throws Exception {
     Rule rule = new Rule();
-    rule.setTaxonKey(88888);
+    rule.setTaxonKey("88888");
     rule.setGeometry("POLYGON((10 10, 10 11, 11 11, 11 10, 10 10))");
     rule.setAnnotation("SUSPICIOUS");
     rule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN", "PRESERVED_SPECIMEN"});
@@ -369,7 +369,7 @@ public class RuleControllerTest {
   public void testFilterRulesByBasisOfRecordAndNegated() throws Exception {
     // Create a negated rule first
     Rule negatedRule = new Rule();
-    negatedRule.setTaxonKey(77777);
+    negatedRule.setTaxonKey("77777");
     negatedRule.setGeometry("POLYGON((20 20, 20 21, 21 21, 21 20, 20 20))");
     negatedRule.setAnnotation("SUSPICIOUS");
     negatedRule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
@@ -456,7 +456,7 @@ public class RuleControllerTest {
     // Create rules in different projects
     Rule ruleInProject1 =
         Rule.builder()
-            .taxonKey(11111)
+            .taxonKey("11111")
             .datasetKey("dataset-project1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")
@@ -473,7 +473,7 @@ public class RuleControllerTest {
 
     Rule ruleInProject2 =
         Rule.builder()
-            .taxonKey(22222)
+            .taxonKey("22222")
             .datasetKey("dataset-project2")
             .geometry("POLYGON((1 1, 1 2, 2 2, 2 1, 1 1))")
             .annotation("INTRODUCED")
@@ -531,7 +531,7 @@ public class RuleControllerTest {
         objectMapper.readValue(projectResponse, org.gbif.occurrence.annotation.model.Project.class);
 
     // Create rules with different taxon keys in the same project
-    int targetTaxonKey = 55555;
+    String targetTaxonKey = "55555";
 
     Rule rule1 =
         Rule.builder()
@@ -552,7 +552,7 @@ public class RuleControllerTest {
 
     Rule rule2 =
         Rule.builder()
-            .taxonKey(66666)
+            .taxonKey("66666")
             .datasetKey("dataset-combined-2")
             .geometry("POLYGON((1 1, 1 2, 2 2, 2 1, 1 1))")
             .annotation("INTRODUCED")
@@ -595,7 +595,7 @@ public class RuleControllerTest {
     // Project 1 only has 'test-user' as member, not 'non-member-user'
     Rule rule =
         Rule.builder()
-            .taxonKey(12345)
+            .taxonKey("12345")
             .datasetKey("test-dataset")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")
@@ -624,7 +624,7 @@ public class RuleControllerTest {
     // Project 1 has 'test-user' as member
     Rule rule =
         Rule.builder()
-            .taxonKey(54321)
+            .taxonKey("54321")
             .datasetKey("member-dataset")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("INTRODUCED")
@@ -651,7 +651,7 @@ public class RuleControllerTest {
     // Users can create rules without a projectId (orphan rules)
     Rule rule =
         Rule.builder()
-            .taxonKey(99999)
+            .taxonKey("99999")
             .datasetKey("orphan-dataset")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("SUSPICIOUS")
@@ -692,7 +692,7 @@ public class RuleControllerTest {
     // Create a rule without project as non-member-user
     Rule originalRule =
         Rule.builder()
-            .taxonKey(11111)
+            .taxonKey("11111")
             .datasetKey("update-test-dataset")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("VAGRANT")
@@ -737,7 +737,7 @@ public class RuleControllerTest {
     // Create a rule in project 1 where test-user is a member
     Rule rule =
         Rule.builder()
-            .taxonKey(77777)
+            .taxonKey("77777")
             .datasetKey("same-project-dataset")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
             .annotation("NATIVE")

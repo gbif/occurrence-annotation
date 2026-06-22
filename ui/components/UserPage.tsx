@@ -60,7 +60,7 @@ interface UserRule {
   createdBy: string;
   created: string;
   geometry: string; // WKT string format
-  taxonKey?: number;
+  taxonKey?: string;
   datasetKey?: string;
   annotation: string;
   basisOfRecord?: string;
@@ -415,8 +415,8 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   };
   
   // Species info cache
-  const [speciesCache, setSpeciesCache] = useState<Map<number, SpeciesInfo>>(new Map());
-  const fetchedTaxonKeys = useRef<Set<number>>(new Set());
+  const [speciesCache, setSpeciesCache] = useState<Map<string, SpeciesInfo>>(new Map());
+  const fetchedTaxonKeys = useRef<Set<string>>(new Set());
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -504,7 +504,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   */
 
   // Fetch species info for a rule
-  const fetchSpeciesInfo = useCallback(async (taxonKey: number) => {
+  const fetchSpeciesInfo = useCallback(async (taxonKey: string) => {
     // Mark as fetched to prevent duplicate requests
     fetchedTaxonKeys.current.add(taxonKey);
     
