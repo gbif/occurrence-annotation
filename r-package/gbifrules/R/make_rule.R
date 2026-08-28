@@ -14,6 +14,8 @@
 #' @param createdBy (character) Optional user ID of rule creator. If not provided, automatically set from GBIF_USER environment variable.
 #' @param deleted (character) Optional deletion timestamp (ISO format).
 #' @param deletedBy (character) Optional user ID who deleted the rule.
+#' @param checklistKey (character) Optional GBIF checklist dataset UUID. Defaults to COL Extended Release UUID ("7ddf754f-d193-4cc9-b351-99906754a03b") if not provided.
+#' @param checklistDoi (character) Optional DOI for the checklist dataset. If not provided and checklistKey is the COL UUID, the current DOI will be fetched automatically from the GBIF API.
 #' @param user (character) Optional username for authentication. Defaults to GBIF_USER environment variable.
 #' @param pwd (character) Optional password for authentication. Defaults to GBIF_PWD environment variable.
 #' @param ... Additional named parameters to include in the rule payload.
@@ -31,6 +33,12 @@
 #' 
 #' The \code{basisOfRecord} parameter accepts a character vector that will be
 #' serialized as a JSON array in the API request.
+#' 
+#' By default, rules are automatically tagged with the Catalogue of Life (COL)
+#' Extended Release checklist. The \code{checklistKey} defaults to the COL UUID,
+#' and the \code{checklistDoi} is fetched dynamically from the GBIF API to ensure
+#' it reflects the current COL release. These defaults can be overridden by
+#' providing explicit values.
 #' 
 #' @export
 #'
@@ -51,6 +59,23 @@
 #'   basisOfRecord = c("MACHINE_OBSERVATION", "HUMAN_OBSERVATION"),
 #'   createdBy = "user@example.com"
 #' )
+#' 
+#' # Rule with COL checklist (automatic defaults)
+#' make_rule(
+#'   taxonKey = "CQ4M",  # COL XR alphanumeric taxonKey
+#'   geometry = "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))",
+#'   annotation = "NATIVE"
+#'   # checklistKey and checklistDoi automatically set to COL defaults
+#' )
+#' 
+#' # Override with custom checklist
+#' make_rule(
+#'   taxonKey = 1,
+#'   geometry = "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))",
+#'   annotation = "NATIVE",
+#'   checklistKey = "custom-uuid",
+#'   checklistDoi = "10.custom/doi"
+#' )
 #' }
 make_rule <- function(
                     taxonKey = NULL,
@@ -67,6 +92,8 @@ make_rule <- function(
                     createdBy = NULL,
                     deleted = NULL,
                     deletedBy = NULL,
+                    checklistKey = NULL,
+                    checklistDoi = NULL,
                     user = NULL,
                     pwd = NULL,
                     ...) {
@@ -79,6 +106,16 @@ make_rule <- function(
   # Set default createdBy from environment variable if not provided
   if (is.null(createdBy)) {
     createdBy <- Sys.getenv("GBIF_USER", "")
+  }
+
+  # Set COL checklist defaults if not provided
+  if (is.null(checklistKey)) {
+    checklistKey <- "7ddf754f-d193-4cc9-b351-99906754a03b"  # COL Extended Release UUID
+  }
+  
+  # Fetch current COL DOI if using COL checklist and DOI not explicitly provided
+  if (is.null(checklistDoi) && checklistKey == "7ddf754f-d193-4cc9-b351-99906754a03b") {
+    checklistDoi <- get_col_metadata(checklistKey)
   }
 
   # Build request body with allowed fields. Preserve vectors (e.g. basisOfRecord)
@@ -99,6 +136,8 @@ make_rule <- function(
 	if (!is.null(createdBy)) body$createdBy <- createdBy
 	if (!is.null(deleted)) body$deleted <- deleted
 	if (!is.null(deletedBy)) body$deletedBy <- deletedBy
+	if (!is.null(checklistKey)) body$checklistKey <- checklistKey
+	if (!is.null(checklistDoi)) body$checklistDoi <- checklistDoi
 
 	# Merge any additional named args into body (user-supplied extra properties)
 	extras <- list(...)
