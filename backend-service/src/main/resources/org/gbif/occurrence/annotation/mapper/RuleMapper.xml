@@ -84,14 +84,16 @@
     </select>
 
     <insert id="create" parameterType="Rule" useGeneratedKeys="true" keyColumn="id" keyProperty="id">
-        INSERT INTO rule (taxon_key, dataset_key, geometry, annotation, basis_of_record, basis_of_record_negated, year_range, ruleset_id, project_id, created_by, created)
-        VALUES (#{taxonKey}, #{datasetKey}, #{geometry}, #{annotation}, #{basisOfRecord,typeHandler=org.apache.ibatis.type.ArrayTypeHandler}, COALESCE(#{basisOfRecordNegated}, false), #{yearRange}, #{rulesetId}, #{projectId}, #{createdBy}, now())
+        INSERT INTO rule (taxon_key, dataset_key, checklist_key, checklist_doi, geometry, annotation, basis_of_record, basis_of_record_negated, year_range, ruleset_id, project_id, created_by, created)
+        VALUES (#{taxonKey}, #{datasetKey}, #{checklistKey}, #{checklistDoi}, #{geometry}, #{annotation}, #{basisOfRecord,typeHandler=org.apache.ibatis.type.ArrayTypeHandler}, COALESCE(#{basisOfRecordNegated}, false), #{yearRange}, #{rulesetId}, #{projectId}, #{createdBy}, now())
     </insert>
 
     <update id="update" parameterType="Rule">
         UPDATE rule SET
             taxon_key = #{taxonKey},
             dataset_key = #{datasetKey},
+            checklist_key = #{checklistKey},
+            checklist_doi = #{checklistDoi},
             geometry = #{geometry},
             annotation = #{annotation},
             basis_of_record = #{basisOfRecord,typeHandler=org.apache.ibatis.type.ArrayTypeHandler},

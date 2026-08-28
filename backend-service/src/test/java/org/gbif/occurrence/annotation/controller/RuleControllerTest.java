@@ -770,4 +770,204 @@ public class RuleControllerTest {
         .andExpect(jsonPath("$.annotation", is("INTRODUCED")))
         .andExpect(jsonPath("$.projectId", is(1)));
   }
+
+  @Test
+  @WithMockUser(
+      username = "test-user",
+      roles = {"USER"})
+  public void testCreateRuleWithChecklistFields() throws Exception {
+    Rule rule =
+        Rule.builder()
+            .taxonKey("2440447")
+            .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
+            .annotation("NATIVE")
+            .checklistKey("7ddf754f-d193-4cc9-b351-99906754a03b")
+            .checklistDoi("10.48580/dfqd-3tk")
+            .rulesetId(1)
+            .projectId(1)
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id", notNullValue()))
+        .andExpect(jsonPath("$.taxonKey", is("2440447")))
+        .andExpect(jsonPath("$.checklistKey", is("7ddf754f-d193-4cc9-b351-99906754a03b")))
+        .andExpect(jsonPath("$.checklistDoi", is("10.48580/dfqd-3tk")));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "test-user",
+      roles = {"USER"})
+  public void testCreateAndRetrieveRuleWithChecklistFields() throws Exception {
+    // First, create a rule with checklist fields
+    Rule rule =
+        Rule.builder()
+            .taxonKey("5231190")
+            .geometry("POLYGON((10 10, 10 11, 11 11, 11 10, 10 10))")
+            .annotation("INTRODUCED")
+            .checklistKey("7ddf754f-d193-4cc9-b351-99906754a03b")
+            .checklistDoi("10.48580/dfqd-3tk")
+            .rulesetId(1)
+            .projectId(1)
+            .build();
+
+    String response =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/rule")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(rule)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Rule createdRule = objectMapper.readValue(response, Rule.class);
+
+    // Then, retrieve the rule by ID to verify persistence
+    mockMvc
+        .perform(get("/occurrence/experimental/annotation/rule/{id}", createdRule.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id", is(createdRule.getId())))
+        .andExpect(jsonPath("$.taxonKey", is("5231190")))
+        .andExpect(jsonPath("$.checklistKey", is("7ddf754f-d193-4cc9-b351-99906754a03b")))
+        .andExpect(jsonPath("$.checklistDoi", is("10.48580/dfqd-3tk")));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "test-user",
+      roles = {"USER"})
+  public void testCreateRuleWithOnlyChecklistKey() throws Exception {
+    Rule rule =
+        Rule.builder()
+            .taxonKey("1234567")
+            .geometry("POLYGON((5 5, 5 6, 6 6, 6 5, 5 5))")
+            .annotation("SUSPICIOUS")
+            .checklistKey("7ddf754f-d193-4cc9-b351-99906754a03b")
+            .rulesetId(1)
+            .projectId(1)
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id", notNullValue()))
+        .andExpect(jsonPath("$.taxonKey", is("1234567")))
+        .andExpect(jsonPath("$.checklistKey", is("7ddf754f-d193-4cc9-b351-99906754a03b")))
+        .andExpect(jsonPath("$.checklistDoi").doesNotExist());
+  }
+
+  @Test
+  @WithMockUser(
+      username = "test-user",
+      roles = {"USER"})
+  public void testCreateRuleWithOnlyChecklistDoi() throws Exception {
+    Rule rule =
+        Rule.builder()
+            .taxonKey("7654321")
+            .geometry("POLYGON((15 15, 15 16, 16 16, 16 15, 15 15))")
+            .annotation("VAGRANT")
+            .checklistDoi("10.48580/dfqd-3tk")
+            .rulesetId(1)
+            .projectId(1)
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id", notNullValue()))
+        .andExpect(jsonPath("$.taxonKey", is("7654321")))
+        .andExpect(jsonPath("$.checklistKey").doesNotExist())
+        .andExpect(jsonPath("$.checklistDoi", is("10.48580/dfqd-3tk")));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "test-user",
+      roles = {"USER"})
+  public void testCreateRuleWithNullChecklistFields() throws Exception {
+    Rule rule =
+        Rule.builder()
+            .taxonKey("9876543")
+            .geometry("POLYGON((20 20, 20 21, 21 21, 21 20, 20 20))")
+            .annotation("FORMER")
+            .checklistKey(null)
+            .checklistDoi(null)
+            .rulesetId(1)
+            .projectId(1)
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id", notNullValue()))
+        .andExpect(jsonPath("$.taxonKey", is("9876543")))
+        .andExpect(jsonPath("$.checklistKey").doesNotExist())
+        .andExpect(jsonPath("$.checklistDoi").doesNotExist());
+  }
+
+  @Test
+  @WithMockUser(
+      username = "test-user",
+      roles = {"USER"})
+  public void testUpdateRuleWithChecklistFields() throws Exception {
+    // First, create a rule without checklist fields
+    Rule rule =
+        Rule.builder()
+            .taxonKey("1111111")
+            .geometry("POLYGON((25 25, 25 26, 26 26, 26 25, 25 25))")
+            .annotation("NATIVE")
+            .rulesetId(1)
+            .projectId(1)
+            .build();
+
+    String createResponse =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/rule")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(rule)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Rule createdRule = objectMapper.readValue(createResponse, Rule.class);
+
+    // Update the rule to add checklist fields
+    createdRule.setChecklistKey("7ddf754f-d193-4cc9-b351-99906754a03b");
+    createdRule.setChecklistDoi("10.48580/dfqd-3tk");
+
+    mockMvc
+        .perform(
+            put("/occurrence/experimental/annotation/rule/{id}", createdRule.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(createdRule)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id", is(createdRule.getId())))
+        .andExpect(jsonPath("$.checklistKey", is("7ddf754f-d193-4cc9-b351-99906754a03b")))
+        .andExpect(jsonPath("$.checklistDoi", is("10.48580/dfqd-3tk")));
+
+    // Verify the update persisted by retrieving the rule
+    mockMvc
+        .perform(get("/occurrence/experimental/annotation/rule/{id}", createdRule.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.checklistKey", is("7ddf754f-d193-4cc9-b351-99906754a03b")))
+        .andExpect(jsonPath("$.checklistDoi", is("10.48580/dfqd-3tk")));
+  }
 }

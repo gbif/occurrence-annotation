@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="5" author="jwaller">
+    <comment>Add checklist_key and checklist_doi columns to rule table for GBIF checklist references.</comment>
+    <sql splitStatements="false" stripComments="false">
+      <![CDATA[
+        ALTER TABLE rule ADD COLUMN IF NOT EXISTS checklist_key TEXT;
+        ALTER TABLE rule ADD COLUMN IF NOT EXISTS checklist_doi TEXT;
+
+        COMMENT ON COLUMN rule.checklist_key IS 'UUID of the GBIF checklist dataset that the taxon refers to (e.g., COL XR 7ddf754f-d193-4cc9-b351-99906754a03b).';
+        COMMENT ON COLUMN rule.checklist_doi IS 'DOI of the GBIF checklist dataset (e.g., 10.48580/dgykv).';
+      ]]>
+    </sql>
+  </changeSet>
+</databaseChangeLog>
