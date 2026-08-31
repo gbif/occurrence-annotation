@@ -577,6 +577,9 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
           apiUrl += `${separator}${createdByParams}`;
         }
 
+        console.log('[UserPage] API URL:', apiUrl);
+        console.log('[UserPage] User Filter:', userFilter);
+
         const response = await fetch(apiUrl);
 
         if (!response.ok) {
@@ -584,6 +587,9 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         }
 
         const data = await response.json();
+        
+        console.log('[UserPage] API Response - Rules count:', data.length);
+        console.log('[UserPage] API Response - Sample rules:', data.slice(0, 3));
         
         if (Array.isArray(data)) {
           // API now handles filtering server-side, no client-side filtering needed

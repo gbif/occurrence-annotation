@@ -45,9 +45,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 
 import static org.gbif.occurrence.annotation.controller.AuthAdvice.assertCreatorOrAdmin;
 
+@Slf4j
 @Tag(name = "Occurrence annotation rules")
 @RestController
 @CrossOrigin(origins = "*")
@@ -109,6 +111,14 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) String comment,
       @RequestParam(required = false) Integer limit,
       @RequestParam(required = false) Integer offset) {
+    // Debug logging for createdBy parameter
+    if (createdBy != null && createdBy.length > 0) {
+      log.info(
+          "RuleController.list - createdBy parameter received: {} (length: {})",
+          Arrays.toString(createdBy),
+          createdBy.length);
+    }
+
     int limitInt = limit == null ? 100 : limit;
     int offsetInt = offset == null ? 0 : offset;
     if (geometry != null && !geometry.isBlank()) {
