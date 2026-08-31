@@ -29,9 +29,6 @@
         <if test="projectId != null" >
             AND project_id = #{projectId}
         </if>
-        <if test="projectId != null" >
-            AND project_id = #{projectId}
-        </if>
         <if test="basisOfRecord != null and basisOfRecord.length > 0" >
             <choose>
                 <when test="basisOfRecord.length == 1 and basisOfRecord[0] == 'null'">
