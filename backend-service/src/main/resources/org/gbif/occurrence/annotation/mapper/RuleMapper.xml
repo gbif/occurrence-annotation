@@ -59,8 +59,11 @@
         <if test="geometry != null" >
             AND geometry = #{geometry}
         </if>
-        <if test="createdBy != null" >
-            AND created_by = #{createdBy}
+        <if test="createdBy != null and createdBy.length > 0" >
+            AND created_by IN
+            <foreach collection="createdBy" item="user" open="(" separator="," close=")">
+                #{user}
+            </foreach>
         </if>
         <if test="supportedBy != null" >
             AND #{supportedBy} = ANY(supported_by)

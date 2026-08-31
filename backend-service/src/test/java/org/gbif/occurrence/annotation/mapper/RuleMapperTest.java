@@ -340,7 +340,7 @@ public class RuleMapperTest {
     // Test filtering by specific creator - alice should have 2 rules
     List<Rule> results =
         ruleMapper.list(
-            null, null, null, null, null, null, null, null, "alice", null, null, null, 100, 0);
+            null, null, null, null, null, null, null, null, new String[]{"alice"}, null, null, null, 100, 0);
 
     assertEquals(2, results.size(), "Should find 2 rules created by alice");
     assertTrue(
@@ -350,7 +350,7 @@ public class RuleMapperTest {
     // Test filtering by specific creator - bob should have 1 rule
     results =
         ruleMapper.list(
-            null, null, null, null, null, null, null, null, "bob", null, null, null, 100, 0);
+            null, null, null, null, null, null, null, null, new String[]{"bob"}, null, null, null, 100, 0);
 
     assertEquals(1, results.size(), "Should find 1 rule created by bob");
     assertEquals("bob", results.get(0).getCreatedBy(), "Returned rule should be created by bob");
@@ -358,7 +358,7 @@ public class RuleMapperTest {
     // Test filtering by specific creator - charlie should have 1 rule
     results =
         ruleMapper.list(
-            null, null, null, null, null, null, null, null, "charlie", null, null, null, 100, 0);
+            null, null, null, null, null, null, null, null, new String[]{"charlie"}, null, null, null, 100, 0);
 
     assertEquals(1, results.size(), "Should find 1 rule created by charlie");
     assertEquals(
@@ -414,20 +414,17 @@ public class RuleMapperTest {
     // Test combining taxonKey and createdBy filters
     List<Rule> results =
         ruleMapper.list(
-            "12345", null, null, null, null, null, null, null, "alice", null, null, null, 100, 0);
+            "12345", null, null, null, null, null, null, null, new String[]{"alice"}, null, null, null, 100, 0);
 
     assertEquals(1, results.size(), "Should find 1 rule with taxonKey=12345 and createdBy=alice");
     assertEquals(
         "alice", results.get(0).getCreatedBy(), "Returned rule should be created by alice");
-    assertEquals(
-        "12345",
-        results.get(0).getTaxonKey(),
-        "Returned rule should have taxonKey=12345");
+    assertEquals("12345", results.get(0).getTaxonKey(), "Returned rule should have taxonKey=12345");
 
     // Test with filters that should return no results
     results =
         ruleMapper.list(
-            "67890", null, null, null, null, null, null, null, "bob", null, null, null, 100, 0);
+            "67890", null, null, null, null, null, null, null, new String[]{"bob"}, null, null, null, 100, 0);
 
     assertEquals(0, results.size(), "Should find 0 rules with taxonKey=67890 and createdBy=bob");
   }
