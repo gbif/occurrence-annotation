@@ -437,7 +437,7 @@ public class MetricsControllerTest {
             .taxonKey("1001")
             .datasetKey("dataset-single-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation("VALID")
+            .annotation("NATIVE")
             .projectId(createdProject.getId())
             .build();
 
@@ -489,7 +489,7 @@ public class MetricsControllerTest {
             .taxonKey("2001")
             .datasetKey("dataset-multi-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation("VALID")
+            .annotation("NATIVE")
             .projectId(createdProject.getId())
             .build();
 
@@ -545,7 +545,7 @@ public class MetricsControllerTest {
             .taxonKey("3001")
             .datasetKey("dataset-basis-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation("VALID")
+            .annotation("NATIVE")
             .basisOfRecord(new String[] {"PRESERVED_SPECIMEN"})
             .projectId(createdProject.getId())
             .build();
@@ -562,7 +562,7 @@ public class MetricsControllerTest {
             .taxonKey("3002")
             .datasetKey("dataset-basis-2")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation("VALID")
+            .annotation("NATIVE")
             .basisOfRecord(new String[] {"HUMAN_OBSERVATION"})
             .projectId(createdProject.getId())
             .build();
@@ -614,7 +614,7 @@ public class MetricsControllerTest {
             .taxonKey("4001")
             .datasetKey("dataset-year-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation("VALID")
+            .annotation("NATIVE")
             .yearRange("1900,2000")
             .projectId(createdProject.getId())
             .build();
@@ -631,7 +631,7 @@ public class MetricsControllerTest {
             .taxonKey("4002")
             .datasetKey("dataset-year-2")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation("VALID")
+            .annotation("NATIVE")
             .yearRange("2000,2024")
             .projectId(createdProject.getId())
             .build();
@@ -683,7 +683,7 @@ public class MetricsControllerTest {
             .taxonKey("5001")
             .datasetKey("dataset-support-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation("VALID")
+            .annotation("NATIVE")
             .projectId(createdProject.getId())
             .build();
 
@@ -745,7 +745,7 @@ public class MetricsControllerTest {
             .taxonKey("6001")
             .datasetKey("dataset-combo-1")
             .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
-            .annotation("VALID")
+            .annotation("NATIVE")
             .basisOfRecord(new String[] {"PRESERVED_SPECIMEN"})
             .yearRange("2000,2024")
             .projectId(createdProject.getId())
