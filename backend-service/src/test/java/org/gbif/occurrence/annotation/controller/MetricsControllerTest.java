@@ -35,6 +35,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.hamcrest.Matchers.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -411,11 +412,11 @@ public class MetricsControllerTest {
   @WithMockUser(
       username = "metrics-user-multi-1",
       roles = {"USER"})
-  public void testMetricsWithSingleCreatedByFilter() throws Exception {
+  public void testMetricsWithSingleUsernameFilter() throws Exception {
     // Create a project
     Project project = new Project();
     project.setName("Single User Metrics Test");
-    project.setDescription("Testing metrics with single createdBy filter");
+    project.setDescription("Testing metrics with single username filter");
 
     String projectResponse =
         mockMvc
@@ -446,11 +447,11 @@ public class MetricsControllerTest {
                 .content(objectMapper.writeValueAsString(rule1)))
         .andExpect(status().isOk());
 
-    // Get metrics with single createdBy filter
+    // Get metrics with single username filter
     mockMvc
         .perform(
             get("/occurrence/experimental/annotation/rule/metrics")
-                .param("createdBy", "metrics-user-multi-1"))
+                .param("username", "metrics-user-multi-1"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.username", is("metrics-user-multi-1")))
         .andExpect(jsonPath("$.ruleCount", is(1)))
@@ -462,11 +463,11 @@ public class MetricsControllerTest {
   @WithMockUser(
       username = "metrics-user-multi-2",
       roles = {"USER"})
-  public void testMetricsWithMultipleCreatedByFilter() throws Exception {
+  public void testMetricsWithMultipleUsernameFilter() throws Exception {
     // Create a project with multiple users as members
     Project project = new Project();
     project.setName("Multi User Metrics Test");
-    project.setDescription("Testing metrics with multiple createdBy filters");
+    project.setDescription("Testing metrics with multiple username filters");
 
     String projectResponse =
         mockMvc
@@ -501,13 +502,13 @@ public class MetricsControllerTest {
     // First, we need to switch user context for this test
     // Since we can't easily do that in a single test, let's verify multi-user aggregation
 
-    // Get metrics with multiple createdBy filters
+    // Get metrics with multiple username filters
     // Should aggregate across both users (when both have rules)
     mockMvc
         .perform(
             get("/occurrence/experimental/annotation/rule/metrics")
-                .param("createdBy", "metrics-user-multi-2")
-                .param("createdBy", "test-user"))
+                .param("username", "metrics-user-multi-2")
+                .param("username", "test-user"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.username", is("ALL"))) // When multiple users, shows "ALL"
         .andExpect(jsonPath("$.ruleCount", greaterThanOrEqualTo(1))); // At least our rule
@@ -573,7 +574,7 @@ public class MetricsControllerTest {
     mockMvc
         .perform(
             get("/occurrence/experimental/annotation/rule/metrics")
-                .param("createdBy", "metrics-user-basis-1")
+                .param("username", "metrics-user-basis-1")
                 .param("basisOfRecord", "PRESERVED_SPECIMEN"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.ruleCount", is(1)))
@@ -640,7 +641,7 @@ public class MetricsControllerTest {
     mockMvc
         .perform(
             get("/occurrence/experimental/annotation/rule/metrics")
-                .param("createdBy", "metrics-user-year-1")
+                .param("username", "metrics-user-year-1")
                 .param("yearRange", "1900,2000"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.ruleCount", is(1)))
@@ -696,11 +697,7 @@ public class MetricsControllerTest {
     mockMvc
         .perform(
             post("/occurrence/experimental/annotation/rule/" + createdRule.getId() + "/support")
-                .with(
-                    user -> {
-                      user.setUsername("test-user");
-                      return user;
-                    }))
+                .with(user("test-user").roles("USER")))
         .andExpect(status().isOk());
 
     // Get metrics filtered by supportedBy test-user
@@ -757,7 +754,7 @@ public class MetricsControllerTest {
     mockMvc
         .perform(
             get("/occurrence/experimental/annotation/rule/metrics")
-                .param("createdBy", "metrics-user-combo-1")
+                .param("username", "metrics-user-combo-1")
                 .param("basisOfRecord", "PRESERVED_SPECIMEN")
                 .param("yearRange", "2000,2024")
                 .param("taxonKey", "6001"))

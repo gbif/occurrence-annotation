@@ -435,7 +435,7 @@ public class RuleController implements Controller<Rule> {
       description =
           "Filters by geometry using WKT string. Finds rules with geometries that intersect with the provided geometry. URL encoding should be applied to WKT strings.")
   @Parameter(
-      name = "createdBy",
+      name = "username",
       description = "Filters by the username(s) who created the rule (accepts multiple values)")
   @Parameter(name = "supportedBy", description = "Filters by rules supported by the given username")
   @Parameter(name = "contestedBy", description = "Filters by rules contested by the given username")
@@ -452,7 +452,7 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) Boolean basisOfRecordNegated,
       @RequestParam(required = false) String yearRange,
       @RequestParam(required = false) String geometry,
-      @RequestParam(required = false) String[] createdBy,
+      @RequestParam(required = false) String[] username,
       @RequestParam(required = false) String supportedBy,
       @RequestParam(required = false) String contestedBy,
       @RequestParam(required = false) String comment) {
@@ -469,7 +469,7 @@ public class RuleController implements Controller<Rule> {
             basisOfRecordNegated,
             yearRange,
             geometry,
-            createdBy,
+            username,
             supportedBy,
             contestedBy,
             comment);

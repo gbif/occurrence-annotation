@@ -141,10 +141,10 @@
     <select id="metrics" parameterType="map" resultType="RuleMetrics">
         SELECT
           <choose>
-            <when test="createdBy != null and createdBy.length > 0">
+            <when test="username != null and username.length > 0">
               <choose>
-                <when test="createdBy.length == 1">
-                  #{createdBy[0]} AS username,
+                <when test="username.length == 1">
+                  #{username[0]} AS username,
                 </when>
                 <otherwise>
                   'ALL' AS username,
@@ -158,8 +158,8 @@
           count(*) AS ruleCount,
           count(DISTINCT dataset_key) as datasetCount,
           <choose>
-            <when test="createdBy != null and createdBy.length == 1">
-              (SELECT count(*) FROM project WHERE deleted IS NULL AND (created_by = #{createdBy[0]} OR #{createdBy[0]} = ANY(members))) as projectCount,
+            <when test="username != null and username.length == 1">
+              (SELECT count(*) FROM project WHERE deleted IS NULL AND (created_by = #{username[0]} OR #{username[0]} = ANY(members))) as projectCount,
             </when>
             <otherwise>
               count(DISTINCT project_id) as projectCount,
@@ -170,9 +170,9 @@
           SUM(ARRAY_LENGTH(contested_by,1)) AS contestCount
         FROM rule
         WHERE deleted IS NULL
-        <if test="createdBy != null and createdBy.length > 0" >
+        <if test="username != null and username.length > 0" >
             AND created_by IN
-            <foreach collection="createdBy" item="user" open="(" separator="," close=")">
+            <foreach collection="username" item="user" open="(" separator="," close=")">
                 #{user}
             </foreach>
         </if>
