@@ -567,11 +567,14 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
           apiUrl += `${separator}projectId=${projectFilter}`;
         }
 
-        // Add createdBy filter if single user is selected (more efficient than client-side filtering)
-        // For multiple users or no filter, we'll filter client-side
-        if (userFilter.length === 1) {
+        // Add createdBy filter if any users are selected
+        // API supports multiple users via repeated createdBy parameters
+        if (userFilter.length > 0) {
           const separator = apiUrl.includes('?') ? '&' : '?';
-          apiUrl += `${separator}createdBy=${encodeURIComponent(userFilter[0])}`;
+          const createdByParams = userFilter
+            .map(user => `createdBy=${encodeURIComponent(user)}`)
+            .join('&');
+          apiUrl += `${separator}${createdByParams}`;
         }
 
         const response = await fetch(apiUrl);
@@ -583,17 +586,10 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         const data = await response.json();
         
         if (Array.isArray(data)) {
-          // Only need client-side filtering when multiple users selected or no filter
-          const filteredData = (userFilter.length === 0 || userFilter.length > 1)
-            ? data.filter(rule => 
-                userFilter.length === 0 || userFilter.includes(rule.createdBy)
-              )
-            : data; // Single user already filtered by API
-          
-          // Store filtered rules for client-side pagination
-          setAllRules(filteredData);
-          // Update total count based on filtered results
-          setTotalRules(filteredData.length);
+          // API now handles filtering server-side, no client-side filtering needed
+          setAllRules(data);
+          // Update total count based on API results
+          setTotalRules(data.length);
         } else {
           setAllRules([]);
           setTotalRules(0);

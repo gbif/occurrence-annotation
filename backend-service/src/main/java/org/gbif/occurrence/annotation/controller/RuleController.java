@@ -79,7 +79,9 @@ public class RuleController implements Controller<Rule> {
       name = "yearRange",
       description =
           "Filters by year range (e.g., '1000,2025', '*,1990', '1000,*'). Use 'null' to find rules with no yearRange")
-  @Parameter(name = "createdBy", description = "Filters by the username who created the rule")
+  @Parameter(
+      name = "createdBy",
+      description = "Filters by the username(s) who created the rule (accepts multiple values)")
   @Parameter(name = "supportedBy", description = "Filters by rules supported by the given username")
   @Parameter(name = "contestedBy", description = "Filters by rules contested by the given username")
   @Parameter(
@@ -101,7 +103,7 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) Boolean basisOfRecordNegated,
       @RequestParam(required = false) String yearRange,
       @RequestParam(required = false) String geometry,
-      @RequestParam(required = false) String createdBy,
+      @RequestParam(required = false) String[] createdBy,
       @RequestParam(required = false) String supportedBy,
       @RequestParam(required = false) String contestedBy,
       @RequestParam(required = false) String comment,
@@ -156,7 +158,7 @@ public class RuleController implements Controller<Rule> {
         basisOfRecordNegated,
         yearRange,
         geometry,
-        currentUser, // createdBy = current user
+        new String[] {currentUser}, // createdBy = current user (wrapped as array)
         null, // supportedBy
         null, // contestedBy
         comment,

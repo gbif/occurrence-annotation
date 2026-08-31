@@ -32,7 +32,7 @@ public interface RuleMapper {
       @Param("basisOfRecordNegated") Boolean basisOfRecordNegated,
       @Param("yearRange") String yearRange,
       @Param("geometry") String geometry,
-      @Param("createdBy") String createdBy,
+      @Param("createdBy") String[] createdBy,
       @Param("supportedBy") String supportedBy,
       @Param("contestedBy") String contestedBy,
       @Param("comment") String comment,
