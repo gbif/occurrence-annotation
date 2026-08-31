@@ -12,6 +12,7 @@ import { parseWKTGeometry, PolygonWithHoles, MultiPolygon, isInvertedPolygon } f
 import { unionPolygons } from './utils/spatialOperations';
 import { getSpeciesInfo } from './utils/speciesCache';
 import { refreshUserProfile } from './utils/authHelpers';
+import { getChecklistDoi, COL_XR_DATASET_KEY } from './utils/gbifDatasetService';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
@@ -119,6 +120,14 @@ export default function App() {
     refreshUserProfile().catch((error) => {
       console.error('Failed to refresh user profile on boot:', error);
       // Non-critical error, app continues to work for unauthenticated users
+    });
+  }, []); // Empty deps = run once on mount
+
+  // Pre-warm checklist DOI cache on app boot
+  // Optimization: Fetches COL XR DOI early so it's cached when user saves first rule
+  useEffect(() => {
+    getChecklistDoi(COL_XR_DATASET_KEY).catch(() => {
+      // Silently fail - DOI will be fetched again when needed
     });
   }, []); // Empty deps = run once on mount
 

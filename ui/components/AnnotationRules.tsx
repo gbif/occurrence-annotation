@@ -285,6 +285,8 @@ export interface AnnotationRule {
   id: number;
   taxonKey: number;
   datasetKey: string | null;
+  checklistKey?: string | null;
+  checklistDoi?: string | null;
   geometry: string; // WKT format (POLYGON or MULTIPOLYGON)
   annotation: string;
   basisOfRecord?: string[] | null;

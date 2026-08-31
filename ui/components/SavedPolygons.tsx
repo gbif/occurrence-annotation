@@ -18,6 +18,7 @@ import { getSelectedProjectName } from '../utils/projectSelection';
 import { Checkbox } from './ui/checkbox';
 import { CountrySelector } from './CountrySelector';
 import { useDebouncedCallback } from '../utils/useDebounce';
+import { getChecklistDoi } from '../utils/gbifDatasetService';
 
 // COL (Catalogue of Life Extended Release) checklist UUID
 const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
@@ -987,6 +988,9 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
       }
       console.log('SaveToGBIF: Polygon size validation passed:', sizeValidation.vertexCount, 'vertices');
       
+      // Fetch COL checklist DOI
+      const checklistDoi = await getChecklistDoi(GBIF_BACKBONE_UUID);
+      
       // Get selected project ID from localStorage
       const selectedProjectId = localStorage.getItem('selectedProjectId');
       
@@ -997,6 +1001,8 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
         taxonKey: polygon.species.key,
         geometry: wktGeometry,
         annotation: showComplexOptions ? selectedAnnotation : annotation,
+        checklistKey: GBIF_BACKBONE_UUID,
+        checklistDoi: checklistDoi,
       };
 
       // Add complex rule fields if they have values (regardless of showComplexOptions state)
