@@ -419,10 +419,7 @@ public class RuleMapperTest {
     assertEquals(1, results.size(), "Should find 1 rule with taxonKey=12345 and createdBy=alice");
     assertEquals(
         "alice", results.get(0).getCreatedBy(), "Returned rule should be created by alice");
-    assertEquals(
-        "12345",
-        results.get(0).getTaxonKey(),
-        "Returned rule should have taxonKey=12345");
+    assertEquals("12345", results.get(0).getTaxonKey(), "Returned rule should have taxonKey=12345");
 
     // Test with filters that should return no results
     results =

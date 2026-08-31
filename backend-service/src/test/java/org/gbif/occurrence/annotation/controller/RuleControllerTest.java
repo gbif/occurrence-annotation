@@ -970,4 +970,124 @@ public class RuleControllerTest {
         .andExpect(jsonPath("$.checklistKey", is("7ddf754f-d193-4cc9-b351-99906754a03b")))
         .andExpect(jsonPath("$.checklistDoi", is("10.48580/dfqd-3tk")));
   }
+
+  @Test
+  @WithMockUser(
+      username = "user-alpha",
+      roles = {"USER"})
+  public void testListRulesWithSingleCreatedByFilter() throws Exception {
+    // Create a rule as user-alpha
+    Rule rule =
+        Rule.builder()
+            .taxonKey("99991")
+            .datasetKey("filter-test-1")
+            .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
+            .annotation("NATIVE")
+            .rulesetId(1)
+            .projectId(1)
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule)))
+        .andExpect(status().isOk());
+
+    // List rules created by user-alpha
+    mockMvc
+        .perform(get("/occurrence/experimental/annotation/rule").param("createdBy", "user-alpha"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$[?(@.createdBy == 'user-alpha')]").exists());
+  }
+
+  @Test
+  @WithMockUser(
+      username = "user-beta",
+      roles = {"USER"})
+  public void testListRulesWithMultipleCreatedByFilter() throws Exception {
+    // Create a rule as user-beta
+    Rule rule1 =
+        Rule.builder()
+            .taxonKey("99992")
+            .datasetKey("filter-test-2")
+            .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
+            .annotation("INTRODUCED")
+            .rulesetId(1)
+            .projectId(1)
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule1)))
+        .andExpect(status().isOk());
+
+    // Create another rule as a different user
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule1))
+                .with(
+                    request -> {
+                      request.setRemoteUser("user-gamma");
+                      return request;
+                    }))
+        .andExpect(status().isOk());
+
+    // List rules created by multiple users (user-beta and user-gamma)
+    mockMvc
+        .perform(
+            get("/occurrence/experimental/annotation/rule")
+                .param("createdBy", "user-beta")
+                .param("createdBy", "user-gamma"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(
+            jsonPath("$[?(@.createdBy == 'user-beta' || @.createdBy == 'user-gamma')]").exists());
+  }
+
+  @Test
+  public void testListRulesWithoutCreatedByFilter() throws Exception {
+    // Should return rules from all users when no createdBy filter is specified
+    mockMvc
+        .perform(get("/occurrence/experimental/annotation/rule"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+  }
+
+  @Test
+  @WithMockUser(
+      username = "user-delta",
+      roles = {"USER"})
+  public void testListRulesCreatedByFilterExcludesOtherUsers() throws Exception {
+    // Create a rule as user-delta
+    Rule rule =
+        Rule.builder()
+            .taxonKey("99993")
+            .datasetKey("filter-test-3")
+            .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
+            .annotation("SUSPICIOUS")
+            .rulesetId(1)
+            .projectId(1)
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule)))
+        .andExpect(status().isOk());
+
+    // Filter by a different user should not return user-delta's rules
+    mockMvc
+        .perform(
+            get("/occurrence/experimental/annotation/rule").param("createdBy", "non-existent-user"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$[?(@.createdBy == 'user-delta')]").doesNotExist());
+  }
 }
