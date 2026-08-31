@@ -8,4 +8,5 @@
   <include file="liquibase/002-add-custom-vocabulary-to-project.xml"/>
   <include file="liquibase/003-add-rule-indexes.xml"/>
   <include file="liquibase/004-taxonkey-to-varchar.xml"/>
+  <include file="liquibase/005-add-checklist-columns.xml"/>
 </databaseChangeLog>

@@ -47,6 +47,9 @@ backend-service/deploy-podman.ps1*
 backend-service/.dockerignore
 backend-service/scripts/
 
+# Deployment documentation with sensitive information
+backend-service/DEPLOYMENT.md
+
 # Docker volumes and data
 **/docker-volumes/
 **/.docker/

@@ -45,6 +45,7 @@ import { SelectedSpecies } from './SpeciesSelector';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
 import { getSpeciesInfo } from '../utils/speciesCache';
 import DownloadAnnotator from './DownloadAnnotator';
+import { getChecklistDoi, COL_XR_DATASET_KEY } from '../utils/gbifDatasetService';
 import { 
   Pagination, 
   PaginationContent, 
@@ -62,6 +63,8 @@ interface UserRule {
   geometry: string; // WKT string format
   taxonKey?: string;
   datasetKey?: string;
+  checklistKey?: string | null;
+  checklistDoi?: string | null;
   annotation: string;
   basisOfRecord?: string;
   yearRange?: string;
@@ -1020,6 +1023,9 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     };
 
     try {
+      // Fetch COL checklist DOI once for all updates
+      const checklistDoi = await getChecklistDoi(COL_XR_DATASET_KEY);
+      
       // Update all selected rules
       await Promise.all(
         rulesToEdit.map(async (ruleId) => {
@@ -1054,6 +1060,8 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                   projectId: bulkEditProjectId 
                     ? (bulkEditProjectId === 'CLEAR' ? null : parseInt(bulkEditProjectId))
                     : currentRule.projectId,
+                  checklistKey: COL_XR_DATASET_KEY,
+                  checklistDoi: checklistDoi,
                 }),
               }
             );
