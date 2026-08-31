@@ -553,7 +553,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
           setTotalRules(metricsData.ruleCount || 0);
         }
 
-        // Build API URL - fetch all rules and filter client-side by selected users
+        // Build API URL with filters
         let apiUrl = getAnnotationApiUrl('/rule');
         
         // Add taxonKey filter if species is selected
@@ -567,6 +567,13 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
           apiUrl += `${separator}projectId=${projectFilter}`;
         }
 
+        // Add createdBy filter if single user is selected (more efficient than client-side filtering)
+        // For multiple users or no filter, we'll filter client-side
+        if (userFilter.length === 1) {
+          const separator = apiUrl.includes('?') ? '&' : '?';
+          apiUrl += `${separator}createdBy=${encodeURIComponent(userFilter[0])}`;
+        }
+
         const response = await fetch(apiUrl);
 
         if (!response.ok) {
@@ -576,10 +583,12 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         const data = await response.json();
         
         if (Array.isArray(data)) {
-          // Filter by selected users (client-side)
-          const filteredData = data.filter(rule => 
-            userFilter.length === 0 || userFilter.includes(rule.createdBy)
-          );
+          // Only need client-side filtering when multiple users selected or no filter
+          const filteredData = (userFilter.length === 0 || userFilter.length > 1)
+            ? data.filter(rule => 
+                userFilter.length === 0 || userFilter.includes(rule.createdBy)
+              )
+            : data; // Single user already filtered by API
           
           // Store filtered rules for client-side pagination
           setAllRules(filteredData);
