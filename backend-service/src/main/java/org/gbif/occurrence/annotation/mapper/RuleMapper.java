@@ -62,9 +62,16 @@ public interface RuleMapper {
   void removeContest(@Param("id") int id, @Param("username") String username);
 
   List<RuleMetrics> metrics(
-      @Param("username") String username,
       @Param("taxonKey") String taxonKey,
-      @Param("datasetKey") String datasetKey,
+      @Param("datasetKey") String[] datasetKey,
       @Param("rulesetId") Integer rulesetId,
-      @Param("projectId") Integer projectId);
+      @Param("projectId") Integer projectId,
+      @Param("basisOfRecord") String[] basisOfRecord,
+      @Param("basisOfRecordNegated") Boolean basisOfRecordNegated,
+      @Param("yearRange") String yearRange,
+      @Param("geometry") String geometry,
+      @Param("username") String[] username,
+      @Param("supportedBy") String supportedBy,
+      @Param("contestedBy") String contestedBy,
+      @Param("comment") String comment);
 }

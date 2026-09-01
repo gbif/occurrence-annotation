@@ -140,19 +140,11 @@
 
     <select id="metrics" parameterType="map" resultType="RuleMetrics">
         SELECT
-          <choose>
-            <when test="username != null">
-              #{username} AS username,
-            </when>
-            <otherwise>
-              'ALL' AS username,
-            </otherwise>
-          </choose>
           count(*) AS ruleCount,
           count(DISTINCT dataset_key) as datasetCount,
           <choose>
-            <when test="username != null">
-              (SELECT count(*) FROM project WHERE deleted IS NULL AND (created_by = #{username} OR #{username} = ANY(members))) as projectCount,
+            <when test="username != null and username.length == 1">
+              (SELECT count(*) FROM project WHERE deleted IS NULL AND (created_by = #{username[0]} OR #{username[0]} = ANY(members))) as projectCount,
             </when>
             <otherwise>
               count(DISTINCT project_id) as projectCount,
@@ -160,22 +152,29 @@
           </choose>
           count(DISTINCT taxon_key) as taxonCount,
           SUM(ARRAY_LENGTH(supported_by,1)) AS supportCount,
-          SUM(ARRAY_LENGTH(contested_by,1)) AS contestCount
+          SUM(ARRAY_LENGTH(contested_by,1)) AS contestCount,
+          count(DISTINCT created_by) as usernameCount
         FROM rule
         WHERE deleted IS NULL
-        <if test="username != null" >
-            AND created_by = #{username}
+        <if test="username != null and username.length > 0" >
+            AND created_by IN
+            <foreach collection="username" item="user" open="(" separator="," close=")">
+                #{user}
+            </foreach>
         </if>
         <if test="taxonKey != null" >
             AND taxon_key = #{taxonKey}
         </if>
-        <if test="datasetKey != null" >
+        <if test="datasetKey != null and datasetKey.length > 0" >
             <choose>
-                <when test="datasetKey == 'null'">
+                <when test="datasetKey.length == 1 and datasetKey[0] == 'null'">
                     AND dataset_key IS NULL
                 </when>
                 <otherwise>
-                    AND dataset_key = #{datasetKey}
+                    AND dataset_key IN
+                    <foreach collection="datasetKey" item="key" open="(" separator="," close=")">
+                        #{key}
+                    </foreach>
                 </otherwise>
             </choose>
         </if>
@@ -184,6 +183,47 @@
         </if>
         <if test="projectId != null" >
             AND project_id = #{projectId}
+        </if>
+        <if test="basisOfRecord != null and basisOfRecord.length > 0" >
+            <choose>
+                <when test="basisOfRecord.length == 1 and basisOfRecord[0] == 'null'">
+                    AND basis_of_record IS NULL
+                </when>
+                <otherwise>
+                    AND (
+                        <foreach collection="basisOfRecord" item="item" separator=" OR ">
+                            #{item} = ANY(basis_of_record)
+                        </foreach>
+                    )
+                </otherwise>
+            </choose>
+        </if>
+        <if test="basisOfRecordNegated != null" >
+            AND basis_of_record_negated = #{basisOfRecordNegated}
+        </if>
+        <if test="yearRange != null" >
+            <choose>
+                <when test="yearRange == 'null'">
+                    AND year_range IS NULL
+                </when>
+                <otherwise>
+                    AND year_range = #{yearRange}
+                </otherwise>
+            </choose>
+        </if>
+        <if test="geometry != null" >
+            AND geometry = #{geometry}
+        </if>
+        <if test="supportedBy != null" >
+            AND #{supportedBy} = ANY(supported_by)
+        </if>
+        <if test="contestedBy != null" >
+            AND #{contestedBy} = ANY(contested_by)
+        </if>
+        <if test="comment != null" >
+            AND id IN (
+              SELECT DISTINCT rule_id FROM comment WHERE deleted IS NULL AND comment LIKE '%' || #{comment} || '%'
+            )
         </if>
     </select>
 </mapper>

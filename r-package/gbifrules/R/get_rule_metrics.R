@@ -9,7 +9,7 @@
 #' @param rulesetId (integer) Optional ruleset ID to filter by.
 #' @param projectId (integer) Optional project ID to filter by.
 #'
-#' @return A `tibble` with columns: username, ruleCount, datasetCount, projectCount, taxonCount, supportCount, contestCount.
+#' @return A `tibble` with columns: ruleCount, datasetCount, projectCount, taxonCount, supportCount, contestCount, usernameCount.
 #' @export
 #'
 #' @examples
@@ -47,13 +47,13 @@ get_rule_metrics <- function(username = NULL,
   
   # Define expected columns
   expected_columns <- list(
-    username = character(),
     ruleCount = integer(),
     datasetCount = integer(),
     projectCount = integer(),
     taxonCount = integer(),
     supportCount = integer(),
-    contestCount = integer()
+    contestCount = integer(),
+    usernameCount = integer()
   )
   
   if (length(r) == 0 || (is.list(r) && all(sapply(r, is.null)))) {
