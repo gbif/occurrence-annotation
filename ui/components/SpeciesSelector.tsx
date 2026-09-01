@@ -3,32 +3,32 @@ import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Search, X, Loader2, Clock } from 'lucide-react';
 
-interface Species {
-  key: number;
+// v2 API response structure
+interface SpeciesV2 {
+  taxonID: string;
   scientificName: string;
-  canonicalName: string;
-  rank: string;
-  speciesKey?: number;
-  genusKey?: number;
-  familyKey?: number;
-  orderKey?: number;
-  classKey?: number;
-  phylumKey?: number;
-  kingdomKey?: number;
+  taxonRank: string;
+  taxonomicStatus?: string;
+  nomenclaturalCode?: string;
+  group?: string;
+  context?: string[];
+  scientificNameID?: string;
+}
+
+// Classification entry from v2 /info endpoint
+interface ClassificationEntry {
+  taxonID: string;
+  scientificName: string;
+  taxonRank: string;
 }
 
 export interface SelectedSpecies {
   name: string;
   scientificName: string;
   vernacularName?: string;
-  key: number;
-  speciesKey?: number;
-  genusKey?: number;
-  familyKey?: number;
-  orderKey?: number;
-  classKey?: number;
-  phylumKey?: number;
-  kingdomKey?: number;
+  key: string; // Changed from number to string for v2 API
+  // Classification entries for hierarchical taxonomy
+  classification?: ClassificationEntry[];
 }
 
 interface SpeciesSelectorProps {
@@ -37,9 +37,12 @@ interface SpeciesSelectorProps {
   placeholder?: string;
 }
 
+// GBIF Backbone UUID for v2 API
+const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
+
 export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder = "Search for scientific name..." }: SpeciesSelectorProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState<Species[]>([]);
+  const [searchResults, setSearchResults] = useState<SpeciesV2[]>([]);
   const [recentSpecies, setRecentSpecies] = useState<SelectedSpecies[]>([]);
   const [showRecent, setShowRecent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -103,7 +106,7 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder 
     setIsLoading(true);
     try {
       const response = await fetch(
-        `https://api.gbif.org/v1/species/suggest?q=${encodeURIComponent(trimmedTerm)}&limit=10`,
+        `https://api.gbif.org/v2/experimental/taxon/suggest/${GBIF_BACKBONE_UUID}?limit=10&q=${encodeURIComponent(trimmedTerm)}`,
         { signal: abortControllerRef.current.signal }
       );
       const data = await response.json();
@@ -180,14 +183,34 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder 
     }, 200);
   };
 
-  const handleSpeciesSelect = (species: SelectedSpecies) => {
+  const handleSpeciesSelect = async (species: SpeciesV2) => {
     console.log('Regular species selected:', species);
     
+    // Fetch classification from v2 info endpoint
+    let classification: ClassificationEntry[] | undefined;
+    try {
+      const infoResponse = await fetch(
+        `https://api.gbif.org/v2/experimental/taxon/${GBIF_BACKBONE_UUID}/${species.taxonID}/info`
+      );
+      const infoData = await infoResponse.json();
+      classification = infoData.classification;
+    } catch (error) {
+      console.error('Error fetching classification:', error);
+      classification = undefined;
+    }
+
+    const selectedSpecies: SelectedSpecies = {
+      name: species.scientificName,
+      scientificName: species.scientificName,
+      key: species.taxonID,
+      classification: classification
+    };
+    
     // Save to recent species
-    saveRecentSpecies(species);
+    saveRecentSpecies(selectedSpecies);
     
     // Select the species
-    onSelectSpecies(species);
+    onSelectSpecies(selectedSpecies);
     
     // Clear UI state
     setSearchResults([]);
@@ -260,39 +283,20 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder 
             <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-80 overflow-auto">
               <div className="p-2 space-y-1">
                 {searchResults.map((species) => {
-                  const canonicalName = species.canonicalName || species.scientificName;
-                  const hasFullName = species.scientificName && species.scientificName !== canonicalName;
-                  
                   return (
                     <button
-                      key={species.key}
+                      key={species.taxonID}
                       onClick={() => {
-                        handleSpeciesSelect({
-                          name: canonicalName,
-                          scientificName: species.scientificName,
-                          key: species.key,
-                          speciesKey: species.speciesKey,
-                          genusKey: species.genusKey,
-                          familyKey: species.familyKey,
-                          orderKey: species.orderKey,
-                          classKey: species.classKey,
-                          phylumKey: species.phylumKey,
-                          kingdomKey: species.kingdomKey,
-                        });
+                        handleSpeciesSelect(species);
                       }}
                       className="w-full text-left p-3 hover:bg-gray-50 rounded transition-colors border-b border-gray-100 last:border-0"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <p className="text-gray-900">{canonicalName}</p>
-                          {hasFullName && (
-                            <p className="text-gray-500 text-sm italic mt-0.5 truncate">
-                              {species.scientificName}
-                            </p>
-                          )}
+                          <p className="text-gray-900">{species.scientificName}</p>
                         </div>
                         <span className="text-xs text-gray-500 uppercase tracking-wide flex-shrink-0 mt-0.5">
-                          {species.rank}
+                          {species.taxonRank}
                         </span>
                       </div>
                     </button>

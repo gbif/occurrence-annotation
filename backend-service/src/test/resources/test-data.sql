@@ -1,13 +1,13 @@
 -- Test data for foreign key relationships
 -- These records must exist for tests to insert rules successfully
 
--- Insert a test project
+-- Insert a test project (include all test users as members)
 INSERT INTO project (id, name, description, members, created, created_by)
-VALUES (1, 'Test Project', 'Test project for integration tests', ARRAY['test-user'], NOW(), 'test-user');
+VALUES (1, 'Test Project', 'Test project for integration tests', ARRAY['test-user', 'user-alpha', 'user-beta', 'user-gamma', 'user-delta', 'metrics-user-multi-1', 'metrics-user-multi-2', 'metrics-user-basis-1', 'metrics-user-year-1', 'metrics-user-support-1', 'metrics-user-combo-1'], NOW(), 'test-user');
 
--- Insert a test ruleset (references project)
+-- Insert a test ruleset (references project, include all test users as members)
 INSERT INTO ruleset (id, project_id, name, description, members, created, created_by)
-VALUES (1, 1, 'Test Ruleset', 'Test ruleset for integration tests', ARRAY['test-user'], NOW(), 'test-user');
+VALUES (1, 1, 'Test Ruleset', 'Test ruleset for integration tests', ARRAY['test-user', 'user-alpha', 'user-beta', 'user-gamma', 'user-delta', 'metrics-user-multi-1', 'metrics-user-multi-2', 'metrics-user-basis-1', 'metrics-user-year-1', 'metrics-user-support-1', 'metrics-user-combo-1'], NOW(), 'test-user');
 
 -- Reset sequences to avoid conflicts
 SELECT setval('project_id_seq', 1, true);

@@ -12,6 +12,9 @@ import { SelectedSpecies } from './SpeciesSelector';
 import { LocationQualityPanel } from './LocationQualityPanel';
 import { isAdmin } from '../utils/authHelpers';
 
+// COL (Catalogue of Life Extended Release) checklist UUID
+const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
+
 interface GBIFOccurrence {
   key: number;
   scientificName: string;
@@ -96,7 +99,9 @@ export function InvestigateArea({
       const west = lng - lngAdjustment;
       
       // Search for occurrences within the bounding box with pagination
+      // Include checklistKey for COL XR identifier support (alphanumeric taxonKeys)
       const apiUrl = `https://api.gbif.org/v1/occurrence/search?` +
+        `checklistKey=${GBIF_BACKBONE_UUID}&` +
         `taxonKey=${selectedSpecies?.key}&` +
         `hasCoordinate=true&` +
         `decimalLatitude=${south},${north}&` +

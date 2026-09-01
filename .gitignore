@@ -22,6 +22,9 @@ output/
 
 .history
 
+# utility scripts
+utility/
+
 # Copilot customization files
 .github/copilot-instructions.md
 
@@ -42,6 +45,10 @@ backend-service/docker-compose*
 backend-service/PODMAN-SETUP.md*
 backend-service/deploy-podman.ps1*
 backend-service/.dockerignore
+backend-service/scripts/
+
+# Deployment documentation with sensitive information
+backend-service/DEPLOYMENT.md
 
 # Docker volumes and data
 **/docker-volumes/

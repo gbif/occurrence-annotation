@@ -7,11 +7,12 @@ import { LoginButton } from './components/LoginButton';
 import { AnnotationRules, AnnotationRule } from './components/AnnotationRules';
 import { OccurrenceFilterOptions } from './components/OccurrenceFilters';
 import { toast } from 'sonner';
-import { getGbifApiUrl, getAnnotationApiUrl } from './utils/apiConfig';
+import { getAnnotationApiUrl } from './utils/apiConfig';
 import { parseWKTGeometry, PolygonWithHoles, MultiPolygon, isInvertedPolygon } from './utils/wktParser';
 import { unionPolygons } from './utils/spatialOperations';
 import { getSpeciesInfo } from './utils/speciesCache';
 import { refreshUserProfile } from './utils/authHelpers';
+import { getChecklistDoi, COL_XR_DATASET_KEY } from './utils/gbifDatasetService';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
@@ -122,6 +123,14 @@ export default function App() {
     });
   }, []); // Empty deps = run once on mount
 
+  // Pre-warm checklist DOI cache on app boot
+  // Optimization: Fetches COL XR DOI early so it's cached when user saves first rule
+  useEffect(() => {
+    getChecklistDoi(COL_XR_DATASET_KEY).catch(() => {
+      // Silently fail - DOI will be fetched again when needed
+    });
+  }, []); // Empty deps = run once on mount
+
   // Fetch vocabulary based on selected project
   useEffect(() => {
     const fetchVocabulary = async () => {
@@ -170,21 +179,18 @@ export default function App() {
     
     if (taxonKey) {
       try {
-        // Fetch species details from GBIF API using the taxon key
-        const response = await fetch(getGbifApiUrl(`/species/${taxonKey}`));
+        // Fetch species details from GBIF v2 API using the taxon key
+        const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
+        const response = await fetch(
+          `https://api.gbif.org/v2/experimental/taxon/${GBIF_BACKBONE_UUID}/${taxonKey}/info`
+        );
         if (response.ok) {
-          const speciesData = await response.json();
+          const infoData = await response.json();
           const species: SelectedSpecies = {
-            name: speciesData.canonicalName || speciesData.scientificName,
-            scientificName: speciesData.scientificName,
-            key: speciesData.key,
-            speciesKey: speciesData.speciesKey,
-            genusKey: speciesData.genusKey,
-            familyKey: speciesData.familyKey,
-            orderKey: speciesData.orderKey,
-            classKey: speciesData.classKey,
-            phylumKey: speciesData.phylumKey,
-            kingdomKey: speciesData.kingdomKey,
+            name: infoData.scientificName,
+            scientificName: infoData.scientificName,
+            key: taxonKey,
+            classification: infoData.classification,
           };
           setSelectedSpecies(species);
           toast.success(`Loaded species: ${species.scientificName}`);
@@ -348,8 +354,8 @@ export default function App() {
         
         // Extract unique taxon keys
         const uniqueTaxonKeys = Array.from(new Set(
-          rules.map((rule: any) => rule.taxonKey).filter((key: number | undefined) => key !== undefined)
-        )) as number[];
+          rules.map((rule: any) => rule.taxonKey).filter((key: string | undefined) => key !== undefined)
+        )) as string[];
         
         // Fetch all species info in parallel using speciesCache
         const speciesResults = await Promise.allSettled(
@@ -406,7 +412,7 @@ export default function App() {
     
     // Update the selected species
     setSelectedSpecies({
-      key: taxon.key,
+      key: String(taxon.key),
       scientificName: taxon.scientificName,
       name: taxon.scientificName
     });
@@ -962,13 +968,18 @@ export default function App() {
 
       // Fetch species data if we don't have it or if it's different from current
       let species = selectedSpecies;
-      if (!species || species.key !== rule.taxonKey) {
+      const ruleKeyStr = String(rule.taxonKey);
+      if (!species || species.key !== ruleKeyStr) {
         try {
-          const speciesResponse = await fetch(getGbifApiUrl(`/species/${rule.taxonKey}`));
+          // Use v2 experimental endpoint for COL XR compatibility
+          const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
+          const speciesResponse = await fetch(
+            `https://api.gbif.org/v2/experimental/taxon/${GBIF_BACKBONE_UUID}/${rule.taxonKey}/info`
+          );
           if (speciesResponse.ok) {
             const speciesData = await speciesResponse.json();
             species = {
-              key: rule.taxonKey,
+              key: ruleKeyStr,
               scientificName: speciesData.scientificName || rule.scientificName || 'Unknown',
               name: speciesData.scientificName || rule.scientificName || 'Unknown'
             };
@@ -979,7 +990,7 @@ export default function App() {
           } else {
             // Fallback to rule's scientific name if available
             species = {
-              key: rule.taxonKey,
+              key: ruleKeyStr,
               scientificName: rule.scientificName || 'Unknown',
               name: rule.scientificName || 'Unknown'
             };
@@ -989,7 +1000,7 @@ export default function App() {
           console.error('Failed to fetch species data:', err);
           // Fallback to rule's scientific name
           species = {
-            key: rule.taxonKey,
+            key: ruleKeyStr,
             scientificName: rule.scientificName || 'Unknown',
             name: rule.scientificName || 'Unknown'
           };
@@ -1234,7 +1245,7 @@ export default function App() {
           <div className="flex items-center justify-between mb-3">
             <h3 className="flex-1 text-sm">Previous Rules</h3>
             <div className="flex items-center gap-1">
-              {selectedSpecies && (selectedSpecies.genusKey || selectedSpecies.familyKey || selectedSpecies.orderKey || selectedSpecies.classKey || selectedSpecies.phylumKey || selectedSpecies.kingdomKey) && (
+              {selectedSpecies && selectedSpecies.classification && selectedSpecies.classification.length > 0 && (
                 <Button
                   variant="ghost"
                   size="sm"

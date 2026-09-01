@@ -62,9 +62,9 @@ or an admin can update a rule. Cannot update deleted rules.
 
 If parameters are left NULL, they will not be updated (existing values will be preserved).
 
-The \\code{annotation} parameter must be from the controlled vocabulary for the project.
+The \code{annotation} parameter must be from the controlled vocabulary for the project.
 
-The \\code{basisOfRecord} parameter accepts a character vector that will be
+The \code{basisOfRecord} parameter accepts a character vector that will be
 serialized as a JSON array in the API request.
 }
 \examples{

@@ -55,7 +55,9 @@ get_rule <- function(id=NULL,limit=NULL,offset=NULL,...) {
     created = character(),
     createdBy = character(),
     deleted = character(),
-    deletedBy = character()
+    deletedBy = character(),
+    checklistKey = character(),
+    checklistDoi = character()
   )
   
   if(length(r) == 0) {

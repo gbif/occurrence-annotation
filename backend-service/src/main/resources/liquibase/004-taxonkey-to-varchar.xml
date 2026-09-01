@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="4" author="jwaller" dbms="postgresql">
+    <comment>
+      Convert taxon_key from INTEGER to VARCHAR(50) to support
+      COL XR alphanumeric identifiers
+    </comment>
+
+    <sql>
+      ALTER TABLE public.rule
+        ALTER COLUMN taxon_key TYPE VARCHAR(50)
+        USING taxon_key::text;
+    </sql>
+
+    <rollback>
+      ALTER TABLE public.rule
+        ALTER COLUMN taxon_key TYPE INTEGER
+        USING taxon_key::integer;
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

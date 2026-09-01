@@ -54,7 +54,7 @@ public class RuleMapperTest {
 
   private Rule createTestRule() {
     return Rule.builder()
-        .taxonKey(12345)
+        .taxonKey("12345")
         .datasetKey("test-dataset-key")
         .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
         .annotation("NATIVE")
@@ -138,12 +138,12 @@ public class RuleMapperTest {
 
     Rule rule2 = createTestRule();
     rule2.setBasisOfRecord(new String[] {"MACHINE_OBSERVATION"});
-    rule2.setTaxonKey(67890); // Different taxon to avoid conflicts
+    rule2.setTaxonKey("67890"); // Different taxon to avoid conflicts
     ruleMapper.create(rule2);
 
     Rule rule3 = createTestRule();
     rule3.setBasisOfRecord(new String[] {"PRESERVED_SPECIMEN", "FOSSIL_SPECIMEN"});
-    rule3.setTaxonKey(11111); // Different taxon to avoid conflicts
+    rule3.setTaxonKey("11111"); // Different taxon to avoid conflicts
     ruleMapper.create(rule3);
 
     // Test filtering by single basisOfRecord
@@ -215,7 +215,7 @@ public class RuleMapperTest {
     ruleMapper.create(rule1);
 
     Rule rule2 = createTestRule();
-    rule2.setTaxonKey(67890);
+    rule2.setTaxonKey("67890");
     rule2.setBasisOfRecord(null);
     ruleMapper.create(rule2);
 
@@ -264,13 +264,13 @@ public class RuleMapperTest {
     // Rule with single value
     Rule rule2 = createTestRule();
     rule2.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
-    rule2.setTaxonKey(67890);
+    rule2.setTaxonKey("67890");
     ruleMapper.create(rule2);
 
     // Rule with null values
     Rule rule3 = createTestRule();
     rule3.setBasisOfRecord(null);
-    rule3.setTaxonKey(11111);
+    rule3.setTaxonKey("11111");
     ruleMapper.create(rule3);
 
     // Test filtering with partial overlap
@@ -319,28 +319,41 @@ public class RuleMapperTest {
     // Create rules with different creators
     Rule rule1 = createTestRule();
     rule1.setCreatedBy("alice");
-    rule1.setTaxonKey(11111);
+    rule1.setTaxonKey("11111");
     ruleMapper.create(rule1);
 
     Rule rule2 = createTestRule();
     rule2.setCreatedBy("bob");
-    rule2.setTaxonKey(22222);
+    rule2.setTaxonKey("22222");
     ruleMapper.create(rule2);
 
     Rule rule3 = createTestRule();
     rule3.setCreatedBy("alice");
-    rule3.setTaxonKey(33333);
+    rule3.setTaxonKey("33333");
     ruleMapper.create(rule3);
 
     Rule rule4 = createTestRule();
     rule4.setCreatedBy("charlie");
-    rule4.setTaxonKey(44444);
+    rule4.setTaxonKey("44444");
     ruleMapper.create(rule4);
 
     // Test filtering by specific creator - alice should have 2 rules
     List<Rule> results =
         ruleMapper.list(
-            null, null, null, null, null, null, null, null, "alice", null, null, null, 100, 0);
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new String[] {"alice"},
+            null,
+            null,
+            null,
+            100,
+            0);
 
     assertEquals(2, results.size(), "Should find 2 rules created by alice");
     assertTrue(
@@ -350,7 +363,20 @@ public class RuleMapperTest {
     // Test filtering by specific creator - bob should have 1 rule
     results =
         ruleMapper.list(
-            null, null, null, null, null, null, null, null, "bob", null, null, null, 100, 0);
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new String[] {"bob"},
+            null,
+            null,
+            null,
+            100,
+            0);
 
     assertEquals(1, results.size(), "Should find 1 rule created by bob");
     assertEquals("bob", results.get(0).getCreatedBy(), "Returned rule should be created by bob");
@@ -358,7 +384,20 @@ public class RuleMapperTest {
     // Test filtering by specific creator - charlie should have 1 rule
     results =
         ruleMapper.list(
-            null, null, null, null, null, null, null, null, "charlie", null, null, null, 100, 0);
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new String[] {"charlie"},
+            null,
+            null,
+            null,
+            100,
+            0);
 
     assertEquals(1, results.size(), "Should find 1 rule created by charlie");
     assertEquals(
@@ -398,36 +437,59 @@ public class RuleMapperTest {
     // Create rules with different combinations of taxonKey and createdBy
     Rule rule1 = createTestRule();
     rule1.setCreatedBy("alice");
-    rule1.setTaxonKey(12345);
+    rule1.setTaxonKey("12345");
     ruleMapper.create(rule1);
 
     Rule rule2 = createTestRule();
     rule2.setCreatedBy("bob");
-    rule2.setTaxonKey(12345);
+    rule2.setTaxonKey("12345");
     ruleMapper.create(rule2);
 
     Rule rule3 = createTestRule();
     rule3.setCreatedBy("alice");
-    rule3.setTaxonKey(67890);
+    rule3.setTaxonKey("67890");
     ruleMapper.create(rule3);
 
     // Test combining taxonKey and createdBy filters
     List<Rule> results =
         ruleMapper.list(
-            12345, null, null, null, null, null, null, null, "alice", null, null, null, 100, 0);
+            "12345",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new String[] {"alice"},
+            null,
+            null,
+            null,
+            100,
+            0);
 
     assertEquals(1, results.size(), "Should find 1 rule with taxonKey=12345 and createdBy=alice");
     assertEquals(
         "alice", results.get(0).getCreatedBy(), "Returned rule should be created by alice");
-    assertEquals(
-        Integer.valueOf(12345),
-        results.get(0).getTaxonKey(),
-        "Returned rule should have taxonKey=12345");
+    assertEquals("12345", results.get(0).getTaxonKey(), "Returned rule should have taxonKey=12345");
 
     // Test with filters that should return no results
     results =
         ruleMapper.list(
-            67890, null, null, null, null, null, null, null, "bob", null, null, null, 100, 0);
+            "67890",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new String[] {"bob"},
+            null,
+            null,
+            null,
+            100,
+            0);
 
     assertEquals(0, results.size(), "Should find 0 rules with taxonKey=67890 and createdBy=bob");
   }
@@ -437,7 +499,7 @@ public class RuleMapperTest {
     Rule rule = createTestRule();
     rule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN", "PRESERVED_SPECIMEN"});
     rule.setBasisOfRecordNegated(true);
-    rule.setTaxonKey(99999);
+    rule.setTaxonKey("99999");
 
     ruleMapper.create(rule);
 
@@ -451,7 +513,7 @@ public class RuleMapperTest {
     Rule rule = createTestRule();
     rule.setBasisOfRecord(new String[] {"HUMAN_OBSERVATION"});
     // Don't explicitly set basisOfRecordNegated - should default to false
-    rule.setTaxonKey(88888);
+    rule.setTaxonKey("88888");
 
     ruleMapper.create(rule);
 
@@ -466,14 +528,14 @@ public class RuleMapperTest {
     Rule negatedRule = createTestRule();
     negatedRule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
     negatedRule.setBasisOfRecordNegated(true);
-    negatedRule.setTaxonKey(77777);
+    negatedRule.setTaxonKey("77777");
     ruleMapper.create(negatedRule);
 
     // Create a non-negated rule
     Rule normalRule = createTestRule();
     normalRule.setBasisOfRecord(new String[] {"HUMAN_OBSERVATION"});
     normalRule.setBasisOfRecordNegated(false);
-    normalRule.setTaxonKey(66666);
+    normalRule.setTaxonKey("66666");
     ruleMapper.create(normalRule);
 
     // Test filtering by negated=true
@@ -493,14 +555,14 @@ public class RuleMapperTest {
     Rule negatedRule = createTestRule();
     negatedRule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
     negatedRule.setBasisOfRecordNegated(true);
-    negatedRule.setTaxonKey(55555);
+    negatedRule.setTaxonKey("55555");
     ruleMapper.create(negatedRule);
 
     // Create a non-negated rule
     Rule normalRule = createTestRule();
     normalRule.setBasisOfRecord(new String[] {"HUMAN_OBSERVATION"});
     normalRule.setBasisOfRecordNegated(false);
-    normalRule.setTaxonKey(44444);
+    normalRule.setTaxonKey("44444");
     ruleMapper.create(normalRule);
 
     // Test filtering by negated=false
@@ -520,7 +582,7 @@ public class RuleMapperTest {
     Rule rule = createTestRule();
     rule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
     rule.setBasisOfRecordNegated(true);
-    rule.setTaxonKey(33333);
+    rule.setTaxonKey("33333");
     ruleMapper.create(rule);
 
     // Filter by both basisOfRecord and negated
@@ -557,13 +619,13 @@ public class RuleMapperTest {
     Rule negatedRule = createTestRule();
     negatedRule.setBasisOfRecord(new String[] {"FOSSIL_SPECIMEN"});
     negatedRule.setBasisOfRecordNegated(true);
-    negatedRule.setTaxonKey(22222);
+    negatedRule.setTaxonKey("22222");
     ruleMapper.create(negatedRule);
 
     Rule normalRule = createTestRule();
     normalRule.setBasisOfRecord(new String[] {"HUMAN_OBSERVATION"});
     normalRule.setBasisOfRecordNegated(false);
-    normalRule.setTaxonKey(11111);
+    normalRule.setTaxonKey("11111");
     ruleMapper.create(normalRule);
 
     // Test without negated filter - should return both types
@@ -650,7 +712,7 @@ public class RuleMapperTest {
     for (int i = 0; i < 3; i++) {
       Rule rule = createTestRule();
       rule.setCreatedBy("test-user-count");
-      rule.setTaxonKey(12345 + i); // Different taxon keys to avoid conflicts
+      rule.setTaxonKey("12345" + i); // Different taxon keys to avoid conflicts
       ruleMapper.create(rule);
     }
 
@@ -662,7 +724,7 @@ public class RuleMapperTest {
     for (int i = 0; i < 2; i++) {
       Rule rule = createTestRule();
       rule.setCreatedBy("another-user");
-      rule.setTaxonKey(22345 + i); // Different taxon keys
+      rule.setTaxonKey("22345" + i); // Different taxon keys
       ruleMapper.create(rule);
     }
 
@@ -681,17 +743,17 @@ public class RuleMapperTest {
     // Create 3 rules for test-user-deleted
     Rule rule1 = createTestRule();
     rule1.setCreatedBy("test-user-deleted");
-    rule1.setTaxonKey(32345);
+    rule1.setTaxonKey("32345");
     ruleMapper.create(rule1);
 
     Rule rule2 = createTestRule();
     rule2.setCreatedBy("test-user-deleted");
-    rule2.setTaxonKey(32346);
+    rule2.setTaxonKey("32346");
     ruleMapper.create(rule2);
 
     Rule rule3 = createTestRule();
     rule3.setCreatedBy("test-user-deleted");
-    rule3.setTaxonKey(32347);
+    rule3.setTaxonKey("32347");
     ruleMapper.create(rule3);
 
     // Count should be 3

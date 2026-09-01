@@ -45,9 +45,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 
 import static org.gbif.occurrence.annotation.controller.AuthAdvice.assertCreatorOrAdmin;
 
+@Slf4j
 @Tag(name = "Occurrence annotation rules")
 @RestController
 @CrossOrigin(origins = "*")
@@ -79,7 +81,9 @@ public class RuleController implements Controller<Rule> {
       name = "yearRange",
       description =
           "Filters by year range (e.g., '1000,2025', '*,1990', '1000,*'). Use 'null' to find rules with no yearRange")
-  @Parameter(name = "createdBy", description = "Filters by the username who created the rule")
+  @Parameter(
+      name = "createdBy",
+      description = "Filters by the username(s) who created the rule (accepts multiple values)")
   @Parameter(name = "supportedBy", description = "Filters by rules supported by the given username")
   @Parameter(name = "contestedBy", description = "Filters by rules contested by the given username")
   @Parameter(
@@ -93,7 +97,7 @@ public class RuleController implements Controller<Rule> {
   @Parameter(name = "offset", description = "The offset for paging")
   @GetMapping
   public List<Rule> list(
-      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String taxonKey,
       @RequestParam(required = false) String datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
@@ -101,12 +105,20 @@ public class RuleController implements Controller<Rule> {
       @RequestParam(required = false) Boolean basisOfRecordNegated,
       @RequestParam(required = false) String yearRange,
       @RequestParam(required = false) String geometry,
-      @RequestParam(required = false) String createdBy,
+      @RequestParam(required = false) String[] createdBy,
       @RequestParam(required = false) String supportedBy,
       @RequestParam(required = false) String contestedBy,
       @RequestParam(required = false) String comment,
       @RequestParam(required = false) Integer limit,
       @RequestParam(required = false) Integer offset) {
+    // Debug logging for createdBy parameter
+    if (createdBy != null && createdBy.length > 0) {
+      log.info(
+          "RuleController.list - createdBy parameter received: {} (length: {})",
+          Arrays.toString(createdBy),
+          createdBy.length);
+    }
+
     int limitInt = limit == null ? 100 : limit;
     int offsetInt = offset == null ? 0 : offset;
     if (geometry != null && !geometry.isBlank()) {
@@ -133,7 +145,7 @@ public class RuleController implements Controller<Rule> {
   @GetMapping("/my")
   @Secured("USER")
   public List<Rule> getMyRules(
-      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String taxonKey,
       @RequestParam(required = false) String datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
@@ -156,7 +168,7 @@ public class RuleController implements Controller<Rule> {
         basisOfRecordNegated,
         yearRange,
         geometry,
-        currentUser, // createdBy = current user
+        new String[] {currentUser}, // createdBy = current user (wrapped as array)
         null, // supportedBy
         null, // contestedBy
         comment,
@@ -168,7 +180,7 @@ public class RuleController implements Controller<Rule> {
   @GetMapping("/supported")
   @Secured("USER")
   public List<Rule> getSupportedRules(
-      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String taxonKey,
       @RequestParam(required = false) String datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
@@ -203,7 +215,7 @@ public class RuleController implements Controller<Rule> {
   @GetMapping("/contested")
   @Secured("USER")
   public List<Rule> getContestedRules(
-      @RequestParam(required = false) Integer taxonKey,
+      @RequestParam(required = false) String taxonKey,
       @RequestParam(required = false) String datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
@@ -402,21 +414,67 @@ public class RuleController implements Controller<Rule> {
 
   @Operation(
       summary =
-          "Provide aggregate metrics for rules, optionally filtered by username, taxonKey, datasetKey, rulesetId and projectId. Returns total counts across all matching rules.")
-  @Parameter(name = "username", description = "Filters by the username who created the rules")
+          "Provide aggregate metrics for rules, optionally filtered by all rule filters. Returns total counts across all matching rules.")
   @Parameter(name = "taxonKey", description = "Filters by taxon key")
-  @Parameter(name = "datasetKey", description = "Filters by dataset key")
+  @Parameter(
+      name = "datasetKey",
+      description = "Filters by dataset key(s) (accepts multiple values)")
   @Parameter(name = "rulesetId", description = "Filters by the given ruleset")
   @Parameter(name = "projectId", description = "Filters by the given project")
+  @Parameter(
+      name = "basisOfRecord",
+      description =
+          "Filters by basis of record values (accepts multiple values). Use 'null' to find rules with no basisOfRecord")
+  @Parameter(
+      name = "basisOfRecordNegated",
+      description = "When true, returns rules where basisOfRecord is negated (excluded)")
+  @Parameter(
+      name = "yearRange",
+      description =
+          "Filters by year range (e.g., '1000,2025', '*,1990', '1000,*'). Use 'null' to find rules with no yearRange")
+  @Parameter(
+      name = "geometry",
+      description =
+          "Filters by geometry using WKT string. Finds rules with geometries that intersect with the provided geometry. URL encoding should be applied to WKT strings.")
+  @Parameter(
+      name = "username",
+      description = "Filters by the username(s) who created the rule (accepts multiple values)")
+  @Parameter(name = "supportedBy", description = "Filters by rules supported by the given username")
+  @Parameter(name = "contestedBy", description = "Filters by rules contested by the given username")
+  @Parameter(
+      name = "comment",
+      description = "Filters to rules with a non-deleted comment containing the given text")
   @GetMapping("/metrics")
   public org.gbif.occurrence.annotation.model.RuleMetrics metrics(
-      @RequestParam(required = false) String username,
-      @RequestParam(required = false) Integer taxonKey,
-      @RequestParam(required = false) String datasetKey,
+      @RequestParam(required = false) String taxonKey,
+      @RequestParam(required = false) String[] datasetKey,
       @RequestParam(required = false) Integer rulesetId,
-      @RequestParam(required = false) Integer projectId) {
+      @RequestParam(required = false) Integer projectId,
+      @RequestParam(required = false) String[] basisOfRecord,
+      @RequestParam(required = false) Boolean basisOfRecordNegated,
+      @RequestParam(required = false) String yearRange,
+      @RequestParam(required = false) String geometry,
+      @RequestParam(required = false) String[] username,
+      @RequestParam(required = false) String supportedBy,
+      @RequestParam(required = false) String contestedBy,
+      @RequestParam(required = false) String comment) {
+    if (geometry != null && !geometry.isBlank()) {
+      geometryValidationService.validateGeometry(geometry, isAdmin());
+    }
     List<org.gbif.occurrence.annotation.model.RuleMetrics> results =
-        ruleMapper.metrics(username, taxonKey, datasetKey, rulesetId, projectId);
+        ruleMapper.metrics(
+            taxonKey,
+            datasetKey,
+            rulesetId,
+            projectId,
+            basisOfRecord,
+            basisOfRecordNegated,
+            yearRange,
+            geometry,
+            username,
+            supportedBy,
+            contestedBy,
+            comment);
     return results.isEmpty()
         ? new org.gbif.occurrence.annotation.model.RuleMetrics()
         : results.get(0);

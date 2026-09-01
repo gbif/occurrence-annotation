@@ -2,7 +2,7 @@ export interface AnnotationMatch {
   recordIndex: number;
   ruleId: number;
   annotation: string;
-  taxonKey?: number;
+  taxonKey?: string | number | null;
   matchedSpatially: boolean;
   matchedTaxonomy: boolean;
   matchedRank?: string; // The taxonomic rank that matched (species, genus, family, etc.)
@@ -14,7 +14,7 @@ export interface AnnotationMatch {
 export interface RuleMatchSummary {
   ruleId: number;
   annotation: string;
-  taxonKey?: number;
+  taxonKey?: string | number | null;
   datasetKey?: string;
   recordsMatched: number;
   recordIndices: number[];

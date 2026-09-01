@@ -40,6 +40,11 @@ export function UserPageFilters({
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [searchingProjects, setSearchingProjects] = useState(false);
   const projectSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Name of the project selected via search; the parent's `projects` list is scoped to the
+  // viewed user's memberships and may not contain a project found via the global name search.
+  const [localSelectedProjectName, setLocalSelectedProjectName] = useState<string | null>(
+    selectedProjectName
+  );
 
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [userSuggestions, setUserSuggestions] = useState<UserSuggestion[]>([]);
@@ -152,9 +157,15 @@ export function UserPageFilters({
 
   const handleSelectProject = (project: Project) => {
     onProjectFilterChange(project.id);
+    setLocalSelectedProjectName(project.name);
     setProjectSearchTerm('');
     setProjectSearchResults([]);
     setShowProjectDropdown(false);
+  };
+
+  const handleRemoveProject = () => {
+    onProjectFilterChange(null);
+    setLocalSelectedProjectName(null);
   };
 
   const handleSelectUser = (username: string) => {
@@ -198,14 +209,14 @@ export function UserPageFilters({
                 </label>
                 
                 {/* Selected project chip */}
-                {projectFilter && selectedProjectName && (
+                {projectFilter && localSelectedProjectName && (
                   <div className="flex items-center gap-1 mb-1">
                     <div className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                      <span>{selectedProjectName}</span>
+                      <span>{localSelectedProjectName}</span>
                       <button
-                        onClick={() => onProjectFilterChange(null)}
+                        onClick={handleRemoveProject}
                         className="hover:bg-blue-200 rounded-full p-0.5 transition-colors"
-                        title={`Remove ${selectedProjectName}`}
+                        title={`Remove ${localSelectedProjectName}`}
                       >
                         <X className="h-3 w-3" />
                       </button>

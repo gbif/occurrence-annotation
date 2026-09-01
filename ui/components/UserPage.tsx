@@ -45,6 +45,7 @@ import { SelectedSpecies } from './SpeciesSelector';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
 import { getSpeciesInfo } from '../utils/speciesCache';
 import DownloadAnnotator from './DownloadAnnotator';
+import { getChecklistDoi, COL_XR_DATASET_KEY } from '../utils/gbifDatasetService';
 import { 
   Pagination, 
   PaginationContent, 
@@ -60,8 +61,10 @@ interface UserRule {
   createdBy: string;
   created: string;
   geometry: string; // WKT string format
-  taxonKey?: number;
+  taxonKey?: string;
   datasetKey?: string;
+  checklistKey?: string | null;
+  checklistDoi?: string | null;
   annotation: string;
   basisOfRecord?: string;
   yearRange?: string;
@@ -415,8 +418,8 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   };
   
   // Species info cache
-  const [speciesCache, setSpeciesCache] = useState<Map<number, SpeciesInfo>>(new Map());
-  const fetchedTaxonKeys = useRef<Set<number>>(new Set());
+  const [speciesCache, setSpeciesCache] = useState<Map<string, SpeciesInfo>>(new Map());
+  const fetchedTaxonKeys = useRef<Set<string>>(new Set());
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -504,7 +507,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   */
 
   // Fetch species info for a rule
-  const fetchSpeciesInfo = useCallback(async (taxonKey: number) => {
+  const fetchSpeciesInfo = useCallback(async (taxonKey: string) => {
     // Mark as fetched to prevent duplicate requests
     fetchedTaxonKeys.current.add(taxonKey);
     
@@ -550,7 +553,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
           setTotalRules(metricsData.ruleCount || 0);
         }
 
-        // Build API URL - fetch all rules and filter client-side by selected users
+        // Build API URL with filters
         let apiUrl = getAnnotationApiUrl('/rule');
         
         // Add taxonKey filter if species is selected
@@ -564,6 +567,19 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
           apiUrl += `${separator}projectId=${projectFilter}`;
         }
 
+        // Add createdBy filter if any users are selected
+        // API supports multiple users via repeated createdBy parameters
+        if (userFilter.length > 0) {
+          const separator = apiUrl.includes('?') ? '&' : '?';
+          const createdByParams = userFilter
+            .map(user => `createdBy=${encodeURIComponent(user)}`)
+            .join('&');
+          apiUrl += `${separator}${createdByParams}`;
+        }
+
+        console.log('[UserPage] API URL:', apiUrl);
+        console.log('[UserPage] User Filter:', userFilter);
+
         const response = await fetch(apiUrl);
 
         if (!response.ok) {
@@ -572,16 +588,14 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
 
         const data = await response.json();
         
+        console.log('[UserPage] API Response - Rules count:', data.length);
+        console.log('[UserPage] API Response - Sample rules:', data.slice(0, 3));
+        
         if (Array.isArray(data)) {
-          // Filter by selected users (client-side)
-          const filteredData = data.filter(rule => 
-            userFilter.length === 0 || userFilter.includes(rule.createdBy)
-          );
-          
-          // Store filtered rules for client-side pagination
-          setAllRules(filteredData);
-          // Update total count based on filtered results
-          setTotalRules(filteredData.length);
+          // API now handles filtering server-side, no client-side filtering needed
+          setAllRules(data);
+          // Update total count based on API results
+          setTotalRules(data.length);
         } else {
           setAllRules([]);
           setTotalRules(0);
@@ -1020,6 +1034,9 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     };
 
     try {
+      // Fetch COL checklist DOI once for all updates
+      const checklistDoi = await getChecklistDoi(COL_XR_DATASET_KEY);
+      
       // Update all selected rules
       await Promise.all(
         rulesToEdit.map(async (ruleId) => {
@@ -1054,6 +1071,8 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                   projectId: bulkEditProjectId 
                     ? (bulkEditProjectId === 'CLEAR' ? null : parseInt(bulkEditProjectId))
                     : currentRule.projectId,
+                  checklistKey: COL_XR_DATASET_KEY,
+                  checklistDoi: checklistDoi,
                 }),
               }
             );

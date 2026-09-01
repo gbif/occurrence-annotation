@@ -21,11 +21,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RuleMetrics {
-  private String username;
   private int ruleCount;
   private int datasetCount;
   private int projectCount;
   private int taxonCount;
   private int supportCount;
   private int contestCount;
+  private int usernameCount;
 }

@@ -40,8 +40,10 @@ public class Rule {
   }
 
   private Integer id;
-  private Integer taxonKey;
+  private String taxonKey;
   private String datasetKey;
+  private String checklistKey;
+  private String checklistDoi;
   @NotNull private String geometry;
   private String annotation; // Now accepts any string from project vocabulary
   private String[] basisOfRecord;

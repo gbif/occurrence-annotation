@@ -24,7 +24,7 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface RuleMapper {
   List<Rule> list(
-      @Param("taxonKey") Integer taxonKey,
+      @Param("taxonKey") String taxonKey,
       @Param("datasetKey") String datasetKey,
       @Param("rulesetId") Integer rulesetId,
       @Param("projectId") Integer projectId,
@@ -32,7 +32,7 @@ public interface RuleMapper {
       @Param("basisOfRecordNegated") Boolean basisOfRecordNegated,
       @Param("yearRange") String yearRange,
       @Param("geometry") String geometry,
-      @Param("createdBy") String createdBy,
+      @Param("createdBy") String[] createdBy,
       @Param("supportedBy") String supportedBy,
       @Param("contestedBy") String contestedBy,
       @Param("comment") String comment,
@@ -62,9 +62,16 @@ public interface RuleMapper {
   void removeContest(@Param("id") int id, @Param("username") String username);
 
   List<RuleMetrics> metrics(
-      @Param("username") String username,
-      @Param("taxonKey") Integer taxonKey,
-      @Param("datasetKey") String datasetKey,
+      @Param("taxonKey") String taxonKey,
+      @Param("datasetKey") String[] datasetKey,
       @Param("rulesetId") Integer rulesetId,
-      @Param("projectId") Integer projectId);
+      @Param("projectId") Integer projectId,
+      @Param("basisOfRecord") String[] basisOfRecord,
+      @Param("basisOfRecordNegated") Boolean basisOfRecordNegated,
+      @Param("yearRange") String yearRange,
+      @Param("geometry") String geometry,
+      @Param("username") String[] username,
+      @Param("supportedBy") String supportedBy,
+      @Param("contestedBy") String contestedBy,
+      @Param("comment") String comment);
 }

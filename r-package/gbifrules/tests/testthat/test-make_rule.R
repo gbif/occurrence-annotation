@@ -28,7 +28,7 @@ test_that("make_rule creates simple rule with required parameters", {
   )
   
   expect_type(r, "list")
-  expect_equal(r$taxonKey, -70)
+  expect_equal(r$taxonKey, "-70")
   expect_equal(r$geometry, test_geometry)
   expect_equal(r$annotation, "SUSPICIOUS")
 
@@ -47,7 +47,7 @@ test_that("make_rule creates complex rule with basisOfRecord array", {
   )
   
   expect_type(r, "list")
-  expect_equal(r$taxonKey, -70)
+  expect_equal(r$taxonKey, "-70")
   expect_equal(r$annotation, "SUSPICIOUS")
   expect_equal(r$basisOfRecord, list("MACHINE_OBSERVATION", "HUMAN_OBSERVATION"))
   
@@ -66,7 +66,7 @@ test_that("make_rule creates rule with metadata fields", {
   )
   
   expect_type(r, "list")
-  expect_equal(r$taxonKey, -70)
+  expect_equal(r$taxonKey, "-70")
   expect_equal(r$annotation, "SUSPICIOUS")
   expect_equal(r$basisOfRecordNegated, TRUE)
 
@@ -121,7 +121,7 @@ test_that("make_rule creates full complex rule with allowed optional fields", {
   )
   
   expect_type(r, "list")
-  expect_equal(r$taxonKey, -70)
+  expect_equal(r$taxonKey, "-70")
   expect_equal(r$geometry, test_geometry)
   expect_equal(r$annotation, "SUSPICIOUS")
   expect_equal(r$basisOfRecord, list("MACHINE_OBSERVATION", "HUMAN_OBSERVATION", "LITERATURE"))
@@ -149,3 +149,59 @@ test_that("make_rule automatically uses GBIF_USER for createdBy", {
   # clean up
   delete_rule(id = r$id)
 })
+
+test_that("make_rule automatically sets COL checklist defaults", {
+  skip_on_cran()
+  
+  r <- make_rule(
+    taxonKey = -70,
+    geometry = test_geometry,
+    annotation = "SUSPICIOUS"
+  )
+  
+  expect_type(r, "list")
+  expect_equal(r$checklistKey, "7ddf754f-d193-4cc9-b351-99906754a03b")
+  expect_true("checklistDoi" %in% names(r))
+  expect_match(r$checklistDoi, "^10\\.")  # DOI should start with "10."
+
+  # clean up
+  delete_rule(id = r$id)
+})
+
+test_that("make_rule accepts custom checklist values", {
+  skip_on_cran()
+  
+  r <- make_rule(
+    taxonKey = -70,
+    geometry = test_geometry,
+    annotation = "SUSPICIOUS",
+    checklistKey = "custom-uuid-12345",
+    checklistDoi = "10.custom/doi"
+  )
+  
+  expect_type(r, "list")
+  expect_equal(r$checklistKey, "custom-uuid-12345")
+  expect_equal(r$checklistDoi, "10.custom/doi")
+
+  # clean up
+  delete_rule(id = r$id)
+})
+
+test_that("make_rule with COL alphanumeric taxonKey uses defaults", {
+  skip_on_cran()
+  
+  r <- make_rule(
+    taxonKey = "CQ4M",  # COL alphanumeric identifier
+    geometry = test_geometry,
+    annotation = "NATIVE"
+  )
+  
+  expect_type(r, "list")
+  expect_equal(r$taxonKey, "CQ4M")
+  expect_equal(r$checklistKey, "7ddf754f-d193-4cc9-b351-99906754a03b")
+  expect_true("checklistDoi" %in% names(r))
+
+  # clean up
+  delete_rule(id = r$id)
+})
+

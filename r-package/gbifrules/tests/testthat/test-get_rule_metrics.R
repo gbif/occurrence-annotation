@@ -11,6 +11,7 @@ test_that("get_rule_metrics returns aggregated metrics", {
   expect_true("taxonCount" %in% names(metrics))
   expect_true("supportCount" %in% names(metrics))
   expect_true("contestCount" %in% names(metrics))
+  expect_true("usernameCount" %in% names(metrics))
 })
 
 test_that("get_rule_metrics filters by username", {
@@ -28,7 +29,6 @@ test_that("get_rule_metrics filters by username", {
   expect_s3_class(user_metrics, "tbl_df")
   
   if (nrow(user_metrics) > 0) {
-    expect_equal(user_metrics$username, username)
     expect_true(user_metrics$ruleCount > 0)
   }
 })

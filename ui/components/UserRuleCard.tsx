@@ -61,7 +61,7 @@ export function UserRuleCard({ rule, onViewRule, onDeleteRule, highlightTaxonKey
 
       try {
         setLoadingSpecies(true);
-        const data = await getSpeciesInfo(rule.taxonKey);
+        const data = await getSpeciesInfo(String(rule.taxonKey));
         
         if (data) {
           setSpeciesInfo(data);
