@@ -14,6 +14,9 @@ r-package/boundary-polygons/output/
 r-package/boundary-polygons/generate_ocean_polygon.R
 r-package/boundary-polygons/README.md
 
+# pkgdown site output (built and deployed to gh-pages by CI, not tracked in main)
+r-package/gbifrules/docs/
+
 # R script artifacts (when run from root)
 cache/
 isea3h-data/
