@@ -416,7 +416,9 @@ public class RuleController implements Controller<Rule> {
       summary =
           "Provide aggregate metrics for rules, optionally filtered by all rule filters. Returns total counts across all matching rules.")
   @Parameter(name = "taxonKey", description = "Filters by taxon key")
-  @Parameter(name = "datasetKey", description = "Filters by dataset key")
+  @Parameter(
+      name = "datasetKey",
+      description = "Filters by dataset key(s) (accepts multiple values)")
   @Parameter(name = "rulesetId", description = "Filters by the given ruleset")
   @Parameter(name = "projectId", description = "Filters by the given project")
   @Parameter(
@@ -445,7 +447,7 @@ public class RuleController implements Controller<Rule> {
   @GetMapping("/metrics")
   public org.gbif.occurrence.annotation.model.RuleMetrics metrics(
       @RequestParam(required = false) String taxonKey,
-      @RequestParam(required = false) String datasetKey,
+      @RequestParam(required = false) String[] datasetKey,
       @RequestParam(required = false) Integer rulesetId,
       @RequestParam(required = false) Integer projectId,
       @RequestParam(required = false) String[] basisOfRecord,

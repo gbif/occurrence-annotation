@@ -63,7 +63,7 @@ public interface RuleMapper {
 
   List<RuleMetrics> metrics(
       @Param("taxonKey") String taxonKey,
-      @Param("datasetKey") String datasetKey,
+      @Param("datasetKey") String[] datasetKey,
       @Param("rulesetId") Integer rulesetId,
       @Param("projectId") Integer projectId,
       @Param("basisOfRecord") String[] basisOfRecord,

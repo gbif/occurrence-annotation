@@ -396,6 +396,72 @@ public class MetricsControllerTest {
   }
 
   @Test
+  @WithMockUser(
+      username = "metrics-user-dataset-1",
+      roles = {"USER"})
+  public void testMetricsWithMultipleDatasetKeyFilter() throws Exception {
+    Project project = new Project();
+    project.setName("Dataset Key OR Metrics Test");
+    project.setDescription("Testing metrics with multiple datasetKey filters");
+
+    String projectResponse =
+        mockMvc
+            .perform(
+                post("/occurrence/experimental/annotation/project")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(project)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    Project createdProject = objectMapper.readValue(projectResponse, Project.class);
+
+    // A rule can only have one datasetKey, so multiple values must be OR'd, not AND'd
+    Rule rule1 =
+        Rule.builder()
+            .taxonKey("7001")
+            .datasetKey("dataset-or-1")
+            .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
+            .annotation("NATIVE")
+            .projectId(createdProject.getId())
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule1)))
+        .andExpect(status().isOk());
+
+    Rule rule2 =
+        Rule.builder()
+            .taxonKey("7002")
+            .datasetKey("dataset-or-2")
+            .geometry("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))")
+            .annotation("NATIVE")
+            .projectId(createdProject.getId())
+            .build();
+
+    mockMvc
+        .perform(
+            post("/occurrence/experimental/annotation/rule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(rule2)))
+        .andExpect(status().isOk());
+
+    mockMvc
+        .perform(
+            get("/occurrence/experimental/annotation/rule/metrics")
+                .param("username", "metrics-user-dataset-1")
+                .param("datasetKey", "dataset-or-1")
+                .param("datasetKey", "dataset-or-2"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.ruleCount", is(2)))
+        .andExpect(jsonPath("$.datasetCount", is(2)));
+  }
+
+  @Test
   public void testMetricsForNonExistentUsername() throws Exception {
     mockMvc
         .perform(

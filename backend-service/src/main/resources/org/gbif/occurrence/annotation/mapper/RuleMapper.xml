@@ -179,13 +179,16 @@
         <if test="taxonKey != null" >
             AND taxon_key = #{taxonKey}
         </if>
-        <if test="datasetKey != null" >
+        <if test="datasetKey != null and datasetKey.length > 0" >
             <choose>
-                <when test="datasetKey == 'null'">
+                <when test="datasetKey.length == 1 and datasetKey[0] == 'null'">
                     AND dataset_key IS NULL
                 </when>
                 <otherwise>
-                    AND dataset_key = #{datasetKey}
+                    AND dataset_key IN
+                    <foreach collection="datasetKey" item="key" open="(" separator="," close=")">
+                        #{key}
+                    </foreach>
                 </otherwise>
             </choose>
         </if>
