@@ -140,21 +140,6 @@
 
     <select id="metrics" parameterType="map" resultType="RuleMetrics">
         SELECT
-          <choose>
-            <when test="username != null and username.length > 0">
-              <choose>
-                <when test="username.length == 1">
-                  #{username[0]} AS username,
-                </when>
-                <otherwise>
-                  'ALL' AS username,
-                </otherwise>
-              </choose>
-            </when>
-            <otherwise>
-              'ALL' AS username,
-            </otherwise>
-          </choose>
           count(*) AS ruleCount,
           count(DISTINCT dataset_key) as datasetCount,
           <choose>

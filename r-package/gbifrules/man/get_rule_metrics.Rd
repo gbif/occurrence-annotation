@@ -24,7 +24,7 @@ get_rule_metrics(
 \item{projectId}{(integer) Optional project ID to filter by.}
 }
 \value{
-A `tibble` with columns: username, ruleCount, datasetCount, projectCount, taxonCount, supportCount, contestCount.
+A `tibble` with columns: ruleCount, datasetCount, projectCount, taxonCount, supportCount, contestCount, usernameCount.
 }
 \description{
 Returns aggregated metrics about rules including count of rules, datasets, projects,

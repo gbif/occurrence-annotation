@@ -118,7 +118,6 @@ public class MetricsControllerTest {
             get("/occurrence/experimental/annotation/rule/metrics")
                 .param("username", "metrics-user-1"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.username", is("metrics-user-1")))
         .andExpect(jsonPath("$.ruleCount", greaterThanOrEqualTo(1)))
         .andExpect(jsonPath("$.projectCount", greaterThanOrEqualTo(1)));
   }
@@ -157,7 +156,6 @@ public class MetricsControllerTest {
             get("/occurrence/experimental/annotation/rule/metrics")
                 .param("username", "metrics-user-2"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.username", is("metrics-user-2")))
         .andExpect(jsonPath("$.projectCount", greaterThanOrEqualTo(1)));
   }
 
@@ -389,7 +387,6 @@ public class MetricsControllerTest {
                 .param("projectId", String.valueOf(createdProject.getId()))
                 .param("taxonKey", "88888"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.username", is("metrics-user-6")))
         .andExpect(jsonPath("$.ruleCount", greaterThanOrEqualTo(1)))
         .andExpect(jsonPath("$.taxonCount", is(1)))
         .andExpect(jsonPath("$.projectCount", greaterThanOrEqualTo(1)));
@@ -520,7 +517,6 @@ public class MetricsControllerTest {
             get("/occurrence/experimental/annotation/rule/metrics")
                 .param("username", "metrics-user-multi-1"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.username", is("metrics-user-multi-1")))
         .andExpect(jsonPath("$.ruleCount", is(1)))
         .andExpect(jsonPath("$.datasetCount", is(1)))
         .andExpect(jsonPath("$.taxonCount", is(1)))
@@ -579,7 +575,6 @@ public class MetricsControllerTest {
                 .param("username", "metrics-user-multi-2")
                 .param("username", "test-user"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.username", is("ALL"))) // When multiple users, shows "ALL"
         .andExpect(jsonPath("$.ruleCount", greaterThanOrEqualTo(1))); // At least our rule
   }
 

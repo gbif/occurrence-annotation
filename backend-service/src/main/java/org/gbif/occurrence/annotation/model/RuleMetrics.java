@@ -21,7 +21,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RuleMetrics {
-  private String username;
   private int ruleCount;
   private int datasetCount;
   private int projectCount;

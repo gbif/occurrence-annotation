@@ -83,13 +83,13 @@ interface SpeciesInfo {
 }
 
 interface ProjectMetrics {
-  username: string;
   ruleCount: number;
   datasetCount: number;
   projectCount: number;
   taxonCount: number;
   supportCount: number;
   contestCount: number;
+  usernameCount: number;
 }
 
 export function ProjectPage() {
