@@ -5,7 +5,7 @@ Delete a ruleset
 ## Usage
 
 ``` r
-delete_ruleset(id)
+delete_ruleset(id, user = NULL, pwd = NULL)
 ```
 
 ## Arguments
@@ -13,6 +13,16 @@ delete_ruleset(id)
 - id:
 
   the id of the ruleset
+
+- user:
+
+  (character) Optional username for authentication. Defaults to
+  GBIF_USER environment variable.
+
+- pwd:
+
+  (character) Optional password for authentication. Defaults to GBIF_PWD
+  environment variable.
 
 ## Value
 

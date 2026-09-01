@@ -5,7 +5,7 @@ Support a rule
 ## Usage
 
 ``` r
-support_rule(id = NULL)
+support_rule(id = NULL, user = NULL, pwd = NULL)
 ```
 
 ## Arguments
@@ -13,6 +13,16 @@ support_rule(id = NULL)
 - id:
 
   the id of the rule to updated.
+
+- user:
+
+  (character) Optional username for authentication. Defaults to
+  GBIF_USER environment variable.
+
+- pwd:
+
+  (character) Optional password for authentication. Defaults to GBIF_PWD
+  environment variable.
 
 ## Value
 

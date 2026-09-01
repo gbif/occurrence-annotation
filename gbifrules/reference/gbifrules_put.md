@@ -5,7 +5,7 @@ gbifrules_put
 ## Usage
 
 ``` r
-gbifrules_put(url, body)
+gbifrules_put(url, body, user = NULL, pwd = NULL)
 ```
 
 ## Arguments
@@ -17,3 +17,12 @@ gbifrules_put(url, body)
 - body:
 
   helper
+
+- user:
+
+  optional user for authentication, defaults to GBIF_USER env variable
+
+- pwd:
+
+  optional password for authentication, defaults to GBIF_PWD env
+  variable

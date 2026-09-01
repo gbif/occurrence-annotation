@@ -13,7 +13,9 @@ update_ruleset(
   members = NULL,
   deleted = NULL,
   createdBy = NULL,
-  keep_members = TRUE
+  keep_members = TRUE,
+  user = NULL,
+  pwd = NULL
 )
 ```
 
@@ -51,6 +53,16 @@ update_ruleset(
 - keep_members:
 
   keep old members. Default is TRUE.
+
+- user:
+
+  (character) Optional username for authentication. Defaults to
+  GBIF_USER environment variable.
+
+- pwd:
+
+  (character) Optional password for authentication. Defaults to GBIF_PWD
+  environment variable.
 
 ## Value
 

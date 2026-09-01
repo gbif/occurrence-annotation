@@ -5,7 +5,7 @@ Delete a project
 ## Usage
 
 ``` r
-delete_project(id)
+delete_project(id, user = NULL, pwd = NULL)
 ```
 
 ## Arguments
@@ -13,6 +13,16 @@ delete_project(id)
 - id:
 
   the id of the project
+
+- user:
+
+  (character) Optional username for authentication. Defaults to
+  GBIF_USER environment variable.
+
+- pwd:
+
+  (character) Optional password for authentication. Defaults to GBIF_PWD
+  environment variable.
 
 ## Value
 

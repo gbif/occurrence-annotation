@@ -5,7 +5,7 @@ Delete a rule comment
 ## Usage
 
 ``` r
-delete_rule_comment(ruleId, commentId)
+delete_rule_comment(ruleId, commentId, user = NULL, pwd = NULL)
 ```
 
 ## Arguments
@@ -17,6 +17,16 @@ delete_rule_comment(ruleId, commentId)
 - commentId:
 
   The ID of the comment to delete
+
+- user:
+
+  (character) Optional username for authentication. Defaults to
+  GBIF_USER environment variable.
+
+- pwd:
+
+  (character) Optional password for authentication. Defaults to GBIF_PWD
+  environment variable.
 
 ## Value
 

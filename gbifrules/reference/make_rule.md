@@ -20,6 +20,8 @@ make_rule(
   createdBy = NULL,
   deleted = NULL,
   deletedBy = NULL,
+  user = NULL,
+  pwd = NULL,
   ...
 )
 ```
@@ -89,6 +91,16 @@ make_rule(
 - deletedBy:
 
   (character) Optional user ID who deleted the rule.
+
+- user:
+
+  (character) Optional username for authentication. Defaults to
+  GBIF_USER environment variable.
+
+- pwd:
+
+  (character) Optional password for authentication. Defaults to GBIF_PWD
+  environment variable.
 
 - ...:
 

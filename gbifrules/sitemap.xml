@@ -6,9 +6,11 @@
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/news/index.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/add_project_member.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/add_ruleset_member.html</loc></url>
+<url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/annotate_download.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/clean_download.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/contest_rule.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/delete_project.html</loc></url>
+<url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/delete_project_vocab.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/delete_rule.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/delete_rule_comment.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/delete_ruleset.html</loc></url>
@@ -22,10 +24,19 @@
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/gbifrules_post.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/gbifrules_put.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/gbifrules_url.html</loc></url>
+<url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_contested_rules.html</loc></url>
+<url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_most_supported_creators.html</loc></url>
+<url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_most_supported_projects.html</loc></url>
+<url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_my_rules.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_project.html</loc></url>
+<url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_project_vocab.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_rule.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_rule_comment.html</loc></url>
+<url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_rule_metrics.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_ruleset.html</loc></url>
+<url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_supported_rules.html</loc></url>
+<url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_top_creators.html</loc></url>
+<url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_top_projects.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/index.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/make_project.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/make_rule.html</loc></url>
@@ -35,6 +46,8 @@
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/rm_support_rule.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/support_rule.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/update_project.html</loc></url>
+<url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/update_project_vocab.html</loc></url>
+<url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/update_rule.html</loc></url>
 <url><loc>https://gbif.github.io/occurrence-annotation/gbifrules/reference/update_ruleset.html</loc></url>
 </urlset>
 

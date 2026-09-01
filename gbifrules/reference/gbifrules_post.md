@@ -5,7 +5,7 @@ gbifrules_post
 ## Usage
 
 ``` r
-gbifrules_post(url, body)
+gbifrules_post(url, body, user = NULL, pwd = NULL)
 ```
 
 ## Arguments
@@ -17,3 +17,12 @@ gbifrules_post(url, body)
 - body:
 
   helper
+
+- user:
+
+  optional user for authentication, defaults to GBIF_USER env variable
+
+- pwd:
+
+  optional password for authentication, defaults to GBIF_PWD env
+  variable

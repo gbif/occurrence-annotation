@@ -163,8 +163,16 @@ Functions for creating and managing annotation rules
   : Create a new annotation rule
 - [`get_rule()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_rule.md)
   : Get rules
+- [`update_rule()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/update_rule.md)
+  : Update an existing annotation rule
 - [`delete_rule()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/delete_rule.md)
   : Delete a rule
+- [`get_my_rules()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_my_rules.md)
+  : Get rules created by the authenticated user
+- [`get_supported_rules()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_supported_rules.md)
+  : Get rules supported by the authenticated user
+- [`get_contested_rules()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_contested_rules.md)
+  : Get rules contested by the authenticated user
 - [`support_rule()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/support_rule.md)
   : Support a rule
 - [`contest_rule()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/contest_rule.md)
@@ -173,6 +181,21 @@ Functions for creating and managing annotation rules
   : Remove support for a rule
 - [`rm_contest_rule()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/rm_contest_rule.md)
   : Remove contest of a rule
+
+## Rule Metrics & Leaderboards
+
+Functions for aggregated rule metrics and leaderboards
+
+- [`get_rule_metrics()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_rule_metrics.md)
+  : Get aggregated rule metrics
+- [`get_top_creators()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_top_creators.md)
+  : Get top rule creators
+- [`get_top_projects()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_top_projects.md)
+  : Get top projects
+- [`get_most_supported_creators()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_most_supported_creators.md)
+  : Get most supported rule creators
+- [`get_most_supported_projects()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_most_supported_projects.md)
+  : Get most supported projects
 
 ## Rule Comments
 
@@ -184,6 +207,17 @@ Functions for managing rule comments
   : Get comments on rule
 - [`delete_rule_comment()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/delete_rule_comment.md)
   : Delete a rule comment
+
+## Project Vocabulary
+
+Functions for managing custom project vocabularies
+
+- [`get_project_vocab()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/get_project_vocab.md)
+  : Get project vocabulary
+- [`update_project_vocab()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/update_project_vocab.md)
+  : Update project vocabulary
+- [`delete_project_vocab()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/delete_project_vocab.md)
+  : Delete project vocabulary
 
 ## Rulesets
 
@@ -206,4 +240,6 @@ Functions for applying rules to GBIF data
 
 - [`clean_download()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/clean_download.md)
   : Clean a GBIF download of suspicious records using complex rules
+- [`annotate_download()`](https://gbif.github.io/occurrence-annotation/gbifrules/reference/annotate_download.md)
+  : Annotate a GBIF download with annotation terms from rules
 

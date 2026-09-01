@@ -5,7 +5,7 @@ Make a comment on rule.
 ## Usage
 
 ``` r
-make_rule_comment(id = NULL, comment = NULL)
+make_rule_comment(id = NULL, comment = NULL, user = NULL, pwd = NULL)
 ```
 
 ## Arguments
@@ -17,6 +17,16 @@ make_rule_comment(id = NULL, comment = NULL)
 - comment:
 
   comment.
+
+- user:
+
+  (character) Optional username for authentication. Defaults to
+  GBIF_USER environment variable.
+
+- pwd:
+
+  (character) Optional password for authentication. Defaults to GBIF_PWD
+  environment variable.
 
 ## Value
 

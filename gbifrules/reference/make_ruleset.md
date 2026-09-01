@@ -5,7 +5,13 @@ Make Ruleset
 ## Usage
 
 ``` r
-make_ruleset(projectId = NULL, name = NULL, description = NULL)
+make_ruleset(
+  projectId = NULL,
+  name = NULL,
+  description = NULL,
+  user = NULL,
+  pwd = NULL
+)
 ```
 
 ## Arguments
@@ -21,6 +27,16 @@ make_ruleset(projectId = NULL, name = NULL, description = NULL)
 - description:
 
   describe the project.
+
+- user:
+
+  (character) Optional username for authentication. Defaults to
+  GBIF_USER environment variable.
+
+- pwd:
+
+  (character) Optional password for authentication. Defaults to GBIF_PWD
+  environment variable.
 
 ## Value
 

@@ -5,7 +5,7 @@ Contest a rule
 ## Usage
 
 ``` r
-contest_rule(id)
+contest_rule(id, user = NULL, pwd = NULL)
 ```
 
 ## Arguments
@@ -13,6 +13,16 @@ contest_rule(id)
 - id:
 
   id of rule to contest.
+
+- user:
+
+  (character) Optional username for authentication. Defaults to
+  GBIF_USER environment variable.
+
+- pwd:
+
+  (character) Optional password for authentication. Defaults to GBIF_PWD
+  environment variable.
 
 ## Value
 

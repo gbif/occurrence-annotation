@@ -5,7 +5,7 @@ Remove support for a rule
 ## Usage
 
 ``` r
-rm_support_rule(id = NULL)
+rm_support_rule(id = NULL, user = NULL, pwd = NULL)
 ```
 
 ## Arguments
@@ -13,6 +13,16 @@ rm_support_rule(id = NULL)
 - id:
 
   the id of the rule to updated.
+
+- user:
+
+  (character) Optional username for authentication. Defaults to
+  GBIF_USER environment variable.
+
+- pwd:
+
+  (character) Optional password for authentication. Defaults to GBIF_PWD
+  environment variable.
 
 ## Value
 
