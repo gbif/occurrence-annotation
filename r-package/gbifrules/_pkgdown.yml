@@ -23,19 +23,39 @@ reference:
     contents:
     - make_rule
     - get_rule
+    - update_rule
     - delete_rule
+    - get_my_rules
+    - get_supported_rules
+    - get_contested_rules
     - support_rule
     - contest_rule
     - rm_support_rule
     - rm_contest_rule
-    
+
+  - title: "Rule Metrics & Leaderboards"
+    desc: "Functions for aggregated rule metrics and leaderboards"
+    contents:
+    - get_rule_metrics
+    - get_top_creators
+    - get_top_projects
+    - get_most_supported_creators
+    - get_most_supported_projects
+
   - title: "Rule Comments"
     desc: "Functions for managing rule comments"
     contents:
     - make_rule_comment
     - get_rule_comment
     - delete_rule_comment
-    
+
+  - title: "Project Vocabulary"
+    desc: "Functions for managing custom project vocabularies"
+    contents:
+    - get_project_vocab
+    - update_project_vocab
+    - delete_project_vocab
+
   - title: "Rulesets"
     desc: "Functions for managing rulesets"
     contents:
@@ -44,11 +64,12 @@ reference:
     - update_ruleset
     - delete_ruleset
     - add_ruleset_member
-    
+
   - title: "Data Cleaning"
     desc: "Functions for applying rules to GBIF data"
     contents:
     - clean_download
+    - annotate_download
 
 navbar:
   structure:

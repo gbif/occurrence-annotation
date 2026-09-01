@@ -9,7 +9,7 @@ Description: Facilitates interaction with the GBIF
   package allows users to access, retrieve, and manage data utilizing the
   annotation store's data for analysis. Accesses the GBIF Occurrence 
   Annotation API <https://api.gbif.org/v1/occurrence/annotation>.
-URL: https://github.com/gbif/occurrence-annotation
+URL: https://github.com/gbif/occurrence-annotation, https://gbif.github.io/occurrence-annotation/gbifrules/
 BugReports: https://github.com/gbif/occurrence-annotation/issues
 Depends: R (>= 4.1.0)
 Encoding: UTF-8
