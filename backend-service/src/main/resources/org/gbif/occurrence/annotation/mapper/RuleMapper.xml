@@ -167,7 +167,8 @@
           </choose>
           count(DISTINCT taxon_key) as taxonCount,
           SUM(ARRAY_LENGTH(supported_by,1)) AS supportCount,
-          SUM(ARRAY_LENGTH(contested_by,1)) AS contestCount
+          SUM(ARRAY_LENGTH(contested_by,1)) AS contestCount,
+          count(DISTINCT created_by) as usernameCount
         FROM rule
         WHERE deleted IS NULL
         <if test="username != null and username.length > 0" >

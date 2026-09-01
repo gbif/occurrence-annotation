@@ -523,7 +523,8 @@ public class MetricsControllerTest {
         .andExpect(jsonPath("$.username", is("metrics-user-multi-1")))
         .andExpect(jsonPath("$.ruleCount", is(1)))
         .andExpect(jsonPath("$.datasetCount", is(1)))
-        .andExpect(jsonPath("$.taxonCount", is(1)));
+        .andExpect(jsonPath("$.taxonCount", is(1)))
+        .andExpect(jsonPath("$.usernameCount", is(1)));
   }
 
   @Test

@@ -28,4 +28,5 @@ public class RuleMetrics {
   private int taxonCount;
   private int supportCount;
   private int contestCount;
+  private int usernameCount;
 }
