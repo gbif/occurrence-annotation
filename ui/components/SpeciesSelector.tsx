@@ -50,6 +50,7 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const selectorRef = useRef<HTMLDivElement>(null);
 
   // Load recent species from localStorage on mount
   useEffect(() => {
@@ -66,6 +67,19 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder 
     };
 
     loadRecentSpecies();
+  }, []);
+
+  useEffect(() => {
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      if (!selectorRef.current?.contains(event.target as Node)) {
+        setShowRecent(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsidePointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsidePointerDown);
+    };
   }, []);
 
   // Save recent species to localStorage
@@ -242,7 +256,7 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder 
   };
 
   return (
-    <div className="relative">
+    <div ref={selectorRef} className="relative">
       {selectedSpecies ? (
         <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -278,6 +292,7 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyPress={handleKeyPress}
+              onMouseDown={handleInputFocus}
               onFocus={handleInputFocus}
               onBlur={handleInputBlur}
               className="pr-10"
