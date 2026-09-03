@@ -31,6 +31,9 @@ utility/
 # Copilot customization files
 .github/copilot-instructions.md
 
+# Local workflow guidelines
+workflow-guidelines.md
+
 # Docker utility scripts
 Start-DockerClean.ps1
 backend-service/start-docker-wsl.sh
