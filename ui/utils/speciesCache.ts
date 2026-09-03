@@ -15,10 +15,17 @@ export const getSpeciesInfo = async (taxonKey: string) => {
     
     if (response.ok) {
       const data = await response.json();
+      const canonicalName = data.canonicalName || data.scientificName;
+      const scientificNameAuthorship = data.scientificNameAuthorship || (
+        data.scientificName?.startsWith(canonicalName) && data.scientificName.length > canonicalName.length
+          ? data.scientificName.slice(canonicalName.length).trim()
+          : undefined
+      );
       const speciesInfo = {
         key: data.taxonID,
-        scientificName: data.scientificName,
-        canonicalName: data.canonicalName,
+        scientificName: canonicalName,
+        canonicalName,
+        scientificNameAuthorship,
         vernacularName: data.vernacularNames?.[0]?.vernacularName,
         rank: data.taxonRank,
       };
