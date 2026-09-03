@@ -25,6 +25,7 @@ interface ClassificationEntry {
 export interface SelectedSpecies {
   name: string;
   scientificName: string;
+  scientificNameAuthorship?: string;
   vernacularName?: string;
   key: string; // Changed from number to string for v2 API
   // Classification entries for hierarchical taxonomy
@@ -188,20 +189,25 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder 
     
     // Fetch classification from v2 info endpoint
     let classification: ClassificationEntry[] | undefined;
+    let scientificName = species.scientificName;
+    let scientificNameAuthorship: string | undefined;
     try {
       const infoResponse = await fetch(
         `https://api.gbif.org/v2/experimental/taxon/${GBIF_BACKBONE_UUID}/${species.taxonID}/info`
       );
       const infoData = await infoResponse.json();
       classification = infoData.classification;
+      scientificName = infoData.scientificName || scientificName;
+      scientificNameAuthorship = infoData.scientificNameAuthorship;
     } catch (error) {
       console.error('Error fetching classification:', error);
       classification = undefined;
     }
 
     const selectedSpecies: SelectedSpecies = {
-      name: species.scientificName,
-      scientificName: species.scientificName,
+      name: scientificName,
+      scientificName,
+      scientificNameAuthorship,
       key: species.taxonID,
       classification: classification
     };
@@ -242,7 +248,12 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder 
           <div className="flex items-center gap-3">
             <div>
               <span className="text-green-900">{selectedSpecies.name}</span>
-              <span className="text-green-700 text-xs italic ml-2">({selectedSpecies.scientificName})</span>
+              {selectedSpecies.scientificNameAuthorship && (
+                <span className="text-green-700 text-xs italic ml-2">{selectedSpecies.scientificNameAuthorship}</span>
+              )}
+              {!selectedSpecies.scientificNameAuthorship && selectedSpecies.scientificName !== selectedSpecies.name && (
+                <span className="text-green-700 text-xs italic ml-2">({selectedSpecies.scientificName})</span>
+              )}
             </div>
           </div>
           <Button

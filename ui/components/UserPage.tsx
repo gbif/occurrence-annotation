@@ -80,6 +80,7 @@ interface SpeciesInfo {
   key: number;
   scientificName: string;
   canonicalName?: string;
+  scientificNameAuthorship?: string;
   vernacularName?: string;
   rank?: string;
 }
@@ -1473,7 +1474,14 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                             <div className="space-y-1">
                               {speciesInfo ? (
                                 <>
-                                  <div className="italic text-gray-900">{speciesInfo.scientificName}</div>
+                                  <div className="text-gray-900">
+                                    <span className="italic">{speciesInfo.scientificName}</span>
+                                    {speciesInfo.scientificNameAuthorship && (
+                                      <span className="ml-2 text-xs italic text-gray-500">
+                                        {speciesInfo.scientificNameAuthorship}
+                                      </span>
+                                    )}
+                                  </div>
                                   {speciesInfo.vernacularName && (
                                     <div className="text-sm text-gray-600">{speciesInfo.vernacularName}</div>
                                   )}

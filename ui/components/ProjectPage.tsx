@@ -779,7 +779,14 @@ export function ProjectPage() {
                   </div>
                   {speciesFilter && (
                     <div className="text-sm text-gray-600">
-                      Filtering by: <span className="font-medium italic">{speciesFilter.scientificName}</span>
+                      Filtering by: <span className="font-medium italic">
+                        {speciesFilter.scientificName}
+                      </span>
+                      {speciesFilter.scientificNameAuthorship && (
+                        <span className="ml-2 text-xs italic text-gray-500">
+                          {speciesFilter.scientificNameAuthorship}
+                        </span>
+                      )}
                       {speciesFilter.vernacularName && (
                         <span className="text-gray-500"> ({speciesFilter.vernacularName})</span>
                       )}
