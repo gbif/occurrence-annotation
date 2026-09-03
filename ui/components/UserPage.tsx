@@ -1285,7 +1285,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         {/* Rules Tab */}
         <TabsContent value="rules" className="flex-1 flex flex-col overflow-hidden m-0">
           {/* Filters */}
-          <div className="px-6 py-3 bg-white border-b">
+          <div className="relative z-20 px-6 py-3 bg-white border-b">
             <UserPageFilters
               speciesFilter={speciesFilter}
               onSpeciesFilterChange={setSpeciesFilter}
@@ -1298,7 +1298,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
           </div>
           
           {/* Rules Content */}
-          <div className="flex-1 overflow-auto p-6 relative">
+          <div className="relative z-0 flex-1 overflow-auto p-6">
         {tableLoading && (
           <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
             <div className="text-center">
