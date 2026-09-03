@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -426,6 +426,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalRules, setTotalRules] = useState(0);
   const [pageSize] = useState(20);
+  const [rulesRefreshTrigger, setRulesRefreshTrigger] = useState(0);
 
   // Filter states
   const [speciesFilter, setSpeciesFilter] = useState<SelectedSpecies | null>(null);
@@ -439,21 +440,24 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [bulkEditAnnotation, setBulkEditAnnotation] = useState<string>('');
   const [bulkEditProjectId, setBulkEditProjectId] = useState<string>('');
+  const maxPageCount = 10;
 
-  // Get current page of rules (no filtering needed - API returns filtered results)
-  const filteredRules = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return allRules.slice(startIndex, endIndex);
-  }, [allRules, currentPage, pageSize]);
+  // The API returns only the current page of filtered rules.
+  const filteredRules = allRules;
 
-  // Calculate pagination values based on all rules
-  const totalPages = Math.ceil(allRules.length / pageSize);
+  // Calculate pagination values from the filtered metrics count
+  const totalPages = Math.min(maxPageCount, Math.ceil(totalRules / pageSize));
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [speciesFilter, projectFilter, userFilter]);
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   // Reset userFilter to current username when username changes (different user page)
   useEffect(() => {
@@ -513,14 +517,11 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
     fetchedTaxonKeys.current.add(taxonKey);
     
     try {
-      console.log(`Fetching species info for taxonKey: ${taxonKey}`);
       const data = await getSpeciesInfo(taxonKey);
-      console.log(`Received species data for ${taxonKey}:`, data);
       if (data) {
         setSpeciesCache(prev => {
           const newCache = new Map(prev);
           newCache.set(taxonKey, data);
-          console.log(`Updated cache, new size: ${newCache.size}`);
           return newCache;
         });
         return data;
@@ -544,9 +545,14 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         }
         setError(null);
 
-        // Fetch total count from metrics API
+        const metricParams = new URLSearchParams();
+        if (speciesFilter) metricParams.set('taxonKey', speciesFilter.key);
+        if (projectFilter !== null) metricParams.set('projectId', String(projectFilter));
+        userFilter.forEach(user => metricParams.append('username', user));
+
+        // Fetch the filtered count from the metrics API
         const metricsResponse = await fetch(
-          getAnnotationApiUrl(`/rule/metrics?username=${encodeURIComponent(username)}`)
+          getAnnotationApiUrl(`/rule/metrics?${metricParams.toString()}`)
         );
 
         if (metricsResponse.ok) {
@@ -577,9 +583,8 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
             .join('&');
           apiUrl += `${separator}${createdByParams}`;
         }
-
-        console.log('[UserPage] API URL:', apiUrl);
-        console.log('[UserPage] User Filter:', userFilter);
+        const pagingSeparator = apiUrl.includes('?') ? '&' : '?';
+        apiUrl += `${pagingSeparator}limit=${pageSize}&offset=${(currentPage - 1) * pageSize}`;
 
         const response = await fetch(apiUrl);
 
@@ -589,17 +594,18 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
 
         const data = await response.json();
         
-        console.log('[UserPage] API Response - Rules count:', data.length);
-        console.log('[UserPage] API Response - Sample rules:', data.slice(0, 3));
-        
         if (Array.isArray(data)) {
           // API now handles filtering server-side, no client-side filtering needed
           setAllRules(data);
-          // Update total count based on API results
-          setTotalRules(data.length);
+          // Keep the metrics count for pagination; this response may be a page subset.
+          if (!metricsResponse.ok) {
+            setTotalRules(data.length);
+          }
         } else {
           setAllRules([]);
-          setTotalRules(0);
+          if (!metricsResponse.ok) {
+            setTotalRules(0);
+          }
         }
       } catch (err) {
         console.error('Error fetching user rules:', err);
@@ -613,7 +619,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
 
     // Fetch data when username or filters change
     fetchUserRules();
-  }, [username, speciesFilter, projectFilter, userFilter]);
+  }, [username, speciesFilter, projectFilter, userFilter, currentPage, pageSize, rulesRefreshTrigger]);
 
   // Fetch projects where user is a member
   useEffect(() => {
@@ -826,10 +832,8 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
 
   // Prefetch species info for visible rules
   useEffect(() => {
-    console.log('useEffect running - allRules:', allRules.length, 'cache size:', speciesCache.size);
     allRules.forEach(rule => {
       if (rule.taxonKey && !fetchedTaxonKeys.current.has(rule.taxonKey)) {
-        console.log(`Requesting species for taxonKey: ${rule.taxonKey}`);
         fetchSpeciesInfo(rule.taxonKey);
       }
     });
@@ -884,8 +888,6 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
   };
 
   const handleDeleteRule = async (ruleId: number) => {
-    console.log('Attempting to delete rule:', ruleId);
-    
     const gbifAuth = sessionStorage.getItem('gbifAuth');
     if (!gbifAuth) {
       toast.error('Please login to GBIF to delete annotation rules');
@@ -903,8 +905,6 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         }
       );
 
-      console.log('Delete response status:', response.status);
-
       if (!response.ok) {
         if (response.status === 401) {
           toast.error('Authentication failed. Please login again.');
@@ -916,24 +916,12 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
         throw new Error(`Failed to delete rule: ${response.status} ${response.statusText}`);
       }
 
-      console.log('Rule deleted successfully, updating local state');
-      
       // Remove the rule from local state
       setAllRules(prevRules => {
         const newRules = prevRules.filter(rule => rule.id !== ruleId);
-        
-        // Update total count
-        setTotalRules(newRules.length);
-        
-        // Check if current page will be empty after deletion
-        const newTotalPages = Math.ceil(newRules.length / pageSize);
-        if (currentPage > newTotalPages && newTotalPages > 0) {
-          // Move to the last available page
-          setCurrentPage(newTotalPages);
-        }
-        
         return newRules;
       });
+      setRulesRefreshTrigger(prev => prev + 1);
       
       toast.success('Rule deleted successfully');
     } catch (err) {
@@ -987,18 +975,9 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
       if (results.success.length > 0) {
         setAllRules(prevRules => {
           const newRules = prevRules.filter(rule => !results.success.includes(rule.id));
-          
-          // Update total count
-          setTotalRules(newRules.length);
-          
-          // Check if current page will be empty after deletion
-          const newTotalPages = Math.ceil(newRules.length / pageSize);
-          if (currentPage > newTotalPages && newTotalPages > 0) {
-            setCurrentPage(newTotalPages);
-          }
-          
           return newRules;
         });
+        setRulesRefreshTrigger(prev => prev + 1);
       }
 
       // Clear selection
@@ -1112,6 +1091,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
             return rule;
           })
         );
+        setRulesRefreshTrigger(prev => prev + 1);
       }
 
       // Clear selection and close dialog

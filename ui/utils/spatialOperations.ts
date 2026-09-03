@@ -73,7 +73,6 @@ async function loadOceanPolygon(): Promise<MultiPolygon | null> {
 
     oceanPolygonCache = oceanMultiPolygon;
 
-    console.log(`Ocean polygon loaded: ${oceanMultiPolygon.length} polygon(s), ${oceanBoundary.vertexCount} vertices`);
     return oceanPolygonCache;
   } catch (error) {
     console.error('Failed to load Ocean polygon:', error);
@@ -157,21 +156,16 @@ export async function subtractOceanFromPolygon(
     // Convert user polygon to polygon-clipping format
     const userPoly: Polygon = coordinatesToPolygon(userPolygon);
     
-    console.log('Computing polygon difference...');
-    console.log(`  User polygon: ${userPolygon.length} vertices`);
-    console.log(`  Ocean: ${oceanMultiPolygon.length} polygon pieces`);
 
     // Use polygon-clipping to subtract ocean from user polygon
     // difference(polygon, ...polygons) subtracts all following polygons from the first
     const result = polygonClipping.difference(userPoly, ...oceanMultiPolygon);
     
     if (!result || result.length === 0) {
-      console.log('Result: Polygon is entirely over ocean');
       console.timeEnd('subtract-ocean');
       return null;
     }
 
-    console.log(`Result: ${result.length} polygon piece(s)`);
     
     // Convert result back to app format
     const landPolygon = polygonToCoordinates(result);
@@ -179,10 +173,8 @@ export async function subtractOceanFromPolygon(
     if (Array.isArray(landPolygon) && landPolygon.length > 0) {
       if (Array.isArray(landPolygon[0]) && Array.isArray(landPolygon[0][0])) {
         // MultiPolygon result
-        console.log(`Ocean subtraction succeeded: ${(landPolygon as [number, number][][]).length} disconnected land areas`);
       } else {
         // Single polygon result
-        console.log(`Ocean subtraction succeeded: ${(landPolygon as [number, number][]).length} vertices`);
       }
     }
     
@@ -224,7 +216,6 @@ export function bufferPolygon(
       return userPolygon;
     }
 
-    console.log(`Buffering polygon by ${distanceMeters}m (${userPolygon.length} vertices)`);
 
     // Validate input coordinates
     const hasInvalidCoords = userPolygon.some(([lat, lng]) => 
@@ -296,7 +287,6 @@ export function bufferPolygon(
         }
       }
       
-      console.log(`Simplification: ${currentVertexCount} vertices (target: ~${originalVertexCount}, tolerance: ${tolerance.toFixed(4)}°)`);
     }
     
     if (!simplified || !simplified.geometry) {
@@ -338,7 +328,6 @@ export function bufferPolygon(
         console.warn(`⚠️ ${clampedCount} coordinates were clamped to valid geographic bounds. Buffer may be too large for this polygon.`);
       }
       
-      console.log(`Buffer succeeded: ${result.length} vertices (original: ${userPolygon.length})`);
       console.timeEnd('buffer-polygon');
       return result;
       
@@ -369,8 +358,6 @@ export function bufferPolygon(
         console.warn(`⚠️ ${totalClampedCount} coordinates were clamped to valid geographic bounds. Buffer may be too large for this polygon.`);
       }
       
-      const totalVertices = polygons.reduce((sum, p) => sum + p.length, 0);
-      console.log(`Buffer succeeded: ${polygons.length} polygon pieces, ${totalVertices} total vertices (original: ${userPolygon.length})`);
       console.timeEnd('buffer-polygon');
       return polygons;
       
@@ -406,7 +393,6 @@ export function bufferMultiPolygon(
       return null;
     }
 
-    console.log(`Buffering multi-polygon with ${multiPolygon.length} parts`);
 
     // Buffer each polygon part separately
     const bufferedParts: [number, number][][] = [];
@@ -436,7 +422,6 @@ export function bufferMultiPolygon(
       return null;
     }
 
-    console.log(`Multi-polygon buffer succeeded: ${bufferedParts.length} polygon parts`);
     console.timeEnd('buffer-multipolygon');
     return bufferedParts;
 
@@ -468,12 +453,10 @@ export function unionPolygons(
     }
 
     if (polygons.length === 1) {
-      console.log('Only one polygon provided, returning as-is');
       console.timeEnd('union-polygons');
       return polygons[0];
     }
 
-    console.log(`Computing union of ${polygons.length} polygons`);
 
     // Convert all polygons to polygon-clipping format
     const polyClippingPolygons: Polygon[] = polygons.map(poly => 
@@ -491,21 +474,9 @@ export function unionPolygons(
       return null;
     }
 
-    console.log(`Union result: ${result.length} polygon piece(s)`);
     
     // Convert result back to app format
     const unionedPolygon = polygonToCoordinates(result);
-    
-    if (Array.isArray(unionedPolygon) && unionedPolygon.length > 0) {
-      if (Array.isArray(unionedPolygon[0]) && Array.isArray(unionedPolygon[0][0])) {
-        // MultiPolygon result (disconnected pieces)
-        const totalVertices = (unionedPolygon as [number, number][][]).reduce((sum, p) => sum + p.length, 0);
-        console.log(`Union succeeded: ${(unionedPolygon as [number, number][][]).length} disconnected pieces, ${totalVertices} total vertices`);
-      } else {
-        // Single polygon result
-        console.log(`Union succeeded: ${(unionedPolygon as [number, number][]).length} vertices`);
-      }
-    }
     
     console.timeEnd('union-polygons');
     return unionedPolygon;
@@ -539,7 +510,6 @@ export function eraseFromPolygon(
       return null;
     }
 
-    console.log('Computing erase operation...');
 
     // Check polygon complexity and simplify if necessary
     const isMulti = Array.isArray(targetPolygon[0]) && Array.isArray(targetPolygon[0][0]);
@@ -552,7 +522,6 @@ export function eraseFromPolygon(
       totalVertices = (targetPolygon as [number, number][]).length;
     }
     
-    console.log(`Target polygon has ${totalVertices} total vertices`);
     
     // Safeguard: Reject extremely complex polygons to prevent crashes
     if (totalVertices > 5000) {
@@ -563,7 +532,6 @@ export function eraseFromPolygon(
     // Simplify if polygon is moderately complex (500-5000 vertices)
     let processedTarget = targetPolygon;
     if (totalVertices > 500) {
-      console.log('Simplifying polygon before erase operation...');
       
       try {
         if (isMulti) {
@@ -624,8 +592,6 @@ export function eraseFromPolygon(
             processedTarget = targetPolygon;
           } else {
             processedTarget = simplifiedParts;
-            const newTotal = simplifiedParts.reduce((sum, part) => sum + part.length, 0);
-            console.log(`Simplified multi-polygon from ${totalVertices} to ${newTotal} vertices`);
           }
         } else {
           const coords = targetPolygon as [number, number][];
@@ -672,7 +638,6 @@ export function eraseFromPolygon(
             processedTarget = targetPolygon;
           } else {
             processedTarget = simplifiedCoords;
-            console.log(`Simplified polygon from ${totalVertices} to ${simplifiedCoords.length} vertices`);
           }
         }
       } catch (simplifyError) {
@@ -694,7 +659,6 @@ export function eraseFromPolygon(
       const targetParts = processedTarget as [number, number][][];
       const targetPolys: Polygon[] = targetParts.map(part => coordinatesToPolygon(part));
       
-      console.log(`Erasing from multi-polygon with ${targetParts.length} parts`);
       
       // Compute difference for each part and combine results
       const results: MultiPolygon = [];
@@ -714,19 +678,16 @@ export function eraseFromPolygon(
     } else {
       // Target is single polygon
       const targetPoly: Polygon = coordinatesToPolygon(processedTarget as [number, number][]);
-      console.log(`Erasing from single polygon with ${(processedTarget as [number, number][]).length} vertices`);
       
       // Compute difference using polygon-clipping
       result = polygonClipping.difference(targetPoly, erasePoly);
     }
     
     if (!result || result.length === 0) {
-      console.log('Erase result: Polygon completely erased');
       console.timeEnd('erase-polygon');
       return null;
     }
 
-    console.log(`Erase result: ${result.length} polygon piece(s)`);
     
     // Convert result back to app format
     const erasedPolygon = polygonToCoordinates(result);
@@ -748,7 +709,6 @@ export function eraseFromPolygon(
             }
           }
         }
-        console.log(`Erase succeeded: ${parts.length} disconnected piece${parts.length > 1 ? 's' : ''}`);
       } else {
         // Single polygon result - validate coordinates
         const coords = erasedPolygon as [number, number][];
@@ -760,7 +720,6 @@ export function eraseFromPolygon(
             throw new Error('Invalid coordinate in result polygon');
           }
         }
-        console.log(`Erase succeeded: ${coords.length} vertices`);
       }
     }
     

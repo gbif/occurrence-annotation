@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -112,6 +112,7 @@ export function ProjectPage() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);
+  const maxPageCount = 10;
   
   // Species cache for rule table
   const [speciesCache, setSpeciesCache] = useState<Map<string, SpeciesInfo>>(new Map());
@@ -209,32 +210,25 @@ export function ProjectPage() {
   }, []);
 
   // Filter rules by species
-  const filteredRules = useMemo(() => {
-    let filtered = rules;
+  // The API returns only the current page of filtered rules.
+  const filteredRules = rules;
 
-    if (speciesFilter) {
-      filtered = filtered.filter(rule => 
-        rule.taxonKey === speciesFilter.key
-      );
-    }
+  // Calculate pagination values from the filtered metrics count
+  const totalPages = Math.min(maxPageCount, Math.ceil((metrics?.ruleCount ?? filteredRules.length) / pageSize));
 
-    return filtered;
-  }, [rules, speciesFilter]);
-
-  // Calculate pagination values
-  const totalPages = Math.ceil(filteredRules.length / pageSize);
-
-  // Get current page of rules
-  const paginatedRules = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return filteredRules.slice(startIndex, endIndex);
-  }, [filteredRules, currentPage, pageSize]);
+  // The API returns only the current page of filtered rules.
+  const paginatedRules = filteredRules;
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [speciesFilter]);
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const handleViewProjectAPI = () => {
     if (projectId) {
@@ -399,7 +393,9 @@ export function ProjectPage() {
 
       try {
         setMetricsLoading(true);
-        const response = await fetch(getAnnotationApiUrl(`/rule/metrics?projectId=${projectId}`));
+        const params = new URLSearchParams({ projectId: String(projectId) });
+        if (speciesFilter) params.set('taxonKey', speciesFilter.key);
+        const response = await fetch(getAnnotationApiUrl(`/rule/metrics?${params.toString()}`));
 
         if (response.ok) {
           const data = await response.json();
@@ -413,7 +409,7 @@ export function ProjectPage() {
     };
 
     fetchMetrics();
-  }, [projectId]);
+  }, [projectId, speciesFilter]);
 
   // Fetch project rules
   useEffect(() => {
@@ -422,7 +418,13 @@ export function ProjectPage() {
 
       try {
         setRulesLoading(true);
-        const response = await fetch(getAnnotationApiUrl(`/rule?projectId=${projectId}`));
+        const params = new URLSearchParams({
+          projectId: String(projectId),
+          limit: String(pageSize),
+          offset: String((currentPage - 1) * pageSize),
+        });
+        if (speciesFilter) params.set('taxonKey', speciesFilter.key);
+        const response = await fetch(getAnnotationApiUrl(`/rule?${params.toString()}`));
 
         if (!response.ok) {
           throw new Error(`Failed to fetch rules: ${response.status}`);
@@ -443,7 +445,7 @@ export function ProjectPage() {
     };
 
     fetchRules();
-  }, [projectId]);
+  }, [projectId, speciesFilter, currentPage, pageSize]);
 
   // Prefetch species info for rules
   useEffect(() => {
@@ -933,10 +935,10 @@ export function ProjectPage() {
               )}
 
               {/* Pagination */}
-              {!rulesLoading && filteredRules.length > pageSize && (
+              {!rulesLoading && totalPages > 1 && (
                 <div className="mt-4 flex items-center justify-between">
                   <div className="text-sm text-gray-600">
-                    Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, filteredRules.length)} of {filteredRules.length} rules
+                    Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, metrics?.ruleCount ?? filteredRules.length)} of {metrics?.ruleCount ?? filteredRules.length} rules
                   </div>
                   
                   <Pagination>

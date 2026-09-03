@@ -741,7 +741,6 @@ export function MapComponent({
       metadata.datasetKey = Array.from(uniqueDatasetKeys)[0];
     }
 
-    console.log('Creating rule from search with metadata:', metadata);
 
     // Close the dialog and turn off investigate mode first
     setIsInvestigateDialogOpen(false);
@@ -1190,7 +1189,6 @@ export function MapComponent({
           return;
         }
         
-        console.log(`Buffering multi-polygon with ${multiCoords.length} parts`);
         result = bufferMultiPolygon(multiCoords, distance);
         
       } else {

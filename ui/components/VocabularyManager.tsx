@@ -147,14 +147,6 @@ export function VocabularyManager({ projectId, isUserMember }: VocabularyManager
       
       const updatedVocabulary = [...vocabulary, newTermData];
 
-      console.log('Adding term to vocabulary:', {
-        projectId,
-        newTerm: newTermData.term,
-        vocabularyLength: updatedVocabulary.length,
-        hasSuspicious: updatedVocabulary.some(t => t.term === 'SUSPICIOUS'),
-        suspiciousLocked: updatedVocabulary.find(t => t.term === 'SUSPICIOUS')?.locked
-      });
-
       const gbifAuth = sessionStorage.getItem('gbifAuth');
       if (!gbifAuth) {
         toast.error('Please log in to add vocabulary terms');
@@ -193,12 +185,6 @@ export function VocabularyManager({ projectId, isUserMember }: VocabularyManager
 
       try {
         const data = await response.json();
-        console.log('Vocabulary update successful, received:', {
-          termCount: data.length,
-          terms: data.map((t: VocabularyTerm) => t.term),
-          newTermIncluded: data.some((t: VocabularyTerm) => t.term === newTerm.trim().toUpperCase())
-        });
-        
         setVocabulary(data);
         setIsCustom(true);
         setIsAddDialogOpen(false);
@@ -206,7 +192,6 @@ export function VocabularyManager({ projectId, isUserMember }: VocabularyManager
         setNewDescription('');
         setNewColor('#22c55e');
         toast.success('Term added successfully');
-        console.log('State updates complete, dialog should close');
       } catch (parseError: any) {
         console.error('Error parsing successful response:', parseError);
         toast.error('Response parsing failed: ' + parseError.message);

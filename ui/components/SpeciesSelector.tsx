@@ -199,7 +199,6 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder 
   };
 
   const handleSpeciesSelect = async (species: SpeciesV2) => {
-    console.log('Regular species selected:', species);
     
     // Fetch classification from v2 info endpoint
     let classification: ClassificationEntry[] | undefined;
@@ -239,7 +238,6 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder 
   };
 
   const handleRecentSpeciesClick = (species: SelectedSpecies) => {
-    console.log('Recent species clicked:', species);
     
     // Save to recent species (move to top of list)
     saveRecentSpecies(species);
@@ -252,7 +250,6 @@ export function SpeciesSelector({ selectedSpecies, onSelectSpecies, placeholder 
     setSearchTerm('');
     setShowRecent(false);
     
-    console.log('Species selection completed');
   };
 
   return (

@@ -151,8 +151,6 @@ function matchesTaxonomy(
   // Debug logging for string taxon keys
   const isStringTaxonKey = typeof ruleTaxonKey === 'string' && isNaN(parseInt(ruleTaxonKey, 10));
   if (isStringTaxonKey && window.console) {
-    console.log(`[Taxonomy Match Debug] Rule taxonKey: "${ruleKeyStr}" (string)`);
-    console.log(`[Taxonomy Match Debug] Checking fields:`, taxonomicFields);
   }
   
   for (const field of taxonomicFields) {
@@ -165,7 +163,6 @@ function matchesTaxonomy(
     
     // Debug logging
     if (isStringTaxonKey && window.console) {
-      console.log(`[Taxonomy Match Debug] ${field}: "${recordKeyStr}" vs rule "${ruleKeyStr}"`);
     }
     
     // Match if either:
@@ -176,7 +173,6 @@ function matchesTaxonomy(
     
     if (stringMatch || numericMatch) {
       if (isStringTaxonKey && window.console) {
-        console.log(`[Taxonomy Match Debug] ✓ Match found at ${field}!`);
       }
       // Convert field name to display rank
       const rankMap: Record<string, string> = {
@@ -194,7 +190,6 @@ function matchesTaxonomy(
   }
   
   if (isStringTaxonKey && window.console) {
-    console.log(`[Taxonomy Match Debug] ✗ No match found for "${ruleKeyStr}"`);
   }
   
   return { matched: false };
@@ -214,7 +209,6 @@ function applyRuleToRecord(
   const debugMode = isStringTaxonKey && recordIndex < 5; // Only log first 5 records for string rules
   
   if (debugMode && window.console) {
-    console.log(`\n[Rule Match Debug] Record ${recordIndex}, Rule ${rule.id} (${rule.annotation}), TaxonKey: "${rule.taxonKey}"`);
   }
   
   // Extract coordinates
@@ -318,15 +312,6 @@ export async function processDownload(
   
   // Filter out deleted rules
   const activeRules = rules.filter(rule => !rule.deleted);
-  
-  // Debug: Log string taxon keys
-  const stringTaxonKeyRules = activeRules.filter(r => typeof r.taxonKey === 'string' && isNaN(parseInt(String(r.taxonKey), 10)));
-  if (stringTaxonKeyRules.length > 0 && window.console) {
-    console.log(`[Download Processor] Found ${stringTaxonKeyRules.length} rules with string taxon keys:`);
-    stringTaxonKeyRules.forEach(r => {
-      console.log(`  Rule ${r.id}: taxonKey="${r.taxonKey}" (type: ${typeof r.taxonKey}), annotation="${r.annotation}"`);
-    });
-  }
   
   if (activeRules.length === 0) {
     onProgress?.({
