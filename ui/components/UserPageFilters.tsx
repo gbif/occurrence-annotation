@@ -195,11 +195,13 @@ export function UserPageFilters({
                 <label className="text-xs font-medium text-gray-700">
                   Species
                 </label>
-                <SpeciesSelector
-                  selectedSpecies={speciesFilter}
-                  onSelectSpecies={onSpeciesFilterChange}
-                  placeholder="Filter by species..."
-                />
+                <div className="rounded-md border border-black/10 bg-white/95 p-1.5 backdrop-blur">
+                  <SpeciesSelector
+                    selectedSpecies={speciesFilter}
+                    onSelectSpecies={onSpeciesFilterChange}
+                    placeholder="Filter by species..."
+                  />
+                </div>
               </div>
 
               {/* Project Filter */}

@@ -189,6 +189,7 @@ export default function App() {
           const species: SelectedSpecies = {
             name: infoData.scientificName,
             scientificName: infoData.scientificName,
+            scientificNameAuthorship: infoData.scientificNameAuthorship,
             key: taxonKey,
             classification: infoData.classification,
           };
@@ -981,7 +982,8 @@ export default function App() {
             species = {
               key: ruleKeyStr,
               scientificName: speciesData.scientificName || rule.scientificName || 'Unknown',
-              name: speciesData.scientificName || rule.scientificName || 'Unknown'
+              name: speciesData.scientificName || rule.scientificName || 'Unknown',
+              scientificNameAuthorship: speciesData.scientificNameAuthorship
             };
             setSelectedSpecies(species);
             if (species) {
@@ -1320,13 +1322,7 @@ export default function App() {
     <main className="absolute inset-0 left-80" style={{ contain: 'layout style' }}>
       {/* Floating species selector - positioned at top but right of polygon tools */}
       <div className="absolute top-4 left-20 z-20" style={{ minWidth: '250px', maxWidth: '350px' }}>
-        <div style={{ 
-          backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-          borderRadius: '6px',
-          border: '1px solid rgba(0, 0, 0, 0.1)',
-          backdropFilter: 'blur(8px)',
-          padding: '6px'
-        }}>
+        <div className="rounded-md border border-black/10 bg-white/95 p-1.5 backdrop-blur">
           <SpeciesSelector
             selectedSpecies={selectedSpecies}
             onSelectSpecies={setSelectedSpecies}
