@@ -7,7 +7,7 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/gbif/occurrence-annotation/blob/main/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/gbif/occurrence-annotation/blob/dev/DESCRIPTION)
 
 Waller J (2026). *gbifrules: R Interface to GBIF Rule-Based Annotations
 Store*. R package version 0.2.0,
