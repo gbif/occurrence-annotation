@@ -504,7 +504,6 @@ export default function App() {
         isMultiPolygon: false,
       };
 
-      console.log('Auto-saving new polygon with initialFilters:', newPolygon.initialFilters);
 
       setSavedPolygons([...savedPolygons, newPolygon]);
     }
@@ -564,7 +563,6 @@ export default function App() {
         isMultiPolygon: false,
       };
 
-      console.log('Creating new polygon with initialFilters:', newPolygon.initialFilters);
 
       setSavedPolygons([...savedPolygons, newPolygon]);
       setCurrentPolygon(null);
@@ -603,26 +601,20 @@ export default function App() {
   }, []);
 
   const handleCreateRuleFromSearch = useCallback((coords: [number, number][], metadata?: { basisOfRecord?: string[]; datasetKey?: string }) => {
-    console.log('handleCreateRuleFromSearch called with coords:', coords.length);
-    console.log('Metadata from search results:', metadata);
     
     // Use metadata from search results if provided, otherwise fall back to current filters
     const initialFilters: PolygonData['initialFilters'] = {};
     
     if (metadata?.datasetKey) {
       initialFilters.datasetKey = metadata.datasetKey;
-      console.log('Using datasetKey from search results:', metadata.datasetKey);
     } else if (occurrenceFilters.datasetKey && occurrenceFilters.datasetKey.split(',').length === 1) {
       initialFilters.datasetKey = occurrenceFilters.datasetKey;
-      console.log('Using datasetKey from filters:', occurrenceFilters.datasetKey);
     }
     
     if (metadata?.basisOfRecord && metadata.basisOfRecord.length > 0) {
       initialFilters.basisOfRecord = metadata.basisOfRecord;
-      console.log('Using basisOfRecord from search results:', metadata.basisOfRecord);
     } else if (occurrenceFilters.basisOfRecord && occurrenceFilters.basisOfRecord.length > 0) {
       initialFilters.basisOfRecord = [...occurrenceFilters.basisOfRecord];
-      console.log('Using basisOfRecord from filters:', occurrenceFilters.basisOfRecord);
     }
 
     const newPolygonId = Date.now().toString();
@@ -638,7 +630,6 @@ export default function App() {
       fromSearch: true // Mark this polygon as created from search
     };
 
-    console.log('Creating polygon from search with initialFilters:', newPolygon.initialFilters);
 
     // Add to saved polygons
     setSavedPolygons(prev => [...prev, newPolygon]);
@@ -690,7 +681,6 @@ export default function App() {
   }, [selectedSpecies, savedPolygons, currentAnnotation]);
 
   const handleSaveMultiplePolygons = useCallback((polygons: [number, number][][]) => {
-    console.log('[App] handleSaveMultiplePolygons called with', polygons.length, 'polygons');
     
     const newPolygons: PolygonData[] = polygons.map((coords, index) => ({
       id: `${Date.now()}-${index}`,
@@ -703,11 +693,9 @@ export default function App() {
     }));
 
     setSavedPolygons(prev => [...prev, ...newPolygons]);
-    console.log('[App] Saved', newPolygons.length, 'land polygons');
   }, [selectedSpecies, currentAnnotation]);
 
   const handleMergeAllPolygons = useCallback(() => {
-    console.log('[App] handleMergeAllPolygons called with', savedPolygons.length, 'polygons');
     
     if (savedPolygons.length < 2) {
       toast.error('Need at least 2 polygons to merge');
@@ -746,11 +734,9 @@ export default function App() {
       description: `Contains ${allCoordinates.length} polygon part${allCoordinates.length > 1 ? 's' : ''}`
     });
     
-    console.log('[App] Merged into multi-polygon with', allCoordinates.length, 'parts');
   }, [savedPolygons, selectedSpecies, currentAnnotation]);
 
   const handleSplitMultiPolygon = useCallback((id: string) => {
-    console.log('[App] handleSplitMultiPolygon called for polygon:', id);
     
     const polygon = savedPolygons.find(p => p.id === id);
     
@@ -795,11 +781,9 @@ export default function App() {
     
     toast.success(`Split multi-polygon into ${newPolygons.length} separate polygons`);
     
-    console.log('[App] Split into', newPolygons.length, 'separate polygons');
   }, [savedPolygons]);
 
   const handleUnionPolygons = useCallback(async () => {
-    console.log('[App] handleUnionPolygons called with', savedPolygons.length, 'polygons');
     
     try {
       // Collect all polygon coordinates
@@ -822,7 +806,6 @@ export default function App() {
         return;
       }
 
-      console.log(`Computing union of ${allPolygonParts.length} total polygon parts...`);
       
       // Compute geometric union
       const result = unionPolygons(allPolygonParts);
@@ -862,7 +845,6 @@ export default function App() {
         });
       }
       
-      console.log('[App] Union completed, result is', isMulti ? 'multi-polygon' : 'single polygon');
     } catch (error) {
       console.error('Union operation error:', error);
       toast.error('Failed to union polygons', {

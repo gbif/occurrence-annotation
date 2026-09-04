@@ -151,13 +151,3 @@ export const isUsingUserProvidedKey = (): boolean => {
 export const hasSharedOpenAIKey = (): boolean => {
   return !!(import.meta.env.VITE_OPENAI_API_KEY);
 };
-
-// Debug logging
-if (import.meta.env.DEV) {
-  console.log('🔧 API Configuration:', {
-    mode: apiConfig.mode,
-    annotationApiBaseUrl: apiConfig.annotationApiBaseUrl,
-    gbifApiBaseUrl: apiConfig.gbifApiBaseUrl,
-    hasOpenAIKey: !!getOpenAIApiKey(),
-  });
-}

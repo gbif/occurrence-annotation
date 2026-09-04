@@ -492,7 +492,6 @@ function GBIFLogoSmall() {
 */
 
 function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, autoOpen = false }: SaveToGBIFDialogProps) {
-  console.log('SaveToGBIFDialog rendering with polygon:', polygon);
   
   const [isOpen, setIsOpen] = useState(autoOpen);
   const [isLoading, setIsLoading] = useState(false);
@@ -533,14 +532,6 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
   );
   const [yearRange, setYearRange] = useState<string>(polygon.yearRange || '');
   const [basisOfRecordOptions, setBasisOfRecordOptions] = useState<string[]>([]);
-  
-  console.log('SaveToGBIFDialog initial state:', {
-    basisOfRecord: polygon.basisOfRecord || polygon.initialFilters?.basisOfRecord,
-    basisOfRecordNegated: polygon.basisOfRecordNegated,
-    datasetKey: polygon.datasetKey || polygon.initialFilters?.datasetKey,
-    yearRange: polygon.yearRange,
-    editingOriginalRuleId: polygon.editingOriginalRuleId
-  });
   
   // Year range slider state
   const [yearRangeStart, setYearRangeStart] = useState<number>(1600);
@@ -647,22 +638,13 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
   useEffect(() => {
     if (isOpen) {
       const initialWkt = coordinatesToWKT(polygon.coordinates, polygon.isMultiPolygon, polygon.inverted);
-      console.log('SaveToGBIF: Initializing WKT for polygon:', {
-        id: polygon.id,
-        inverted: polygon.inverted,
-        isMultiPolygon: polygon.isMultiPolygon,
-        coordinatesLength: Array.isArray(polygon.coordinates[0]) ? polygon.coordinates.length : 1,
-        generatedWKT: initialWkt
-      });
       setWktText(initialWkt);
     }
   }, [isOpen, polygon.coordinates, polygon.inverted]);
 
   // Auto-open dialog and fetch dataset details if initialFilters exist
   useEffect(() => {
-    console.log('SaveToGBIF autoOpen effect:', { autoOpen, hasInitialFilters: !!polygon.initialFilters, initialFilters: polygon.initialFilters });
     if (autoOpen && polygon.initialFilters) {
-      console.log('Auto-opening SaveToGBIF dialog with filters:', polygon.initialFilters);
       setIsOpen(true);
       
       // Enable complex options if we have initial filters
@@ -670,14 +652,12 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
       
       // Set basis of record values if provided
       if (polygon.initialFilters.basisOfRecord && polygon.initialFilters.basisOfRecord.length > 0) {
-        console.log('Setting basisOfRecord from initialFilters:', polygon.initialFilters.basisOfRecord);
         setBasisOfRecord(polygon.initialFilters.basisOfRecord);
       }
       
       // If there's an initial datasetKey, fetch its details to pre-fill the dataset selector
       if (polygon.initialFilters.datasetKey) {
         const datasetKeyValue = polygon.initialFilters.datasetKey;
-        console.log('Setting datasetKey from initialFilters:', datasetKeyValue);
         setDatasetKey(datasetKeyValue);
         
         const fetchDatasetDetails = async () => {
@@ -688,7 +668,6 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
               setSelectedDataset(dataset);
               setDatasetQuery(dataset.title || '');
               setDatasetTitle(dataset.title || datasetKeyValue);
-              console.log('Fetched dataset details:', dataset.title);
             }
           } catch (error) {
             console.warn('Failed to fetch dataset details:', error);
@@ -927,7 +906,6 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
   }, [isOpen, polygon.species, polygon.coordinates]);
 
   const handleSave = async () => {
-    console.log('SaveToGBIF: handleSave called');
     
     // Validate year range input before proceeding
     if (useCustomYearRange && yearRange.trim()) {
@@ -945,7 +923,6 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
     const gbifUser = sessionStorage.getItem('gbifUser');
     
     if (!gbifAuth || !gbifUser) {
-      console.log('SaveToGBIF: No GBIF auth found');
       toast.error('⚠️ Please login to GBIF first to save annotation rules', {
         description: 'You need to be authenticated with GBIF to save annotation rules to the database.'
       });
@@ -953,21 +930,17 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
     }
 
     if (!polygon.species) {
-      console.log('SaveToGBIF: No species selected');
       toast.error('⚠️ Please select a species first', {
         description: 'You must assign a species to this polygon before saving it as an annotation rule.'
       });
       return;
     }
 
-    console.log('SaveToGBIF: Starting save process for polygon:', polygon.id);
-    console.log('SaveToGBIF: Using WKT text:', wktText);
     setIsLoading(true);
 
     try {
       // Use WKT from the editable text box
       const wktGeometry = wktText.trim();
-      console.log('SaveToGBIF: Final WKT geometry to send:', wktGeometry);
       
       // Validate WKT format
       if (!wktGeometry || (!wktGeometry.startsWith('POLYGON') && !wktGeometry.startsWith('MULTIPOLYGON'))) {
@@ -979,14 +952,12 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
       // Validate polygon size (vertex count and WKT length)
       const sizeValidation = validatePolygonSize(wktGeometry);
       if (!sizeValidation.isValid) {
-        console.log('SaveToGBIF: Polygon size validation failed:', sizeValidation.error);
         toast.error('⚠️ Polygon too large', {
           description: sizeValidation.error || 'Use the scissors tool in the editing menu to simplify your polygon.'
         });
         setIsLoading(false);
         return;
       }
-      console.log('SaveToGBIF: Polygon size validation passed:', sizeValidation.vertexCount, 'vertices');
       
       // Fetch COL checklist DOI
       const checklistDoi = await getChecklistDoi(GBIF_BACKBONE_UUID);
@@ -1047,8 +1018,6 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
       }
 
       const result = await response.json();
-      console.log('Rule saved successfully:', result);
-      
       // Post the comment if one was provided
       if (result && result.id && ruleComment.trim()) {
         try {
@@ -1065,7 +1034,6 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
           );
           
           if (commentResponse.ok) {
-            console.log('Comment posted successfully');
           } else {
             console.warn('Failed to post comment:', commentResponse.statusText);
           }
@@ -1076,7 +1044,6 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
       
       // Post any pending comments for this polygon
       if (result && result.id) {
-        console.log('Attempting to post pending comments for rule ID:', result.id);
         await postPendingComments(result.id, gbifAuth);
       }
       
@@ -1118,14 +1085,6 @@ function SaveToGBIFDialog({ polygon, onSuccess, annotation, onRuleSavedToGBIF, a
 
   const isButtonDisabled = !polygon.species || !getLoginStatus();
   
-  // Debug logging
-  console.log('SaveToGBIF button state:', {
-    hasSpecies: !!polygon.species,
-    isLoggedIn: getLoginStatus(),
-    isDisabled: isButtonDisabled,
-    tooltip: getButtonTooltip()
-  });
-
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
@@ -1724,10 +1683,7 @@ function PolygonCard({
   // Unused - commented out to avoid build warning
   /*
   const handleAddComment = async () => {
-    console.log('handleAddComment called');
-    
     if (!newComment.trim()) {
-      console.log('Comment is empty');
       toast.error('Comment cannot be empty');
       return;
     }
@@ -1756,10 +1712,7 @@ function PolygonCard({
           }
         }
       } catch (authErr) {
-        console.log('No valid auth found, using anonymous user');
       }
-
-      console.log('Using username:', userName || 'anonymous');
 
       // Store comment locally as "pending" until polygon is saved as a rule to GBIF
       const comment = {
@@ -1769,8 +1722,6 @@ function PolygonCard({
         user: userName,
         status: 'pending' // Will be 'saved' once the rule is created and comment posted to GBIF
       };
-      
-      console.log('Comment object created:', comment);
       
       // Get existing comments safely
       let existingComments = [];
@@ -1784,8 +1735,6 @@ function PolygonCard({
         existingComments = [];
       }
       
-      console.log('Existing comments:', existingComments.length);
-      
       existingComments.push(comment);
       
       try {
@@ -1795,8 +1744,6 @@ function PolygonCard({
         throw new Error('Failed to save comment to local storage');
       }
       
-      console.log('Comment saved to localStorage successfully');
-
       toast.success('Comment saved locally. Will be posted to GBIF when rule is saved.');
       
       // Clear the comment input

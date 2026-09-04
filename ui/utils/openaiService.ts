@@ -199,7 +199,6 @@ function parseOpenAIResponse(responseText: string): LocationQualityReport {
 export async function evaluateLocationQuality(gbifid: number): Promise<LocationQualityReport> {
   try {
     // Step 1: Fetch occurrence data from GBIF
-    console.log(`Fetching occurrence data for GBIF ID: ${gbifid}`);
     const occurrence = await fetchOccurrenceData(gbifid);
     
     // Step 2: Quick validation - check if coordinates exist
@@ -214,12 +213,10 @@ export async function evaluateLocationQuality(gbifid: number): Promise<LocationQ
     }
     
     // Step 3: Call OpenAI for analysis
-    console.log('Calling OpenAI for location quality analysis...');
     const aiResponse = await callOpenAI(occurrence);
     
     // Step 4: Parse and return structured report
     const report = parseOpenAIResponse(aiResponse);
-    console.log('Location quality evaluation completed:', report);
     
     return report;
   } catch (error) {
