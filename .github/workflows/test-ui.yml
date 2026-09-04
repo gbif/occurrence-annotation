@@ -28,7 +28,24 @@ jobs:
 
       - name: Security audit
         working-directory: ui
-        run: npm audit --omit=dev --audit-level=high
+        run: |
+          for attempt in 1 2 3; do
+            set +e
+            output=$(npm audit --omit=dev --audit-level=high 2>&1)
+            status=$?
+            set -e
+            echo "$output"
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+            if echo "$output" | grep -q "audit endpoint returned an error"; then
+              echo "::warning::npm audit registry request failed (attempt $attempt/3)."
+              sleep $((attempt * 15))
+              continue
+            fi
+            exit "$status"
+          done
+          echo "::warning::Skipping security audit: the npm audit endpoint is unavailable."
 
       - name: Build
         working-directory: ui
