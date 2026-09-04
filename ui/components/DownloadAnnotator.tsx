@@ -126,7 +126,6 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
   useEffect(() => {
     const fetchVocabulariesFromRules = async () => {
       if (!fetchedRules || fetchedRules.length === 0) {
-        console.log('[DownloadAnnotator] No rules fetched, using default vocabulary');
         return;
       }
 
@@ -137,10 +136,7 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
           .filter((id): id is number => id !== null && id !== undefined)
       ));
 
-      console.log(`[DownloadAnnotator] Fetching vocabularies for ${projectIds.length} projects:`, projectIds);
-
       if (projectIds.length === 0) {
-        console.log('[DownloadAnnotator] No project IDs in rules, using default vocabulary');
         return;
       }
 
@@ -187,9 +183,6 @@ export default function DownloadAnnotator({ onResultsChange }: DownloadAnnotator
         });
 
         const mergedVocabulary = Array.from(mergedVocabMap.values());
-        console.log(`[DownloadAnnotator] Merged vocabulary (${mergedVocabulary.length} terms):`, 
-          mergedVocabulary.map(v => `${v.term}:${v.color}`));
-        
         setVocabulary(mergedVocabulary);
       } catch (error) {
         console.error('[DownloadAnnotator] Error fetching vocabularies:', error);

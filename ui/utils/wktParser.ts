@@ -168,7 +168,6 @@ export function parseWKTPolygonWithHoles(wkt: string): PolygonWithHoles | null {
     // Split by "), (" to handle polygons with holes
     const rings = coordsStr.split(/\),\s*\(/);
     
-    // console.log('Parsing WKT, found', rings.length, 'rings');
     
     // Web Mercator limits (poles cannot be displayed)
     const WEB_MERCATOR_MAX_LAT = 85.0511287798;

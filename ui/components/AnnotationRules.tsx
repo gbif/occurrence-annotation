@@ -1103,13 +1103,11 @@ export function AnnotationRules({
         throw new Error('No authentication found (username/password missing)');
       }
 
-      console.log('Attempting to vote:', { ruleId, action, authHeader });
 
       const endpoint = action === 'support' 
         ? getAnnotationApiUrl(`/rule/${ruleId}/support`)
         : getAnnotationApiUrl(`/rule/${ruleId}/contest`);
 
-      console.log('API Endpoint:', endpoint);
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -1119,7 +1117,6 @@ export function AnnotationRules({
         }
       });
 
-      console.log('API Response:', { status: response.status, statusText: response.statusText });
 
       if (response.ok) {
         // Update user vote state
