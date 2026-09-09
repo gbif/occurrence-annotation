@@ -3641,7 +3641,27 @@ export function MapComponent({
                           <div>
                             <h4 className="font-medium text-sm">{occurrence.scientificName}</h4>
                             <p className="text-xs text-gray-500">
-                              GBIF Key: {occurrence.key}
+                              GBIF Key:{' '}
+                              <a
+                                href={`https://api.gbif.org/v1/occurrence/${occurrence.key}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                title="View API response"
+                                className="hover:underline"
+                              >
+                                {occurrence.key}
+                              </a>{' '}
+                              <a
+                                href={`https://api.gbif.org/v1/occurrence/${occurrence.key}/fragment`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                title="View raw/uninterpreted record"
+                                className="text-[10px] text-gray-400 hover:text-gray-600 hover:underline"
+                              >
+                                (raw)
+                              </a>
                             </p>
                           </div>
                           <Badge variant="outline" className="text-xs">
