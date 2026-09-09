@@ -53,7 +53,7 @@
     "input-otp": "^1.2.4",
     "jszip": "^3.10.1",
     "lucide-react": "^0.263.1",
-    "maplibre-gl": "^5.9.0",
+    "maplibre-gl": "^6.8.0",
     "papaparse": "^5.4.1",
     "pigeon-maps": "^0.22.1",
     "polygon-clipping": "^0.15.7",
