@@ -82,6 +82,15 @@ ui/.env
 ui/.env.local
 ui/.env.production
 ui/.env.*.local
+rule-agent/.env
+
+# Rule-agent local environments and generated review drafts
+rule-agent/.venv/
+rule-agent/.pytest_cache/
+rule-agent/.ruff_cache/
+rule-agent/__pycache__/
+rule-agent/**/*.pyc
+rule-agent/output/
 
 # Build outputs
 ui/build/

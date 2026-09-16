@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gbif-rule-agent"
+version = "0.1.0"
+description = "Research and draft conservative geographic GBIF occurrence annotation rules."
+requires-python = ">=3.11"
+dependencies = [
+  "openai>=1.0.0",
+  "shapely>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0", "ruff>=0.6.0"]
+
+[project.scripts]
+rule-agent = "rule_agent.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["rule_agent"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
