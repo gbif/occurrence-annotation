@@ -1,1 +1,0 @@
-"""GBIF occurrence annotation rule-drafting agent."""

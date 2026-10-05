@@ -1,0 +1,21 @@
+Package: gbifout
+Type: Package
+Title: Find Outlier GBIF Occurrence Records
+Version: 0.1.0
+Authors@R: person("GBIF", "Occurrence Annotation", email = "support@gbif.org", role = c("aut", "cre"))
+Description: Tools for identifying geographically unusual GBIF occurrence records
+    using pixel occupancy, occurrence metadata, model-assisted record triage, and WKT output.
+License: Apache License (>= 2)
+Encoding: UTF-8
+Depends: R (>= 4.1.0)
+Imports:
+    dplyr,
+    httr2,
+    jsonlite,
+    rgbif,
+    sf,
+    terra
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+RoxygenNote: 7.3.2

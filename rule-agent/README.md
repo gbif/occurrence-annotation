@@ -1,44 +1,43 @@
-# GBIF Rule Agent
+# GBIF Outlier Tools
 
-`rule-agent` researches a scientific name or Catalogue of Life (COL) taxon key and writes conservative, review-only geographic rule drafts for the GBIF occurrence annotation service. It does not authenticate to, call, or create rules through the annotation API.
+The supported implementation in this directory is the `gbifout` R package. It builds pixel-occupancy grids, selects sparse candidate polygons, returns occurrence and dataset metadata, combines polygon WKT, and provides cheap-model occurrence triage with optional advanced review.
 
-## Setup
+## Development Setup
 
-Use Python 3.11 or newer:
+Use R 4.1 or newer. From this directory, load the package during development:
 
-```powershell
-cd rule-agent
-py -3 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
-Copy-Item .env.template .env
+```r
+devtools::load_all("gbifout")
 ```
 
-Set `OPENAI_API_KEY` in `.env`, or set it in the environment. The agent uses the fixed `gpt-5.6-terra` model with high reasoning effort.
+Set `OPENAI_API_KEY` in the R process environment before using model-assisted triage. The triage function uses `gpt-4.1-mini` first and escalates `NEEDS_REVIEW` results to the higher-reasoning model. It does not write annotations or modify GBIF records.
 
-## Use
+## Find Candidate Polygons
 
-```powershell
-rule-agent create "Calopteryx splendens"
-rule-agent create CQ4M --output-dir output --max-tool-rounds 6
+```r
+result <- gbifout::find_outlier_candidates("3NFRS")
+result$candidates
+result$datasets
+result$mp
 ```
 
-Name resolution uses the Catalogue of Life. If a name matches multiple accepted concepts, the command stops and prints candidates; rerun it with the chosen COL key.
+Candidate cells are based on logical pixel occupancy, not raster color intensity. The default basis-of-record set excludes `MATERIAL_CITATION`, `LIVING_SPECIMEN`, `MATERIAL_SAMPLE`, and `FOSSIL_SPECIMEN`. Cells with at most three filled pixels are retained regardless of the occupancy quantile. Polygon metadata includes occurrence counts, dataset counts, and exact filled-pixel counts.
 
-The agent uses a-priori sources for initial geometry: OpenAI web search of authoritative range literature, taxonomic treatments, conservation assessments, biogeographic barriers, and country/island context. It can use GBIF taxon matching only; it does not offer GBIF occurrence searches, occurrence details, or occurrence fragments to the model. It does not use missing GBIF records as proof of absence, and it flags unexplained outliers for later record-level investigation rather than silently expanding a range.
+## Triage One Occurrence
 
-## Output
+```r
+assessment <- gbifout::assess_occurrence_record(6497435304)
+assessment$initialAssessment
+assessment$advancedAssessment
+assessment$finalAssessment
+```
 
-Each valid candidate produces `output/rule-###.json`, a request body ready for later review and submission to `POST /occurrence/experimental/annotation/rule`. A paired `rule-###.md` records the concise rationale and evidence. The tool writes no database data.
+The result distinguishes `SUSPICIOUS`, `INTRODUCED`, `OK`, and `NEEDS_REVIEW`. Country-centroid distance is supporting context only; it is not used as standalone evidence.
 
-Generated geometry is currently written without local WKT validation so it can be reviewed during development. Review every geometry before submitting it to the annotation service. Inverted rules use a world-shell polygon with plausible-range holes, matching the existing UI and R package convention.
+Both models first recall the focal taxon's native range from pretrained knowledge and compare it with the record coordinates and locality, allowing for coordinate uncertainty. Clear, distant native-range mismatches are marked `SUSPICIOUS` with `unlikely_location_for_taxon`; supported free-ranging introduced populations remain `INTRODUCED`. Uncertain taxonomy or range knowledge is routed to `NEEDS_REVIEW`. Range claims are model-recalled, not checked against external sources, so assessments remain review-only.
 
-The agent produces `SUSPICIOUS` rules by default. `INTRODUCED` and `VAGRANT` are reserved for directly supported evidence; captive organisms, zoos, and botanical-garden records remain `SUSPICIOUS`.
+## Tests
 
-## Development
-
-```powershell
-cd rule-agent
-py -3 -m pytest
-py -3 -m ruff check .
+```r
+devtools::test("gbifout")
 ```
