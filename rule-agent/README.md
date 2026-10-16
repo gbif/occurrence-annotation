@@ -23,6 +23,15 @@ result$mp
 
 Candidate cells are based on logical pixel occupancy, not raster color intensity. The default basis-of-record set excludes `MATERIAL_CITATION`, `LIVING_SPECIMEN`, `MATERIAL_SAMPLE`, and `FOSSIL_SPECIMEN`. Cells with at most three filled pixels are retained regardless of the occupancy quantile. Polygon metadata includes occurrence counts, dataset counts, and exact filled-pixel counts.
 
+```r
+result                      # summary: CV vs flatCvThreshold, effective quantile, cutoff
+plot(result)                # occupancy and filled-pixel histograms
+plot(result, which = "occupancy")
+print(result, plot = TRUE)  # summary plus plots
+```
+
+The histograms highlight cells selected as low occupancy (before the occurrence-count filter) and mark the quantile cutoff and `maxFilledPixels`; the occupancy subtitle compares the observed CV with `flatCvThreshold`. The raw values are in `result$diagnostics`. When `outputDir` is supplied, the plots are also saved as `<taxonKey>-diagnostics.png`.
+
 ## Fetch Unique Occurrence IDs
 
 ```r

@@ -315,3 +315,37 @@ test_that("high occupancy output excludes empty cells and ties at the cutoff", {
     grid, 0.5, NULL, FALSE, "unused"
   ), character(0))
 })
+test_that("diagnostics support print, plot, and PNG output", {
+  raster <- terra::rast(nrows = 1, ncols = 6, xmin = 0, xmax = 6,
+                        ymin = 0, ymax = 1, crs = "EPSG:4326")
+  counts <- raster
+  filled <- c(1, 3, 13, 32, 64, 0)
+  terra::values(raster) <- filled / 64
+  terra::values(counts) <- filled
+  grid <- list(raster = raster, filledPixelCount = counts)
+  local_mocked_bindings(
+    build_raster_occupancy_grid = function(...) grid,
+    occ_count = function(...) {
+      if (is.null(list(...)$facet)) return(1)
+      data.frame(datasetKey = "dataset", count = 1L)
+    },
+    .package = "gbifout"
+  )
+  outputDir <- tempfile("diagnostics")
+  result <- find_outlier_candidates("taxon", maxFilledPixels = 2, outputDir = outputDir)
+  expect_s3_class(result, "gbifout_outliers")
+  expect_equal(result$diagnostics$occupancy, filled[1:5] / 64)
+  expect_equal(result$diagnostics$filledPixelCount, filled[1:5])
+  expect_equal(result$diagnostics$flatCvThreshold, 0.8)
+  expect_equal(result$diagnostics$occupancyCutoff,
+               unname(stats::quantile(filled[1:5] / 64, result$effectiveQuantile)))
+  expect_true(file.exists(file.path(outputDir, "taxon-diagnostics.png")))
+
+  expect_output(print(result), "flatCvThreshold 0.800")
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  expect_invisible(plot(result))
+  expect_invisible(plot(result, which = "pixels"))
+  expect_output(print(result, plot = TRUE), "Effective quantile")
+  expect_error(plot(result, which = "bogus"))
+})

@@ -35,7 +35,8 @@
 #'   (default 300, GBIF's facet limit).
 #'
 #' The combined polygon is also written to
-#'   `<taxonKey>-outliers-multipolygon.wkt` when `outputDir` is supplied.
+#'   `<taxonKey>-outliers-multipolygon.wkt` when `outputDir` is supplied, along
+#'   with a `<taxonKey>-diagnostics.png` produced by `plot()`.
 #'
 #' @return A list with `taxonKey`, the supplied taxon key; `candidates`, one row per candidate polygon;
 #'   `datasets`, dataset occurrence counts keyed by `polygonId`; `mp`, a
@@ -47,6 +48,10 @@
 #'   cells receive no dataset-facet requests.
 #'   `occupancyCv` is occupied-cell standard deviation divided by mean (0 for
 #'   one cell, NA for none); `effectiveQuantile` is used by both selectors.
+#'   `diagnostics` holds the occupied-cell `occupancy` and `filledPixelCount`
+#'   values, the `occupancyCutoff`, `flatCvThreshold`, and `maxFilledPixels`.
+#'   The result has class `gbifout_outliers`; use `plot()` for diagnostic
+#'   histograms and `print()` for a summary.
 find_outlier_candidates <- function(taxonKey,
                                      basisOfRecord = c(
                                        "PRESERVED_SPECIMEN",
@@ -94,11 +99,19 @@ find_outlier_candidates <- function(taxonKey,
   occupancy_cv <- if (!length(occupied)) NA_real_ else if (length(occupied) == 1) 0 else {
     stats::sd(occupied) / mean(occupied)
   }
-  effective_quantile <- if (!is.finite(occupancy_cv) || occupancy_cv <= flatCvThreshold) {
-    1
-  } else {
-    max(0, 1 - flatCvThreshold / occupancy_cv)
-  }
+  effective_quantile <- .effective_quantile(occupancy_cv, flatCvThreshold)
+  filled_counts <- terra::values(grid$filledPixelCount)
+  diagnostics <- list(
+    occupancy = occupied,
+    filledPixelCount = as.numeric(filled_counts[is.finite(occupancy) & occupancy > 0]),
+    occupancyCutoff = if (length(occupied)) {
+      unname(stats::quantile(occupied, effective_quantile))
+    } else {
+      NA_real_
+    },
+    flatCvThreshold = flatCvThreshold,
+    maxFilledPixels = maxFilledPixels
+  )
   if (!is.null(outputDir)) {
     dir.create(outputDir, recursive = TRUE, showWarnings = FALSE)
     density_raster <- grid$raster
@@ -207,7 +220,7 @@ find_outlier_candidates <- function(taxonKey,
     writeLines(combined_wkt, file.path(outputDir, paste0(tolower(taxonKey), "-outliers-multipolygon.wkt")))
   }
 
-  list(
+  output <- structure(list(
     taxonKey = taxonKey,
     occupancyCv = occupancy_cv,
     effectiveQuantile = effective_quantile,
@@ -217,8 +230,19 @@ find_outlier_candidates <- function(taxonKey,
     hdp = sf::st_as_text(sf::st_cast(
       sf::st_as_sfc(combine_outlier_polygons(high_density_polygons), crs = 4326),
       "MULTIPOLYGON"
-    ))
-  )
+    )),
+    diagnostics = diagnostics
+  ), class = c("gbifout_outliers", "list"))
+  if (!is.null(outputDir)) {
+    write_outlier_diagnostics(
+      output, file.path(outputDir, paste0(tolower(taxonKey), "-diagnostics.png"))
+    )
+  }
+  output
+}
+
+.effective_quantile <- function(cv, flatCvThreshold) {
+  ifelse(!is.finite(cv) | cv <= flatCvThreshold, 1, pmax(0, 1 - flatCvThreshold / cv))
 }
 
 .high_occupancy_polygons <- function(grid, lowQuantile, maxFilledPixels,
