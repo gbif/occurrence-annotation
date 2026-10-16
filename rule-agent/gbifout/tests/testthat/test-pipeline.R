@@ -5,7 +5,7 @@ test_that("pipeline chains the three steps and returns final assessments", {
   hdp <- "MULTIPOLYGON (((4 0, 5 0, 5 1, 4 1, 4 0)))"
   polygons <- list(taxonKey = "3NFRS", candidates = data.frame(binWkt = wkts), hdp = hdp)
   local_mocked_bindings(
-    find_outlier_candidates = function(taxonKey, basisOfRecord, ...) {
+    out_cand = function(taxonKey, basisOfRecord, ...) {
       calls <<- c(calls, "find")
       expect_identical(taxonKey, "3NFRS")
       expect_identical(basisOfRecord, "HUMAN_OBSERVATION")
@@ -54,10 +54,10 @@ test_that("pipeline chains the three steps and returns final assessments", {
 })
 
 test_that("empty fetches return a typed table without assessment calls", {
-  expected_basis <- eval(formals(find_outlier_candidates)$basisOfRecord)
+  expected_basis <- eval(formals(out_cand)$basisOfRecord)
   hdp <- "MULTIPOLYGON (((4 0, 5 0, 5 1, 4 1, 4 0)))"
   local_mocked_bindings(
-    find_outlier_candidates = function(...) list(taxonKey = 123, hdp = hdp),
+    out_cand = function(...) list(taxonKey = 123, hdp = hdp),
     occ_fetch_unique = function(result, basisOfRecord, sampleSize) {
       expect_equal(sampleSize, 5)
       expect_identical(basisOfRecord, expected_basis)
@@ -80,7 +80,7 @@ test_that("decision multipolygons combine unique cells and allow mixed decisions
             "POLYGON ((2 0, 3 0, 3 1, 2 1, 2 0))")
   decisions <- c("SUSPICIOUS", "SUSPICIOUS", "SUSPICIOUS", "OK", "NEEDS_REVIEW")
   local_mocked_bindings(
-    find_outlier_candidates = function(...) list(taxonKey = 123, hdp = "MULTIPOLYGON EMPTY"),
+    out_cand = function(...) list(taxonKey = 123, hdp = "MULTIPOLYGON EMPTY"),
     occ_fetch_unique = function(...) data.frame(
       gbifid = as.character(seq_along(decisions)), binWkt = wkts[c(1, 1, 2, 1, 2)]
     ),
@@ -105,7 +105,7 @@ test_that("decision multipolygons combine unique cells and allow mixed decisions
 
 test_that("pipeline errors identify the occurrence and invalid inputs stop early", {
   local_mocked_bindings(
-    find_outlier_candidates = function(...) list(taxonKey = "taxon"),
+    out_cand = function(...) list(taxonKey = "taxon"),
     occ_fetch_unique = function(...) data.frame(gbifid = "123", binWkt = "polygon"),
     assess_occurrence_record = function(...) stop("model unavailable"),
     .package = "gbifout"

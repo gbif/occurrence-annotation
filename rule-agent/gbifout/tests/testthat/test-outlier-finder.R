@@ -17,7 +17,7 @@ test_that("high occupancy polygons are returned without metadata requests", {
     .package = "gbifout"
   )
 
-  result <- find_outlier_candidates("taxon")
+  result <- out_cand("taxon")
 
   expect_identical(result$taxonKey, "taxon")
   expect_length(result$hdp, 1)
@@ -47,7 +47,7 @@ test_that("hdp combines multiple high cells and returns an empty multipolygon wh
     .package = "gbifout"
   )
 
-  result <- find_outlier_candidates("taxon", flatCvThreshold = 0.5)
+  result <- out_cand("taxon", flatCvThreshold = 0.5)
   expect_length(result$hdp, 1)
   expect_match(result$hdp, "^MULTIPOLYGON")
   geometry <- sf::st_as_sfc(result$hdp, crs = 4326)
@@ -56,7 +56,7 @@ test_that("hdp combines multiple high cells and returns an empty multipolygon wh
   terra::values(raster) <- rep(0, 5)
   terra::values(counts) <- rep(0, 5)
   grid <- list(raster = raster, filledPixelCount = counts)
-  expect_identical(find_outlier_candidates("taxon")$hdp, "MULTIPOLYGON EMPTY")
+  expect_identical(out_cand("taxon")$hdp, "MULTIPOLYGON EMPTY")
 })
 
 test_that("count-filtered low cells are retained alongside high cells in hdp", {
@@ -81,7 +81,7 @@ test_that("count-filtered low cells are retained alongside high cells in hdp", {
     .package = "gbifout"
   )
 
-  result <- find_outlier_candidates("taxon", maxOccurrenceCount = 30)
+  result <- out_cand("taxon", maxOccurrenceCount = 30)
   expect_equal(result$candidates$occurrenceCount, 30)
   expect_equal(result$candidates$filledPixelCount, 1)
   expect_length(requests, 4)
@@ -93,7 +93,7 @@ test_that("count-filtered low cells are retained alongside high cells in hdp", {
   expect_match(result$hdp, "^MULTIPOLYGON")
 
   requests <- list()
-  unfiltered <- find_outlier_candidates("taxon", maxOccurrenceCount = NULL)
+  unfiltered <- out_cand("taxon", maxOccurrenceCount = NULL)
   expect_equal(nrow(unfiltered$candidates), 3)
   expect_equal(unfiltered$candidates$occurrenceCount, c(30, 31, NA_real_))
   expect_length(requests, 6)
@@ -101,7 +101,7 @@ test_that("count-filtered low cells are retained alongside high cells in hdp", {
   expect_true(sf::st_equals(sf::st_as_sfc(unfiltered$hdp), high, sparse = FALSE)[1, 1])
 
   requests <- list()
-  excluded <- find_outlier_candidates("taxon", maxOccurrenceCount = 0)
+  excluded <- out_cand("taxon", maxOccurrenceCount = 0)
   expect_equal(nrow(excluded$candidates), 0)
   expect_identical(excluded$mp, "MULTIPOLYGON EMPTY")
   expect_length(requests, 3)
@@ -126,9 +126,9 @@ test_that("polygon counts and dataset facets use the raster's basis-of-record fi
     },
     .package = "gbifout"
   )
-  default_filter <- paste(eval(formals(find_outlier_candidates)$basisOfRecord), collapse = ";")
+  default_filter <- paste(eval(formals(out_cand)$basisOfRecord), collapse = ";")
 
-  find_outlier_candidates("taxon")
+  out_cand("taxon")
   expect_true(length(requests) > 0)
   expect_true(all(vapply(requests, function(request) {
     identical(request$basisOfRecord, default_filter)
@@ -136,14 +136,14 @@ test_that("polygon counts and dataset facets use the raster's basis-of-record fi
   expect_false(grepl("FOSSIL_SPECIMEN|MATERIAL_CITATION", default_filter))
 
   requests <- list()
-  find_outlier_candidates("taxon",
-                          basisOfRecord = c(" HUMAN_OBSERVATION ", "OBSERVATION", "OBSERVATION"))
+  out_cand("taxon",
+           basisOfRecord = c(" HUMAN_OBSERVATION ", "OBSERVATION", "OBSERVATION"))
   expect_true(all(vapply(requests, function(request) {
     identical(request$basisOfRecord, "HUMAN_OBSERVATION;OBSERVATION")
   }, logical(1))))
 
   requests <- list()
-  find_outlier_candidates("taxon", basisOfRecord = NULL)
+  out_cand("taxon", basisOfRecord = NULL)
   expect_true(all(vapply(requests, function(request) is.null(request$basisOfRecord), logical(1))))
 })
 
@@ -164,7 +164,7 @@ test_that("a fossil-heavy cell stays a candidate when only non-fossil records ar
     },
     .package = "gbifout"
   )
-  result <- find_outlier_candidates("taxon")
+  result <- out_cand("taxon")
   expect_equal(nrow(result$candidates), 1)
   expect_equal(result$candidates$occurrenceCount, 1)
   # Only the dense second cell is in hdp, not the fossil-heavy first one.
@@ -191,11 +191,11 @@ test_that("CV and its threshold alone set both selectors' quantile", {
   )
 
   expected_cv <- stats::sd(filled[1:5]) / mean(filled[1:5])
-  adapted <- find_outlier_candidates("taxon", maxFilledPixels = NULL,
-                                     maxOccurrenceCount = NULL)
-  lower_threshold <- find_outlier_candidates("taxon", maxFilledPixels = NULL,
-                                             maxOccurrenceCount = NULL,
-                                             flatCvThreshold = expected_cv / 2)
+  adapted <- out_cand("taxon", maxFilledPixels = NULL,
+                      maxOccurrenceCount = NULL)
+  lower_threshold <- out_cand("taxon", maxFilledPixels = NULL,
+                              maxOccurrenceCount = NULL,
+                              flatCvThreshold = expected_cv / 2)
   expect_equal(adapted$occupancyCv, expected_cv)
   expect_equal(adapted$effectiveQuantile, 1)
   expect_equal(lower_threshold$effectiveQuantile, 0.5)
@@ -203,15 +203,15 @@ test_that("CV and its threshold alone set both selectors' quantile", {
   expect_equal(nrow(adapted$candidates), 5)
   expect_identical(adapted$hdp, "MULTIPOLYGON EMPTY")
 
-  at_threshold <- find_outlier_candidates("taxon", maxFilledPixels = NULL,
-                                          maxOccurrenceCount = NULL,
-                                          flatCvThreshold = expected_cv)
+  at_threshold <- out_cand("taxon", maxFilledPixels = NULL,
+                           maxOccurrenceCount = NULL,
+                           flatCvThreshold = expected_cv)
   expect_equal(at_threshold$effectiveQuantile, 1)
   expect_equal(nrow(at_threshold$candidates), 5)
   expect_identical(at_threshold$hdp, "MULTIPOLYGON EMPTY")
-  just_above <- find_outlier_candidates("taxon", maxFilledPixels = NULL,
-                                        maxOccurrenceCount = NULL,
-                                        flatCvThreshold = expected_cv * 0.99)
+  just_above <- out_cand("taxon", maxFilledPixels = NULL,
+                         maxOccurrenceCount = NULL,
+                         flatCvThreshold = expected_cv * 0.99)
   expect_equal(just_above$effectiveQuantile, 0.01)
   expect_equal(nrow(just_above$candidates), 1)
   expect_equal(as.numeric(sf::st_bbox(sf::st_as_sfc(just_above$hdp)))[c(1, 3)], c(1, 5))
@@ -219,19 +219,19 @@ test_that("CV and its threshold alone set both selectors' quantile", {
   terra::values(raster) <- c(rep(0.5, 5), 0, NA)
   terra::values(counts) <- c(rep(32, 5), 0, NA)
   grid <- list(raster = raster, filledPixelCount = counts)
-  constant <- find_outlier_candidates("taxon", maxFilledPixels = NULL,
-                                      maxOccurrenceCount = NULL)
+  constant <- out_cand("taxon", maxFilledPixels = NULL,
+                       maxOccurrenceCount = NULL)
   expect_equal(constant$occupancyCv, 0)
   expect_equal(constant$effectiveQuantile, 1)
   expect_equal(nrow(constant$candidates), 5)
   expect_identical(constant$hdp, "MULTIPOLYGON EMPTY")
-  filtered <- find_outlier_candidates("taxon", maxFilledPixels = NULL, maxOccurrenceCount = 30)
+  filtered <- out_cand("taxon", maxFilledPixels = NULL, maxOccurrenceCount = 30)
   expect_equal(nrow(filtered$candidates), 4)
   expect_equal(as.numeric(sf::st_bbox(sf::st_as_sfc(filtered$hdp)))[c(1, 3)], c(0, 1))
 
   terra::values(raster) <- c(0.01, 0.05, 0.2, 0.5, 1, 0, NA)
   grid <- list(raster = raster, filledPixelCount = counts)
-  varied <- find_outlier_candidates("taxon", maxFilledPixels = NULL)
+  varied <- out_cand("taxon", maxFilledPixels = NULL)
   expect_gt(varied$occupancyCv, 0.8)
   expect_equal(varied$effectiveQuantile, 1 - 0.8 / varied$occupancyCv)
   expect_equal(nrow(varied$candidates), 2)
@@ -254,7 +254,7 @@ test_that("a sparse four-pixel maximum becomes a candidate under the flatness th
     },
     .package = "gbifout"
   )
-  result <- find_outlier_candidates("taxon")
+  result <- out_cand("taxon")
   expect_lte(result$occupancyCv, 0.8)
   expect_equal(result$effectiveQuantile, 1)
   expect_equal(result$candidates$filledPixelCount, c(1, 1, 2, 3, 4))
@@ -277,14 +277,14 @@ test_that("adaptive quantile handles empty and singleton grids and validates inp
     },
     .package = "gbifout"
   )
-  single <- find_outlier_candidates("taxon")
+  single <- out_cand("taxon")
   expect_equal(single$occupancyCv, 0)
   expect_equal(single$effectiveQuantile, 1)
   expect_equal(nrow(single$candidates), 1)
   terra::values(raster) <- c(0, NA)
   terra::values(counts) <- c(0, NA)
   grid <- list(raster = raster, filledPixelCount = counts)
-  empty <- find_outlier_candidates("taxon")
+  empty <- out_cand("taxon")
   expect_true(is.na(empty$occupancyCv))
   expect_equal(empty$effectiveQuantile, 1)
   expect_equal(nrow(empty$candidates), 0)
@@ -293,9 +293,9 @@ test_that("adaptive quantile handles empty and singleton grids and validates inp
   local_mocked_bindings(build_raster_occupancy_grid = function(...) stop("must not fetch"),
                         .package = "gbifout")
   for (threshold in list(NULL, 0, -1, NA_real_, Inf, c(0.1, 0.2), "flat")) {
-    expect_error(find_outlier_candidates("taxon", flatCvThreshold = threshold), "flatCvThreshold")
+    expect_error(out_cand("taxon", flatCvThreshold = threshold), "flatCvThreshold")
   }
-  expect_false("rasterLowQuantile" %in% names(formals(find_outlier_candidates)))
+  expect_false("rasterLowQuantile" %in% names(formals(out_cand)))
 })
 
 test_that("high occupancy output excludes empty cells and ties at the cutoff", {
@@ -322,7 +322,7 @@ test_that("diagnostics support print, plot, and PNG output", {
   filled <- c(1, 3, 13, 32, 64, 0)
   terra::values(raster) <- filled / 64
   terra::values(counts) <- filled
-  grid <- list(raster = raster, filledPixelCount = counts)
+  grid <- list(raster = raster, filledPixelCount = counts, map = raster)
   local_mocked_bindings(
     build_raster_occupancy_grid = function(...) grid,
     occ_count = function(...) {
@@ -332,7 +332,7 @@ test_that("diagnostics support print, plot, and PNG output", {
     .package = "gbifout"
   )
   outputDir <- tempfile("diagnostics")
-  result <- find_outlier_candidates("taxon", maxFilledPixels = 2, outputDir = outputDir)
+  result <- out_cand("taxon", maxFilledPixels = 2, outputDir = outputDir)
   expect_s3_class(result, "gbifout_outliers")
   expect_equal(result$diagnostics$occupancy, filled[1:5] / 64)
   expect_equal(result$diagnostics$filledPixelCount, filled[1:5])
@@ -346,6 +346,8 @@ test_that("diagnostics support print, plot, and PNG output", {
   on.exit(grDevices::dev.off(), add = TRUE)
   expect_invisible(plot(result))
   expect_invisible(plot(result, which = "pixels"))
+  expect_invisible(plot(result, which = "map"))
+  expect_s4_class(result$diagnostics$map, "SpatRaster")
   expect_output(print(result, plot = TRUE), "Effective quantile")
   expect_error(plot(result, which = "bogus"))
 })

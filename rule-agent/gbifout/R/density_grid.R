@@ -87,7 +87,9 @@ validate_grid_resolution <- function(zoom, squareSize) {
 #'
 #' @return a list with `raster`, a SpatRaster of fill fractions from 0 to 1;
 #'   `filledPixelCount`, a SpatRaster of logical filled-pixel counts;
-#'   `pixelsPerCell`; and `total`, the sum of fill fractions.
+#'   `map`, the fetched map tiles combined across channels at logical pixel
+#'   resolution (used for diagnostic plots); `pixelsPerCell`; and `total`, the
+#'   sum of fill fractions.
 build_raster_occupancy_grid <- function(taxonKey, zoom = 0, gridPixels = 256,
                                          keepBasisOfRecord = NULL,
                                          format = "@4x.png", filledThreshold = 0,
@@ -173,9 +175,19 @@ build_raster_occupancy_grid <- function(taxonKey, zoom = 0, gridPixels = 256,
   )
   pixels_per_cell <- gridPixels^2
   fraction <- filled_pixel_count / pixels_per_cell
+  map_rasters <- lapply(rasters, function(raster) {
+    raster <- ifel(is.na(raster), 0, raster)
+    if (render_scale > 1) aggregate(raster, fact = render_scale, fun = "max") else raster
+  })
+  map <- if (length(map_rasters) == 1) {
+    map_rasters[[1]]
+  } else {
+    do.call(terra::mosaic, c(map_rasters, fun = "max"))
+  }
   list(
     raster = fraction,
     filledPixelCount = filled_pixel_count,
+    map = map,
     pixelsPerCell = pixels_per_cell,
     total = sum(values(fraction), na.rm = TRUE)
   )

@@ -7,12 +7,12 @@
 #'
 #' @param taxonKey GBIF taxon key to investigate.
 #' @param basisOfRecord channels used for both raster discovery and occurrence
-#'   fetching. Defaults to the same seven channels as `find_outlier_candidates()`.
+#'   fetching. Defaults to the same seven channels as `out_cand()`.
 #' @param sampleSize maximum unique records assessed per source polygon
 #'   (default 5). Set to `NULL` to assess every unique record. Use `set.seed()`
 #'   before calling for reproducible sampling.
 #' @param apiKey OpenAI key, defaulting to `OPENAI_API_KEY` in the environment.
-#' @param ... additional arguments passed to `find_outlier_candidates()`.
+#' @param ... additional arguments passed to `out_cand()`.
 #' @return A list with `data`, a data.frame with character columns
 #'   `gbifid`, `binWkt`, `taxonKey`,
 #'   `decision`, `reasonCategory`, `explanation`, and `model`. Assessment fields
@@ -46,7 +46,7 @@ pipeline <- function(taxonKey,
     stop("sampleSize must be NULL or a positive integer.")
   }
 
-  polygons <- find_outlier_candidates(
+  polygons <- out_cand(
     taxonKey = taxonKey, basisOfRecord = basisOfRecord, ...
   )
   occurrences <- occ_fetch_unique(

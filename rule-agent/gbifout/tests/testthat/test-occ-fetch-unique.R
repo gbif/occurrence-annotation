@@ -61,7 +61,7 @@ test_that("fetching paginates and uses candidates only", {
     identical(request$geometry, .fetch_test_wkts[1]) && request$limit == 300 &&
       request$occurrenceStatus == "PRESENT" &&
       identical(request$basisOfRecord, paste(
-        eval(formals(find_outlier_candidates)$basisOfRecord), collapse = ";"
+        eval(formals(out_cand)$basisOfRecord), collapse = ";"
       ))
   }, logical(1))))
 })
@@ -112,7 +112,7 @@ test_that("basis channels can be overridden or left unfiltered", {
   expect_identical(calls[[2]]$basisOfRecord, "HUMAN_OBSERVATION;OBSERVATION")
   expect_null(calls[[3]]$basisOfRecord)
   expect_identical(eval(formals(occ_fetch_unique)$basisOfRecord),
-                   eval(formals(find_outlier_candidates)$basisOfRecord))
+                   eval(formals(out_cand)$basisOfRecord))
   expect_error(occ_fetch_unique(polygons, basisOfRecord = NA_character_),
                "non-empty character vector")
   expect_error(occ_fetch_unique(polygons, basisOfRecord = "A;B"),

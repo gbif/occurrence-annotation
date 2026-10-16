@@ -49,29 +49,30 @@
 #'   `occupancyCv` is occupied-cell standard deviation divided by mean (0 for
 #'   one cell, NA for none); `effectiveQuantile` is used by both selectors.
 #'   `diagnostics` holds the occupied-cell `occupancy` and `filledPixelCount`
-#'   values, the `occupancyCutoff`, `flatCvThreshold`, and `maxFilledPixels`.
-#'   The result has class `gbifout_outliers`; use `plot()` for diagnostic
-#'   histograms and `print()` for a summary.
-find_outlier_candidates <- function(taxonKey,
-                                     basisOfRecord = c(
-                                       "PRESERVED_SPECIMEN",
-                                       "OBSERVATION",
-                                       "HUMAN_OBSERVATION",
-                                       "MACHINE_OBSERVATION",
-                                       "LITERATURE",
-                                       "OCCURRENCE",
-                                       "UNKNOWN"
-                                     ),
-                                     zoom = 0,
-                                     squareSize = 8,
-                                     maxFilledPixels = 5,
-                                     maxOccurrenceCount = 50,
-                                     useOcean = FALSE,
-                                     oceanPath = ocean_polygon_path(),
-                                     outputDir = NULL,
-                                     densityOutputResolution = NULL,
-                                     datasetFacetLimit = 300,
-                                     flatCvThreshold = 0.8) {
+#'   values, the `occupancyCutoff`, `flatCvThreshold`, `maxFilledPixels`, and
+#'   `map`, the fetched map raster.
+#'   The result has class `gbifout_outliers`; use `plot()` for the map with
+#'   `mp`/`hdp` overlaid and diagnostic histograms, and `print()` for a summary.
+out_cand <- function(taxonKey,
+                      basisOfRecord = c(
+                        "PRESERVED_SPECIMEN",
+                        "OBSERVATION",
+                        "HUMAN_OBSERVATION",
+                        "MACHINE_OBSERVATION",
+                        "LITERATURE",
+                        "OCCURRENCE",
+                        "UNKNOWN"
+                      ),
+                      zoom = 0,
+                      squareSize = 8,
+                      maxFilledPixels = 5,
+                      maxOccurrenceCount = 50,
+                      useOcean = FALSE,
+                      oceanPath = ocean_polygon_path(),
+                      outputDir = NULL,
+                      densityOutputResolution = NULL,
+                      datasetFacetLimit = 300,
+                      flatCvThreshold = 0.8) {
   if (!is.numeric(flatCvThreshold) || length(flatCvThreshold) != 1 ||
       !is.finite(flatCvThreshold) || flatCvThreshold <= 0) {
     stop("flatCvThreshold must be a positive finite number.")
@@ -110,7 +111,8 @@ find_outlier_candidates <- function(taxonKey,
       NA_real_
     },
     flatCvThreshold = flatCvThreshold,
-    maxFilledPixels = maxFilledPixels
+    maxFilledPixels = maxFilledPixels,
+    map = if (is.null(grid$map)) grid$raster else grid$map
   )
   if (!is.null(outputDir)) {
     dir.create(outputDir, recursive = TRUE, showWarnings = FALSE)

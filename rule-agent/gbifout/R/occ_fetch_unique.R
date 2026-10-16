@@ -8,10 +8,10 @@
 #' Sampling is applied after deduplication, not to API pages. Use `set.seed()`
 #' before calling for reproducible random samples.
 #'
-#' @param result the list returned by `find_outlier_candidates()`, including
+#' @param result the list returned by `out_cand()`, including
 #'   `taxonKey` and `candidates$binWkt`.
 #' @param basisOfRecord channels included in occurrence searches. Defaults to
-#'   the same seven channels as `find_outlier_candidates()`. Set to `NULL` to
+#'   the same seven channels as `out_cand()`. Set to `NULL` to
 #'   search all channels.
 #' @param sampleSize maximum unique records returned per source polygon
 #'   (default 5). Polygons with fewer records return all of them. Set to `NULL`

@@ -1,6 +1,9 @@
 #' Diagnostic plots for outlier candidate selection
 #'
-#' Draws histograms explaining how `find_outlier_candidates()` selected cells.
+#' Draws a map and histograms explaining how `out_cand()` selected cells.
+#' The `"map"` panel shows the fetched GBIF map with the outlier candidate
+#' MULTIPOLYGON (`mp`, after the occurrence-count filter) filled in red and the
+#' retained high-occupancy polygons (`hdp`) outlined in blue.
 #' The `"occupancy"` panel is a histogram of occupied-cell occupancy (percent of
 #' filled pixels) with cells selected as low-occupancy candidates (by the
 #' quantile cutoff or the `maxFilledPixels` override, before the
@@ -9,24 +12,33 @@
 #' marked. The occupancy panel subtitle compares the occupied-cell CV with
 #' `flatCvThreshold`.
 #'
-#' @param x a `gbifout_outliers` result from `find_outlier_candidates()`.
-#' @param which panels to draw: any of `"occupancy"`, `"pixels"`.
+#' @param x a `gbifout_outliers` result from `out_cand()`.
+#' @param which panels to draw: any of `"map"`, `"occupancy"`, `"pixels"`.
 #' @param breaks histogram breaks passed to [graphics::hist()].
 #' @param ... unused.
 #' @return `x`, invisibly.
 #' @export
-plot.gbifout_outliers <- function(x, which = c("occupancy", "pixels"),
+plot.gbifout_outliers <- function(x, which = c("map", "occupancy", "pixels"),
                                   breaks = "Sturges", ...) {
   which <- match.arg(which, several.ok = TRUE)
   d <- x$diagnostics
-  if (is.null(d)) stop("x has no diagnostics; rerun find_outlier_candidates().")
+  if (is.null(d)) stop("x has no diagnostics; rerun out_cand().")
   if (length(which) > 1) {
-    op <- graphics::par(mfrow = c(1, length(which)))
+    op <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(op), add = TRUE)
+    hists <- setdiff(which, "map")
+    if ("map" %in% which && length(hists)) {
+      graphics::layout(rbind(rep(1, length(hists)), seq_along(hists) + 1),
+                       heights = c(1.4, 1))
+      which <- c("map", hists)
+    } else {
+      graphics::par(mfrow = c(1, length(which)))
+    }
   }
   selected <- .selected_cells(d)
   for (panel in which) {
     switch(panel,
+      map = .plot_outlier_map(x),
       occupancy = {
         .plot_selection_histogram(
           d$occupancy * 100, selected, d$occupancyCutoff * 100, breaks,
@@ -75,17 +87,73 @@ print.gbifout_outliers <- function(x, plot = FALSE, ...) {
   cat(sprintf("  Candidate polygons:  %d (%s occurrences, %d datasets)\n",
               nrow(x$candidates), format(sum(x$candidates$occurrenceCount, na.rm = TRUE)),
               length(unique(x$datasets$datasetKey))))
-  if (isTRUE(plot)) plot(x, ...) else cat("  Use plot(x) for diagnostic histograms.\n")
+  if (isTRUE(plot)) plot(x, ...) else cat("  Use plot(x) for the map and diagnostic histograms.\n")
   invisible(x)
 }
 
-write_outlier_diagnostics <- function(x, path, width = 1100, height = 500, res = 110) {
+write_outlier_diagnostics <- function(x, path, width = 1100, height = 1000, res = 110) {
   tryCatch({
     grDevices::png(path, width = width, height = height, res = res)
     on.exit(grDevices::dev.off(), add = TRUE)
     plot(x)
   }, error = function(e) warning("Could not write diagnostics plot: ", conditionMessage(e)))
   invisible(path)
+}
+
+.wkt_vect <- function(wkt) {
+  if (is.null(wkt) || is.na(wkt) || !nzchar(wkt) || grepl("EMPTY\\s*$", wkt)) return(NULL)
+  tryCatch(terra::vect(sf::st_as_sfc(wkt, crs = 4326)), error = function(e) NULL)
+}
+
+.map_limits <- function(occupied, layers) {
+  extents <- c(
+    list(tryCatch(terra::ext(terra::trim(occupied)), error = function(e) NULL)),
+    lapply(layers, function(v) if (is.null(v)) NULL else terra::ext(v))
+  )
+  extents <- Filter(Negate(is.null), extents)
+  if (!length(extents)) return(list(x = c(-180, 180), y = c(-90, 90)))
+  e <- as.vector(Reduce(terra::union, extents))
+  pad <- max(0.1 * max(e[["xmax"]] - e[["xmin"]], e[["ymax"]] - e[["ymin"]]), 2)
+  list(x = c(max(-180, e[["xmin"]] - pad), min(180, e[["xmax"]] + pad)),
+       y = c(max(-90, e[["ymin"]] - pad), min(90, e[["ymax"]] + pad)))
+}
+
+.plot_outlier_map <- function(x) {
+  map <- x$diagnostics$map
+  mp <- .wkt_vect(x$mp)
+  hdp <- .wkt_vect(x$hdp)
+  occupied <- if (is.null(map)) NULL else terra::ifel(map > 0, map, NA)
+  limits <- .map_limits(occupied, list(mp, hdp))
+  graphics::plot.new()
+  graphics::plot.window(limits$x, limits$y, asp = 1)
+  ocean <- tryCatch(read_ocean_polygon(ocean_polygon_path()), error = function(e) NULL)
+  if (!is.null(ocean)) {
+    terra::plot(ocean, col = "#DCEBF5", border = "grey70", lwd = 0.5, add = TRUE)
+  }
+  if (!is.null(hdp)) terra::plot(hdp, col = NA, border = "steelblue", lwd = 1, add = TRUE)
+  if (!is.null(mp)) {
+    terra::plot(mp, col = grDevices::adjustcolor("firebrick", 0.3),
+                border = "firebrick", lwd = 1.5, add = TRUE)
+  }
+  if (!is.null(occupied)) {
+    cells <- which(!is.na(terra::values(occupied)))
+    if (length(cells)) {
+      xy <- terra::xyFromCell(occupied, cells)
+      graphics::points(xy, pch = 21, cex = 0.9, bg = "orange", col = "darkorange4", lwd = 0.6)
+    }
+  }
+  graphics::axis(1)
+  graphics::axis(2, las = 1)
+  graphics::box()
+  graphics::title(main = sprintf("taxonKey %s: %d outlier polygons", x$taxonKey,
+                                 nrow(x$candidates)),
+                  xlab = "Longitude", ylab = "Latitude")
+  graphics::legend("bottomleft", bty = "o", bg = "white", cex = 0.8,
+                   pch = c(21, NA, NA), pt.bg = c("orange", NA, NA), pt.cex = 1.2,
+                   col = c("darkorange4", NA, NA),
+                   fill = c(NA, grDevices::adjustcolor("firebrick", 0.3), NA),
+                   border = c(NA, "firebrick", "steelblue"),
+                   legend = c("fetched map pixels", "outliers (mp)", "high occupancy (hdp)"))
 }
 
 .selected_cells <- function(d) {

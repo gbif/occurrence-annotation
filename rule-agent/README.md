@@ -15,7 +15,7 @@ Set `OPENAI_API_KEY` in the R process environment before using model-assisted tr
 ## Find Candidate Polygons
 
 ```r
-result <- gbifout::find_outlier_candidates("3NFRS")
+result <- gbifout::out_cand("3NFRS")
 result$candidates
 result$datasets
 result$mp
@@ -25,12 +25,13 @@ Candidate cells are based on logical pixel occupancy, not raster color intensity
 
 ```r
 result                      # summary: CV vs flatCvThreshold, effective quantile, cutoff
-plot(result)                # occupancy and filled-pixel histograms
+plot(result)                # map with mp/hdp overlay, plus occupancy and filled-pixel histograms
+plot(result, which = "map") # just the fetched map with the outlier multipolygon
 plot(result, which = "occupancy")
 print(result, plot = TRUE)  # summary plus plots
 ```
 
-The histograms highlight cells selected as low occupancy (before the occurrence-count filter) and mark the quantile cutoff and `maxFilledPixels`; the occupancy subtitle compares the observed CV with `flatCvThreshold`. The raw values are in `result$diagnostics`. When `outputDir` is supplied, the plots are also saved as `<taxonKey>-diagnostics.png`.
+The map panel draws the fetched GBIF map (from `map_fetch()`) over an ocean backdrop, with the outlier MULTIPOLYGON (`mp`) filled in red and high-occupancy polygons (`hdp`) outlined in blue. The histograms highlight cells selected as low occupancy (before the occurrence-count filter) and mark the quantile cutoff and `maxFilledPixels`; the occupancy subtitle compares the observed CV with `flatCvThreshold`. The raw values and the fetched map raster are in `result$diagnostics`. When `outputDir` is supplied, the plots are also saved as `<taxonKey>-diagnostics.png`.
 
 ## Fetch Unique Occurrence IDs
 
@@ -40,9 +41,9 @@ occurrences$gbifid
 occurrences$binWkt
 ```
 
-Or run both steps together: `gbifout::find_outlier_candidates("3NFRS") |> gbifout::occ_fetch_unique()`. The fetcher takes only the finder result and an optional `basisOfRecord` filter; it always uses `result$taxonKey`.
+Or run both steps together: `gbifout::out_cand("3NFRS") |> gbifout::occ_fetch_unique()`. The fetcher takes only the finder result and an optional `basisOfRecord` filter; it always uses `result$taxonKey`.
 
-Only `result$candidates$binWkt` is queried, never `mp` or `hdp`. Searches retrieve all pages of present occurrences using the same default seven basis-of-record channels as `find_outlier_candidates()`. Supply `basisOfRecord` to override the channels, or `NULL` to search all channels; overrides made when finding polygons are not automatically inherited. Deduplication uses exactly `basisOfRecord`, `decimalLatitude`, `decimalLongitude`, and `datasetKey` across all polygons. The returned data frame contains one representative `gbifid` and its first source-search `binWkt`; coordinate values are not rounded. Search errors stop the function instead of returning partial results.
+Only `result$candidates$binWkt` is queried, never `mp` or `hdp`. Searches retrieve all pages of present occurrences using the same default seven basis-of-record channels as `out_cand()`. Supply `basisOfRecord` to override the channels, or `NULL` to search all channels; overrides made when finding polygons are not automatically inherited. Deduplication uses exactly `basisOfRecord`, `decimalLatitude`, `decimalLongitude`, and `datasetKey` across all polygons. The returned data frame contains one representative `gbifid` and its first source-search `binWkt`; coordinate values are not rounded. Search errors stop the function instead of returning partial results.
 
 ## Triage One Occurrence
 
