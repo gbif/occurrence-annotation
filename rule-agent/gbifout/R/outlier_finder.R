@@ -16,12 +16,16 @@
 #'   `build_raster_occupancy_grid()`
 #'   (default 256); smaller values give a finer (noisier) grid. Valid values
 #'   are 8, 16, 32, 64, 128, 256, 512, 1024, 2048, and 4096.
-#' @param rasterLowQuantile fraction of occupied raster cells retained by the
-#'   occupancy-based candidate selector (default 0.25).
+#' @param flatCvThreshold positive occupied-cell CV threshold (default 0.8).
+#'   CV at or below the threshold selects all occupied cells. Above it, the
+#'   quantile is `max(0, 1 - flatCvThreshold / occupancyCv)`, with a sharp
+#'   transition just above the threshold. Pixel and count filters still apply.
 #' @param maxFilledPixels also retain occupied cells with at most this many
 #'   filled pixels, regardless of the occupancy quantile (default 3).
-#' @param maxOccurrenceCount remove polygons with more occurrences than this
-#'   value, based on `occ_count()` (default 100). Set to `NULL` to disable.
+#' @param maxOccurrenceCount exclude low-occupancy candidates with more occurrences
+#'   than this value or failed counts, based on `occ_count()` filtered to the same
+#'   `basisOfRecord` channels as the raster (default 50).
+#'   Excluded polygons are retained in `hdp`. Set to `NULL` to disable.
 #' @param outputDir optional directory for run artifacts. When supplied, the
 #'   pixel-occupancy grid is saved as `<taxonKey>-occupancy.tif`.
 #' @param densityOutputResolution optional output resolution in decimal degrees
@@ -33,12 +37,16 @@
 #' The combined polygon is also written to
 #'   `<taxonKey>-outliers-multipolygon.wkt` when `outputDir` is supplied.
 #'
-#' @return A list with `candidates`, one row per candidate polygon;
+#' @return A list with `taxonKey`, the supplied taxon key; `candidates`, one row per candidate polygon;
 #'   `datasets`, dataset occurrence counts keyed by `polygonId`; `mp`, a
 #'   MULTIPOLYGON WKT string (or `"MULTIPOLYGON EMPTY"`); and
 #'   `hdp`, a single MULTIPOLYGON WKT (or `"MULTIPOLYGON EMPTY"`) for occupied cells outside the
-#'   low-occupancy selection (including the filled-pixel override). No occurrence
-#'   counts or dataset facets are requested for these high-occupancy cells.
+#'   low-occupancy selection (including the filled-pixel override), plus low-occupancy
+#'   cells excluded by the occurrence-count filter. Original high-occupancy cells
+#'   receive no occurrence-count or dataset-facet requests; excluded low-occupancy
+#'   cells receive no dataset-facet requests.
+#'   `occupancyCv` is occupied-cell standard deviation divided by mean (0 for
+#'   one cell, NA for none); `effectiveQuantile` is used by both selectors.
 find_outlier_candidates <- function(taxonKey,
                                      basisOfRecord = c(
                                        "PRESERVED_SPECIMEN",
@@ -51,14 +59,18 @@ find_outlier_candidates <- function(taxonKey,
                                      ),
                                      zoom = 0,
                                      squareSize = 8,
-                                     rasterLowQuantile = 0.50,
-                                     maxFilledPixels = 3,
-                                     maxOccurrenceCount = 30,
+                                     maxFilledPixels = 5,
+                                     maxOccurrenceCount = 50,
                                      useOcean = FALSE,
                                      oceanPath = ocean_polygon_path(),
                                      outputDir = NULL,
                                      densityOutputResolution = NULL,
-                                     datasetFacetLimit = 300) {
+                                     datasetFacetLimit = 300,
+                                     flatCvThreshold = 0.8) {
+  if (!is.numeric(flatCvThreshold) || length(flatCvThreshold) != 1 ||
+      !is.finite(flatCvThreshold) || flatCvThreshold <= 0) {
+    stop("flatCvThreshold must be a positive finite number.")
+  }
   if (!is.numeric(datasetFacetLimit) || length(datasetFacetLimit) != 1 ||
       is.na(datasetFacetLimit) || datasetFacetLimit < 1 ||
       datasetFacetLimit != as.integer(datasetFacetLimit)) {
@@ -77,6 +89,16 @@ find_outlier_candidates <- function(taxonKey,
     useOcean = useOcean,
     oceanPath = oceanPath
   )
+  occupancy <- terra::values(grid$raster)
+  occupied <- occupancy[is.finite(occupancy) & occupancy > 0]
+  occupancy_cv <- if (!length(occupied)) NA_real_ else if (length(occupied) == 1) 0 else {
+    stats::sd(occupied) / mean(occupied)
+  }
+  effective_quantile <- if (!is.finite(occupancy_cv) || occupancy_cv <= flatCvThreshold) {
+    1
+  } else {
+    max(0, 1 - flatCvThreshold / occupancy_cv)
+  }
   if (!is.null(outputDir)) {
     dir.create(outputDir, recursive = TRUE, showWarnings = FALSE)
     density_raster <- grid$raster
@@ -97,27 +119,30 @@ find_outlier_candidates <- function(taxonKey,
     )
   }
   candidate_cells <- find_low_occupancy_cells(
-    grid, rasterLowQuantile,
+    grid, effective_quantile,
     maxFilledPixels = maxFilledPixels,
     useOcean = useOcean,
     oceanPath = oceanPath
   )
+  basis_filter <- if (is.null(basisOfRecord)) NULL else paste(unique(trimws(basisOfRecord)), collapse = ";")
   candidate_cells <- candidate_cells[!is.na(candidate_cells$wkt) & nzchar(candidate_cells$wkt), ]
   high_density_polygons <- .high_occupancy_polygons(
-    grid, rasterLowQuantile, maxFilledPixels, useOcean, oceanPath
+    grid, effective_quantile, maxFilledPixels, useOcean, oceanPath
   )
   occurrence_counts <- vapply(seq_len(nrow(candidate_cells)), function(i) {
     tryCatch(
       as.numeric(occ_count(
         taxonKey = taxonKey,
         geometry = candidate_cells$wkt[i],
-        occurrenceStatus = "PRESENT"
+        occurrenceStatus = "PRESENT",
+        basisOfRecord = basis_filter
       )),
       error = function(e) NA_real_
     )
   }, numeric(1))
   if (!is.null(maxOccurrenceCount)) {
     keep <- !is.na(occurrence_counts) & occurrence_counts <= maxOccurrenceCount
+    high_density_polygons <- c(high_density_polygons, candidate_cells$wkt[!keep])
     candidate_cells <- candidate_cells[keep, , drop = FALSE]
     occurrence_counts <- occurrence_counts[keep]
   }
@@ -128,6 +153,7 @@ find_outlier_candidates <- function(taxonKey,
         taxonKey = taxonKey,
         geometry = candidate_cells$wkt[i],
         occurrenceStatus = "PRESENT",
+        basisOfRecord = basis_filter,
         facet = "datasetKey",
         facetLimit = datasetFacetLimit
       ),
@@ -182,6 +208,9 @@ find_outlier_candidates <- function(taxonKey,
   }
 
   list(
+    taxonKey = taxonKey,
+    occupancyCv = occupancy_cv,
+    effectiveQuantile = effective_quantile,
     candidates = result,
     datasets = datasets,
     mp = combined_wkt,

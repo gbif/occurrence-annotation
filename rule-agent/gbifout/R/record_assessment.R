@@ -64,6 +64,8 @@ assess_occurrence_record <- function(occurrenceKey,
   )
 }
 
+.record_triage_decisions <- c("SUSPICIOUS", "INTRODUCED", "OK", "FORMER", "NEEDS_REVIEW")
+
 .record_triage_reasons <- c(
   "captive_or_managed",
   "locality_coordinate_mismatch",
@@ -72,6 +74,8 @@ assess_occurrence_record <- function(occurrenceKey,
   "dataset_quality_concern",
   "taxonomic_or_identification_mismatch",
   "introduced_population",
+  "fossil_or_subfossil",
+  "high_coordinate_uncertainty",
   "other",
   "insufficient_information",
   "none"
@@ -80,12 +84,33 @@ assess_occurrence_record <- function(occurrenceKey,
 .record_triage_schema <- list(
   type = "object",
   properties = list(
-    decision = list(type = "string", enum = c("SUSPICIOUS", "INTRODUCED", "OK", "NEEDS_REVIEW")),
+    decision = list(type = "string", enum = .record_triage_decisions),
     reason_category = list(type = "string", enum = .record_triage_reasons),
     explanation = list(type = "string")
   ),
   required = c("decision", "reason_category", "explanation"),
   additionalProperties = FALSE
+)
+
+.fossil_review_policy <- paste(
+  "Before any native-range review, check whether the record is a fossil or",
+  "subfossil, even when basisOfRecord is PRESERVED_SPECIMEN or another value.",
+  "Evidence includes geological context or age fields, formation or stratigraphic",
+  "terms, a paleontological collection or dataset, fossil wording in locality,",
+  "remarks, or dynamicProperties, or basisOfRecord FOSSIL_SPECIMEN. Return FORMER",
+  "with reason fossil_or_subfossil; never SUSPICIOUS or OK for such a record, and",
+  "do not apply the native-range comparison to it. An old collection date alone is",
+  "not fossil evidence. Use NEEDS_REVIEW when fossil status is only suggestive.",
+  sep = " "
+)
+
+.coordinate_uncertainty_policy <- paste(
+  "After the fossil check, if coordinateUncertaintyInMeters is 500,000 or more",
+  "(500 km), return SUSPICIOUS with reason high_coordinate_uncertainty, regardless",
+  "of the native range and without any native-range comparison. Use",
+  "country_centroid_anomaly instead when its own conditions are met. A missing or",
+  "smaller uncertainty value does not trigger this rule.",
+  sep = " "
 )
 
 .native_range_review_policy <- paste(
@@ -107,6 +132,12 @@ assess_occurrence_record <- function(occurrenceKey,
   "Use NEEDS_REVIEW when native-range knowledge or taxonomic identity is uncertain,",
   "the point is near an uncertain range edge, or coordinate uncertainty could",
   "overlap plausible range. Country-centroid distance is not native-range distance.",
+  "Never use SUSPICIOUS for a range mismatch when the record is identified only",
+  "to genus or a higher rank, when the name may reflect a recent taxonomic split,",
+  "synonym, or unmatched name whose range may differ from the concept you recall,",
+  "or when the location lies beyond a range edge known to be expanding naturally;",
+  "use NEEDS_REVIEW instead. Natural range expansion is neither SUSPICIOUS nor",
+  "INTRODUCED.",
   "Distinguish supplied record facts from model-recalled range knowledge: the latter",
   "is not externally verified. For a range-based decision, name the recalled range",
   "and contrast it with the record location in the one-sentence explanation.",
@@ -116,6 +147,8 @@ assess_occurrence_record <- function(occurrenceKey,
 
 .record_triage_prompt <- paste(
   "Triage one GBIF occurrence record selected as a geographic outlier.",
+  .fossil_review_policy,
+  .coordinate_uncertainty_policy,
   .native_range_review_policy,
   "Assess the supplied GBIF record and country-centroid context using that policy.",
   "Do not infer absence from GBIF.",
@@ -129,11 +162,13 @@ assess_occurrence_record <- function(occurrenceKey,
   "only with corroborating record-level evidence, otherwise NEEDS_REVIEW.",
   "SUSPICIOUS means non-wild (captive, zoo, garden, cultivated, managed) or",
   "concrete record-level data error or a clear native-range mismatch under the",
-  "range policy above. INTRODUCED means an otherwise plausible,",
+  "range policy above, or coordinate uncertainty of 500,000 metres or more.",
+  "INTRODUCED means an otherwise plausible,",
   "free-ranging established introduced population. OK requires positive context",
   "supporting a plausible wild occurrence. NEEDS_REVIEW is the default for",
   "incomplete, ambiguous, conflicting, or unexplained outlier evidence.",
-  "Use reason none only for OK and introduced_population for INTRODUCED.",
+  "Use reason none only for OK, introduced_population for INTRODUCED, and",
+  "fossil_or_subfossil only for FORMER, which means a fossil or subfossil record.",
   "Return one short sentence. Do not invent record facts or write data to GBIF.",
   sep = " "
 )
@@ -142,14 +177,18 @@ assess_occurrence_record <- function(occurrenceKey,
   "You are the advanced reviewer for an occurrence that the fast triage model",
   "marked NEEDS_REVIEW. Independently review the original GBIF record, country",
   "centroid context, and initial assessment. Do not defer to the initial model.",
+  .fossil_review_policy,
+  .coordinate_uncertainty_policy,
   .native_range_review_policy,
   "Independently reconsider the native range; do not treat the fast model's",
   "range description as verified evidence.",
   "Apply the same decision definitions: SUSPICIOUS for non-wild records or a",
   "concrete data error or a clear native-range mismatch under the policy above;",
-  "INTRODUCED for a plausible free-ranging established",
+  "or coordinate uncertainty of 500,000 metres or more; INTRODUCED for a plausible",
+  "free-ranging established",
   "introduced population; OK only with positive context supporting a plausible",
-  "wild record; NEEDS_REVIEW when evidence is incomplete or ambiguous.",
+  "wild record; FORMER for a fossil or subfossil record; NEEDS_REVIEW when",
+  "evidence is incomplete or ambiguous.",
   "Country-centroid distance and the NABU|naturgucker dataset name are supporting",
   "signals only; use their specific reason categories only with the documented",
   "corroborating conditions. Return one short sentence; do not invent record",
@@ -283,7 +322,7 @@ assess_occurrence_record <- function(occurrenceKey,
 
 .parse_record_triage <- function(text) {
   result <- jsonlite::fromJSON(text, simplifyVector = FALSE)
-  decisions <- c("SUSPICIOUS", "INTRODUCED", "OK", "NEEDS_REVIEW")
+  decisions <- .record_triage_decisions
   if (!is.list(result) || !result$decision %in% decisions ||
       !result$reason_category %in% .record_triage_reasons ||
       !is.character(result$explanation) || length(result$explanation) != 1 ||

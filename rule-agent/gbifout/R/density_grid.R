@@ -260,7 +260,8 @@ find_low_percentage_cells <- function(grid, rasterLowQuantile = 0.25,
 #' Select the lowest-occupancy raster cells as WKT polygons
 #'
 #' @param occupancyGrid list returned by `build_raster_occupancy_grid()`.
-#' @param lowQuantile fraction of nonzero cells to retain (default 0.05).
+#' @param lowQuantile occupancy quantile from 0 to 1 (default 0.05).
+#'   Zero selects minimum-occupancy cells; ties are included.
 #' @param maxFilledPixels also retain occupied cells with at most this many
 #'   filled pixels (default 3). Set to `NULL` to disable this override.
 #' @param useOcean whether to clip selected cells to land.
@@ -271,8 +272,8 @@ find_low_occupancy_cells <- function(occupancyGrid, lowQuantile = 0.05,
                                      useOcean = FALSE,
                                      oceanPath = ocean_polygon_path()) {
   if (!is.numeric(lowQuantile) || length(lowQuantile) != 1 ||
-      lowQuantile <= 0 || lowQuantile > 1) {
-    stop("lowQuantile must be greater than 0 and at most 1.")
+      !is.finite(lowQuantile) || lowQuantile < 0 || lowQuantile > 1) {
+    stop("lowQuantile must be between 0 and 1.")
   }
   if (!is.null(maxFilledPixels) &&
       (!is.numeric(maxFilledPixels) || length(maxFilledPixels) != 1 ||
