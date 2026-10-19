@@ -130,10 +130,11 @@ write_outlier_diagnostics <- function(x, path, width = 1100, height = 1000, res 
   if (!is.null(ocean)) {
     terra::plot(ocean, col = "#DCEBF5", border = "grey70", lwd = 0.5, add = TRUE)
   }
+  mp_col <- "#6A1B9A"
   if (!is.null(hdp)) terra::plot(hdp, col = NA, border = "steelblue", lwd = 1, add = TRUE)
   if (!is.null(mp)) {
-    terra::plot(mp, col = grDevices::adjustcolor("firebrick", 0.3),
-                border = "firebrick", lwd = 1.5, add = TRUE)
+    terra::plot(mp, col = grDevices::adjustcolor(mp_col, 0.25), border = "white",
+                lwd = 4.5, add = TRUE)
   }
   if (!is.null(occupied)) {
     cells <- which(!is.na(terra::values(occupied)))
@@ -142,6 +143,8 @@ write_outlier_diagnostics <- function(x, path, width = 1100, height = 1000, res 
       graphics::points(xy, pch = 21, cex = 0.9, bg = "orange", col = "darkorange4", lwd = 0.6)
     }
   }
+  # Outline on top of the points so polygon edges are never hidden.
+  if (!is.null(mp)) terra::plot(mp, col = NA, border = mp_col, lwd = 2.2, add = TRUE)
   graphics::axis(1)
   graphics::axis(2, las = 1)
   graphics::box()
@@ -151,8 +154,8 @@ write_outlier_diagnostics <- function(x, path, width = 1100, height = 1000, res 
   graphics::legend("bottomleft", bty = "o", bg = "white", cex = 0.8,
                    pch = c(21, NA, NA), pt.bg = c("orange", NA, NA), pt.cex = 1.2,
                    col = c("darkorange4", NA, NA),
-                   fill = c(NA, grDevices::adjustcolor("firebrick", 0.3), NA),
-                   border = c(NA, "firebrick", "steelblue"),
+                   fill = c(NA, grDevices::adjustcolor(mp_col, 0.25), NA),
+                   border = c(NA, mp_col, "steelblue"),
                    legend = c("fetched map pixels", "outliers (mp)", "high occupancy (hdp)"))
 }
 
