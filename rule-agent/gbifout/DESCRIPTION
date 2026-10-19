@@ -16,8 +16,14 @@ Imports:
     jsonlite,
     rgbif,
     sf,
-    terra
+    stats,
+    terra,
+    tools,
+    utils
 Suggests:
-    testthat (>= 3.0.0)
+    geodata,
+    maxnet,
+    testthat (>= 3.0.0),
+    withr
 Config/testthat/edition: 3
 RoxygenNote: 7.3.2

@@ -3,7 +3,8 @@ test_that("pipeline chains the three steps and returns final assessments", {
   wkts <- c("POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))",
             "POLYGON ((2 0, 3 0, 3 1, 2 1, 2 0))")
   hdp <- "MULTIPOLYGON (((4 0, 5 0, 5 1, 4 1, 4 0)))"
-  polygons <- list(taxonKey = "3NFRS", candidates = data.frame(binWkt = wkts), hdp = hdp)
+  polygons <- list(taxonKey = "3NFRS", candidates = data.frame(binWkt = wkts),
+                    hdp = hdp, hdpCells = hdp)
   local_mocked_bindings(
     out_cand = function(taxonKey, basisOfRecord, ...) {
       calls <<- c(calls, "find")
@@ -37,7 +38,11 @@ test_that("pipeline chains the three steps and returns final assessments", {
   result <- pipeline("3NFRS", basisOfRecord = "HUMAN_OBSERVATION",
                      sampleSize = 2, apiKey = "test-key", maxOccurrenceCount = 10)
   expect_identical(calls, c("find", "fetch", "5195998433", "6497435304"))
-  expect_identical(names(result), c("data", "sus", "int", "ok", "hdp"))
+  expect_s3_class(result, "gbifout_pipeline")
+  expect_identical(names(result), c("data", "sus", "int", "ok", "hdp", "taxonKey",
+                                    "sdmPolygons"))
+  expect_identical(result$taxonKey, "3NFRS")
+  expect_identical(result$sdmPolygons, data.frame(group = "hdp", binWkt = hdp))
   expect_identical(result$hdp, hdp)
   expect_identical(result$ok, "MULTIPOLYGON EMPTY")
   expect_true(sf::st_equals(sf::st_as_sfc(result$sus), sf::st_as_sfc(wkts[1]),
@@ -57,7 +62,7 @@ test_that("empty fetches return a typed table without assessment calls", {
   expected_basis <- eval(formals(out_cand)$basisOfRecord)
   hdp <- "MULTIPOLYGON (((4 0, 5 0, 5 1, 4 1, 4 0)))"
   local_mocked_bindings(
-    out_cand = function(...) list(taxonKey = 123, hdp = hdp),
+    out_cand = function(...) list(taxonKey = 123, hdp = hdp, hdpCells = hdp),
     occ_fetch_unique = function(result, basisOfRecord, sampleSize) {
       expect_equal(sampleSize, 5)
       expect_identical(basisOfRecord, expected_basis)
@@ -67,7 +72,11 @@ test_that("empty fetches return a typed table without assessment calls", {
     .package = "gbifout"
   )
   result <- pipeline(123, apiKey = "test-key")
-  expect_identical(names(result), c("data", "sus", "int", "ok", "hdp"))
+  expect_s3_class(result, "gbifout_pipeline")
+  expect_identical(names(result), c("data", "sus", "int", "ok", "hdp", "taxonKey",
+                                    "sdmPolygons"))
+  expect_identical(result$taxonKey, "123")
+  expect_identical(result$sdmPolygons, data.frame(group = "hdp", binWkt = hdp))
   expect_identical(result$hdp, hdp)
   expect_equal(nrow(result$data), 0)
   expect_true(all(vapply(result$data, is.character, logical(1))))
@@ -94,6 +103,7 @@ test_that("decision multipolygons combine unique cells and allow mixed decisions
   expect_equal(nrow(result$data), 5)
   expect_identical(result$hdp, "MULTIPOLYGON EMPTY")
   expect_identical(result$int, "MULTIPOLYGON EMPTY")
+  expect_identical(result$sdmPolygons, data.frame(group = "ok", binWkt = wkts[1]))
   expect_true(all(vapply(result[c("sus", "int", "ok")], function(wkt) {
     length(wkt) == 1 && startsWith(wkt, "MULTIPOLYGON")
   }, logical(1))))

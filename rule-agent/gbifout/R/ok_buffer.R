@@ -92,18 +92,7 @@ ok_buffer <- function(result, bufferKm = 500, simplifyRounds = 4) {
     parts[sf::st_geometry_type(parts) %in% c("POLYGON", "MULTIPOLYGON")]
   }
 
-  # s2 rings cross the antimeridian as one continuous ring; unwrap to 0-360 and
-  # cut at 180 so the planar geometry is valid.
-  unwrapped <- lapply(sf::st_cast(geometry, "MULTIPOLYGON")[[1]], function(polygon) {
-    if (any(abs(diff(polygon[[1]][, 1])) > 180)) {
-      polygon <- lapply(polygon, function(ring) {
-        ring[ring[, 1] < 0, 1] <- ring[ring[, 1] < 0, 1] + 360
-        ring
-      })
-    }
-    sf::st_polygon(polygon)
-  })
-  unwrapped <- sf::st_make_valid(sf::st_sfc(unwrapped, crs = sf::st_crs(4326)))
+  unwrapped <- sf::st_make_valid(.unwrap_dateline_polygons(geometry))
   west_half <- polygons_only(suppressWarnings(sf::st_intersection(unwrapped, strip(-180, 180))))
   east_half <- polygons_only(suppressWarnings(sf::st_intersection(unwrapped, strip(180, 540))))
   if (length(east_half)) {
@@ -113,6 +102,20 @@ ok_buffer <- function(result, bufferKm = 500, simplifyRounds = 4) {
 
   inverted <- sf::st_difference(strip(-180, 180), clipped)
   .orient_rings(inverted)
+}
+
+# s2 rings crossing the antimeridian need unwrapping before planar splitting.
+.unwrap_dateline_polygons <- function(geometry) {
+  polygons <- lapply(sf::st_cast(geometry, "POLYGON"), function(polygon) {
+    if (any(abs(diff(polygon[[1]][, 1])) > 180)) {
+      polygon <- lapply(polygon, function(ring) {
+        ring[ring[, 1] < 0, 1] <- ring[ring[, 1] < 0, 1] + 360
+        ring
+      })
+    }
+    sf::st_polygon(polygon)
+  })
+  sf::st_sfc(polygons, crs = sf::st_crs(geometry))
 }
 
 # Outer rings counter-clockwise starting at their south-west vertex, holes clockwise.

@@ -52,6 +52,8 @@ test_that("hdp combines multiple high cells and returns an empty multipolygon wh
   expect_match(result$hdp, "^MULTIPOLYGON")
   geometry <- sf::st_as_sfc(result$hdp, crs = 4326)
   expect_length(geometry[[1]], 2)
+  expect_length(result$hdpCells, 2)
+  expect_equal(length(sf::st_cast(sf::st_as_sfc(result$hdpCells), "POLYGON")), 2)
 
   terra::values(raster) <- rep(0, 5)
   terra::values(counts) <- rep(0, 5)
@@ -90,6 +92,11 @@ test_that("count-filtered low cells are retained alongside high cells in hdp", {
   expect_identical(facet_requests[[1]]$geometry, result$candidates$binWkt[1])
   expected <- sf::st_as_sfc("POLYGON ((2 0, 5 0, 5 1, 2 1, 2 0))")
   expect_true(sf::st_equals(sf::st_as_sfc(result$hdp), expected, sparse = FALSE)[1, 1])
+  expect_length(result$hdpCells, 3)
+  cell_boxes <- lapply(sf::st_as_sfc(result$hdpCells), sf::st_bbox)
+  expect_true(all(vapply(cell_boxes, function(box) {
+    unname(box["xmax"] - box["xmin"]) == 1
+  }, logical(1))))
   expect_match(result$hdp, "^MULTIPOLYGON")
 
   requests <- list()

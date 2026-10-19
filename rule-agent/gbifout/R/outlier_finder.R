@@ -46,6 +46,8 @@
 #'   cells excluded by the occurrence-count filter. Original high-occupancy cells
 #'   receive no occurrence-count or dataset-facet requests; excluded low-occupancy
 #'   cells receive no dataset-facet requests.
+#'   `hdpCells` retains individual high-occupancy and count-excluded cell WKT
+#'   strings before merging, for per-cell SDM sampling.
 #'   `occupancyCv` is occupied-cell standard deviation divided by mean (0 for
 #'   one cell, NA for none); `effectiveQuantile` is used by both selectors.
 #'   `diagnostics` holds the occupied-cell `occupancy` and `filledPixelCount`
@@ -229,6 +231,7 @@ out_cand <- function(taxonKey,
     candidates = result,
     datasets = datasets,
     mp = combined_wkt,
+    hdpCells = high_density_polygons,
     hdp = sf::st_as_text(sf::st_cast(
       sf::st_as_sfc(combine_outlier_polygons(high_density_polygons), crs = 4326),
       "MULTIPOLYGON"
