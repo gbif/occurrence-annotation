@@ -25,7 +25,7 @@ test_that("only SUSPICIOUS records are looked up and boxed", {
     },
     .package = "gbifout"
   )
-  result <- suspicious_boxes(pipeline_result(
+  result <- sus_boxes(pipeline_result(
     c("1", "2", "3", "4"), c("SUSPICIOUS", "OK", "SUSPICIOUS", "INTRODUCED")
   ))
 
@@ -53,7 +53,7 @@ test_that("boxes clamp at bounds and missing coordinates are excluded from mp", 
     .fetch_occurrence_record = function(occurrenceKey) records[[as.character(occurrenceKey)]],
     .package = "gbifout"
   )
-  result <- suspicious_boxes(pipeline_result(c("1", "2"), rep("SUSPICIOUS", 2)),
+  result <- sus_boxes(pipeline_result(c("1", "2"), rep("SUSPICIOUS", 2)),
                              halfWidth = 1)
 
   bbox <- sf::st_bbox(sf::st_as_sfc(result$data$bboxWkt[1]))
@@ -70,13 +70,13 @@ test_that("no SUSPICIOUS records returns typed empty output without lookups", {
     .fetch_occurrence_record = function(...) stop("must not look up"),
     .package = "gbifout"
   )
-  result <- suspicious_boxes(pipeline_result(c("1", "2"), c("OK", "NEEDS_REVIEW")))
+  result <- sus_boxes(pipeline_result(c("1", "2"), c("OK", "NEEDS_REVIEW")))
   expect_equal(nrow(result$data), 0)
   expect_true(all(c("decimalLatitude", "decimalLongitude", "datasetKey",
                     "basisOfRecord", "bboxWkt") %in% names(result$data)))
   expect_identical(result$mp, "MULTIPOLYGON EMPTY")
 
-  empty <- suspicious_boxes(pipeline_result(character(), character()))
+  empty <- sus_boxes(pipeline_result(character(), character()))
   expect_identical(empty$mp, "MULTIPOLYGON EMPTY")
 })
 
@@ -85,10 +85,10 @@ test_that("lookup errors name the GBIF ID and invalid inputs stop", {
     .fetch_occurrence_record = function(...) stop("not found"),
     .package = "gbifout"
   )
-  expect_error(suspicious_boxes(pipeline_result("99", "SUSPICIOUS")),
+  expect_error(sus_boxes(pipeline_result("99", "SUSPICIOUS")),
                "GBIF ID 99: not found")
-  expect_error(suspicious_boxes(list(data = data.frame(gbifid = "1"))), "pipeline")
-  expect_error(suspicious_boxes(data.frame()), "pipeline")
-  expect_error(suspicious_boxes(pipeline_result("1", "OK"), halfWidth = 0), "halfWidth")
-  expect_error(suspicious_boxes(pipeline_result("1", "OK"), halfWidth = NA), "halfWidth")
+  expect_error(sus_boxes(list(data = data.frame(gbifid = "1"))), "pipeline")
+  expect_error(sus_boxes(data.frame()), "pipeline")
+  expect_error(sus_boxes(pipeline_result("1", "OK"), halfWidth = 0), "halfWidth")
+  expect_error(sus_boxes(pipeline_result("1", "OK"), halfWidth = NA), "halfWidth")
 })

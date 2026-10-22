@@ -4,16 +4,26 @@
 #' low-cost OpenAI model, and sends only `NEEDS_REVIEW` results to the advanced
 #' model. Both assessments are returned; no occurrence or annotation data is
 #' written back to GBIF.
+#' Valid coordinates are reverse-geocoded once with `rgbif::gbif_geocode()`;
+#' both reviewers receive the returned polygon evidence.
 #'
 #' @param occurrenceKey numeric or character GBIF occurrence key.
 #' @param apiKey OpenAI API key. Defaults to the `OPENAI_API_KEY` environment
 #'   variable.
+#' @param candidates optional `out_cand()` result. Country and continent
+#'   occurrence counts within its combined HDP area are fetched using its
+#'   taxon and basis-of-record filter and sent to both models as supporting
+#'   distribution context, not as a native-range determination.
 #'
 #' @return A list with `occurrenceKey`, the GBIF `record`, `initialAssessment`,
-#'   optional `advancedAssessment`, and `finalAssessment`.
+#'   optional `advancedAssessment`, and `finalAssessment`. When `candidates`
+#'   is supplied, also includes `hdpFacetContext` with the counts sent.
+#'   `geocodeContext` retains the reverse-geocoder results and coverage status.
 #' @export
-assess_occurrence_record <- function(occurrenceKey,
-                                     apiKey = Sys.getenv("OPENAI_API_KEY")) {
+occ_agent <- function(occurrenceKey,
+                      candidates = NULL,
+                      apiKey = Sys.getenv("OPENAI_API_KEY")
+                      ) {
   if (length(occurrenceKey) != 1 || is.na(occurrenceKey) ||
       !grepl("^[0-9]+$", as.character(occurrenceKey))) {
     stop("occurrenceKey must be a positive integer key.")
@@ -25,11 +35,15 @@ assess_occurrence_record <- function(occurrenceKey,
   if (!is.character(apiKey) || length(apiKey) != 1 || is.na(apiKey) || !nzchar(apiKey)) {
     stop("Set OPENAI_API_KEY or provide apiKey.")
   }
+  hdp_context <- if (!is.null(candidates)) .hdp_facet_context(candidates) else NULL
 
   record <- .fetch_occurrence_record(occurrence_key)
+  geocode_context <- .record_geocode_context(record)
   centroid_context <- .country_centroid_context(record)
-  input <- list(occurrenceKey = occurrenceKey, record = record)
+  input <- list(occurrenceKey = occurrenceKey, record = record,
+                geocodeContext = geocode_context)
   if (!is.null(centroid_context)) input$countryCentroidContext <- centroid_context
+  if (!is.null(hdp_context)) input$hdpFacetContext <- hdp_context
 
   initial <- .request_record_triage(
     apiKey = apiKey,
@@ -40,28 +54,125 @@ assess_occurrence_record <- function(occurrenceKey,
   )
   advanced <- NULL
   if (initial$decision == "NEEDS_REVIEW") {
+    advanced_input <- list(
+      occurrenceKey = occurrenceKey,
+      record = record,
+      geocodeContext = geocode_context,
+      countryCentroidContext = centroid_context,
+      initialAssessment = initial
+    )
+    if (!is.null(hdp_context)) advanced_input$hdpFacetContext <- hdp_context
     advanced <- .request_record_triage(
       apiKey = apiKey,
       model = "gpt-5.6-terra",
       instructions = .advanced_record_triage_prompt,
-      input = list(
-        occurrenceKey = occurrenceKey,
-        record = record,
-        countryCentroidContext = centroid_context,
-        initialAssessment = initial
-      ),
+      input = advanced_input,
       maxOutputTokens = 4000,
       reasoningEffort = "high"
     )
   }
 
-  list(
+  output <- list(
     occurrenceKey = occurrence_key,
     record = record,
+    geocodeContext = geocode_context,
     initialAssessment = initial,
     advancedAssessment = advanced,
     finalAssessment = if (is.null(advanced)) initial else advanced
   )
+  if (!is.null(hdp_context)) output$hdpFacetContext <- hdp_context
+  output
+}
+
+.record_geocode_context <- function(record) {
+  latitude <- record$decimalLatitude
+  longitude <- record$decimalLongitude
+  valid <- function(value, limit) {
+    is.numeric(value) && length(value) == 1 && is.finite(value) && abs(value) <= limit
+  }
+  context <- list(
+    source = "rgbif::gbif_geocode (experimental GBIF reverse geocoder)",
+    status = "missing_or_invalid_coordinates",
+    latitude = latitude, longitude = longitude,
+    results = data.frame()
+  )
+  if (!valid(latitude, 90) || !valid(longitude, 180)) return(context)
+  results <- tryCatch(
+    rgbif::gbif_geocode(latitude = latitude, longitude = longitude),
+    error = function(error) {
+      stop("GBIF reverse geocode failed for (", latitude, ", ", longitude, "): ",
+           conditionMessage(error), call. = FALSE)
+    }
+  )
+  if (!is.data.frame(results)) {
+    stop("GBIF reverse geocode returned invalid results.", call. = FALSE)
+  }
+  context$results <- as.data.frame(results)
+  has_polygons <- nrow(results) > 0 && all(c("type", "title") %in% names(results)) &&
+    any(!is.na(results$type) & nzchar(as.character(results$type)) &
+        !is.na(results$title) & nzchar(as.character(results$title)))
+  if (nrow(results) > 0 && !all(c("type", "title") %in% names(results))) {
+    # rgbif may return only the input coordinates when there are no matches.
+    if (!all(c("latitude", "longitude", "index") %in% names(results)) ||
+        any(!names(results) %in% c("latitude", "longitude", "index"))) {
+      stop("GBIF reverse geocode returned invalid polygon fields.", call. = FALSE)
+    }
+  }
+  context$status <- if (has_polygons) "matched" else "no_polygon_matches"
+  context
+}
+
+.hdp_facet_context <- function(candidates) {
+  if (!is.list(candidates) || length(candidates$taxonKey) != 1 ||
+      is.na(candidates$taxonKey) || !nzchar(as.character(candidates$taxonKey)) ||
+      !is.character(candidates$hdp) || length(candidates$hdp) != 1 ||
+      is.na(candidates$hdp) || !"basisOfRecord" %in% names(candidates)) {
+    stop("candidates must be an out_cand() result with taxonKey, hdp and basisOfRecord; ",
+         "rerun out_cand() for older saved results.")
+  }
+  basis <- candidates$basisOfRecord
+  if (!is.null(basis) &&
+      (!is.character(basis) || !length(basis) || anyNA(basis) ||
+       any(!nzchar(trimws(basis))) || any(grepl(";", basis, fixed = TRUE)))) {
+    stop("candidates$basisOfRecord must be NULL or non-empty individual channels.")
+  }
+  geometry <- sf::st_as_sfc(candidates$hdp, crs = 4326)
+  if (any(!as.character(sf::st_geometry_type(geometry)) %in% c("POLYGON", "MULTIPOLYGON")) ||
+      any(!sf::st_is_valid(geometry))) {
+    stop("candidates$hdp must be valid polygon WKT.")
+  }
+  basis_filter <- if (is.null(basis)) NULL else paste(unique(trimws(basis)), collapse = ";")
+  counts <- lapply(c("country", "continent"), function(facet) {
+    if (all(sf::st_is_empty(geometry))) {
+      data <- data.frame(value = character(), count = numeric())
+      names(data)[1] <- facet
+      return(data)
+    }
+    data <- if (!is.null(candidates$hdpFacets)) {
+      candidates$hdpFacets[[facet]]
+    } else tryCatch(
+      occ_count(
+        taxonKey = candidates$taxonKey, geometry = candidates$hdp,
+        basisOfRecord = basis_filter, occurrenceStatus = "PRESENT",
+        facet = facet, facetLimit = 300
+      ),
+      error = function(error) {
+        stop("HDP ", facet, " facet query failed: ", conditionMessage(error),
+             call. = FALSE)
+      }
+    )
+    if (!is.data.frame(data) || !all(c(facet, "count") %in% names(data)) ||
+        !is.character(data[[facet]]) || anyNA(data[[facet]]) ||
+        any(!nzchar(data[[facet]])) || anyDuplicated(data[[facet]]) ||
+        !is.numeric(data$count) || any(!is.finite(data$count)) ||
+        any(data$count < 0 | data$count != floor(data$count))) {
+      stop("Invalid HDP ", facet, " facet response.", call. = FALSE)
+    }
+    data[, c(facet, "count"), drop = FALSE]
+  })
+  list(taxonKey = as.character(candidates$taxonKey), basisOfRecord = basis,
+       scope = "PRESENT GBIF occurrences within the combined HDP polygons",
+       country = counts[[1]], continent = counts[[2]])
 }
 
 .record_triage_decisions <- c("SUSPICIOUS", "INTRODUCED", "OK", "FORMER", "NEEDS_REVIEW")
@@ -113,13 +224,50 @@ assess_occurrence_record <- function(occurrenceKey,
   sep = " "
 )
 
+.coordinate_location_review_policy <- paste(
+  "After the fossil and coordinate-uncertainty checks, establish the plotted",
+  "location from decimalLatitude and decimalLongitude before reviewing range.",
+  "Treat locality, stateProvince, country, countryCode, verbatim locality, and",
+  "verbatim coordinates as claims to cross-check, not proof of where the plotted",
+  "point lies. Never substitute a named locality for the supplied coordinates",
+  "or silently repair, swap, or negate coordinates to make the record plausible.",
+  "Compare the coordinate location with those geographic claims, accounting for",
+  "coordinate uncertainty; do not invent a reverse-geocoded location or claim",
+  "a precise administrative-boundary check that has not been supplied.",
+  "A clear coordinate/locality contradiction is SUSPICIOUS with reason",
+  "locality_coordinate_mismatch even if the named locality is in the native range.",
+  "If the coordinate location or the significance of a possible conflict cannot",
+  "be established confidently, use NEEDS_REVIEW rather than OK.",
+  "Missing or invalid coordinates cannot support a coordinate-based OK decision.",
+  "Unresolved coordinate or locality conflicts must not be dismissed as",
+  "'some coordinate and data issues' in an otherwise OK assessment.",
+  "Neither HDP country/continent facets nor country-centroid distance verify",
+  "that this individual point lies in its stated province, country, or locality.",
+  "Use geocodeContext.results as external polygon evidence for the supplied",
+  "coordinates: GADM0 identifies country-level areas and GADM1 province/state",
+  "areas; other polygon types may describe marine or botanical regions, not",
+  "administrative provinces. Compare returned titles with the record's claims",
+  "instead of asserting that the coordinates lie in the named locality.",
+  "Geocoder matches describe the point, not its entire uncertainty radius;",
+  "account for coordinate uncertainty near boundaries. Do not assume the units",
+  "of a returned distance field or compare it numerically with uncertainty",
+  "unless its units and meaning are established. The geocoder is experimental,",
+  "not infallible. A matched status does not guarantee GADM0 or GADM1 coverage.",
+  "Missing polygon levels, no_polygon_matches, or missing_or_invalid_coordinates",
+  "mean unknown coverage, not confirmation of the claimed locality or a mismatch.",
+  "For a geographic decision, state the supplied latitude and longitude and",
+  "explain the specific mismatch, range comparison, or unresolved uncertainty.",
+  sep = " "
+)
+
 .native_range_review_policy <- paste(
   "First identify the focal accepted taxon using acceptedScientificName or",
   "scientificName, taxonRank, and classification. Recall its native range from",
   "your pretrained biogeographic knowledge: regions, countries, islands, and",
   "habitat where confidently known. Do not substitute a genus or family range",
   "for a species range or guess the distribution of an unfamiliar taxon.",
-  "Then compare the supplied coordinates and locality with that recalled range,",
+  "Then compare the plotted coordinate location, not merely the named locality,",
+  "with that recalled range,",
   "allowing for coordinate uncertainty, historical range, and plausible vagrancy.",
   "A clear location very far outside a confidently recalled native range is",
   "SUSPICIOUS with reason unlikely_location_for_taxon unless a plausible",
@@ -145,11 +293,25 @@ assess_occurrence_record <- function(occurrenceKey,
   sep = " "
 )
 
+.hdp_facet_review_policy <- paste(
+  "When hdpFacetContext is supplied, use its country and continent occurrence",
+  "counts as supporting context for the focal taxon's observed GBIF distribution",
+  "within the HDP polygons (including count-excluded cells), not its native range.",
+  "These counts may include introduced populations and data errors and are",
+  "limited by polygon coverage and basis-of-record filters. An absent country",
+  "or continent, or empty facets, is not evidence of absence or a reason by",
+  "itself to mark a record SUSPICIOUS. Do not replace the native-range review",
+  "with facet membership or override the fossil and uncertainty policies.",
+  sep = " "
+)
+
 .record_triage_prompt <- paste(
   "Triage one GBIF occurrence record selected as a geographic outlier.",
   .fossil_review_policy,
   .coordinate_uncertainty_policy,
+  .coordinate_location_review_policy,
   .native_range_review_policy,
+  .hdp_facet_review_policy,
   "Assess the supplied GBIF record and country-centroid context using that policy.",
   "Do not infer absence from GBIF.",
   "Centroid distance alone is never suspicious. Use country_centroid_anomaly",
@@ -179,7 +341,9 @@ assess_occurrence_record <- function(occurrenceKey,
   "centroid context, and initial assessment. Do not defer to the initial model.",
   .fossil_review_policy,
   .coordinate_uncertainty_policy,
+  .coordinate_location_review_policy,
   .native_range_review_policy,
+  .hdp_facet_review_policy,
   "Independently reconsider the native range; do not treat the fast model's",
   "range description as verified evidence.",
   "Apply the same decision definitions: SUSPICIOUS for non-wild records or a",

@@ -13,7 +13,7 @@
 #'   `bboxWkt` (NA when coordinates are missing); and `mp`, the combined
 #'   MULTIPOLYGON WKT of all boxes (or `"MULTIPOLYGON EMPTY"`).
 #' @export
-suspicious_boxes <- function(result, halfWidth = 0.01) {
+sus_boxes <- function(result, halfWidth = 0.01) {
   if (!is.list(result) || !is.data.frame(result$data) ||
       !all(c("gbifid", "decision") %in% names(result$data))) {
     stop("result must be a pipeline() result with data$gbifid and data$decision.")

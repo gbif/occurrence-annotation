@@ -4,7 +4,8 @@ test_that("pipeline chains the three steps and returns final assessments", {
             "POLYGON ((2 0, 3 0, 3 1, 2 1, 2 0))")
   hdp <- "MULTIPOLYGON (((4 0, 5 0, 5 1, 4 1, 4 0)))"
   polygons <- list(taxonKey = "3NFRS", candidates = data.frame(binWkt = wkts),
-                    hdp = hdp, hdpCells = hdp)
+                    hdp = hdp, hdpCells = hdp, basisOfRecord = "HUMAN_OBSERVATION")
+  facet_calls <- character()
   local_mocked_bindings(
     out_cand = function(taxonKey, basisOfRecord, ...) {
       calls <<- c(calls, "find")
@@ -20,9 +21,23 @@ test_that("pipeline chains the three steps and returns final assessments", {
       expect_equal(sampleSize, 2)
       data.frame(gbifid = c("5195998433", "6497435304"), binWkt = wkts)
     },
-    assess_occurrence_record = function(occurrenceKey, apiKey) {
+    occ_count = function(taxonKey, geometry, basisOfRecord, occurrenceStatus,
+                         facet, facetLimit) {
+      facet_calls <<- c(facet_calls, facet)
+      expect_identical(taxonKey, "3NFRS")
+      expect_identical(geometry, hdp)
+      expect_identical(basisOfRecord, "HUMAN_OBSERVATION")
+      expect_identical(occurrenceStatus, "PRESENT")
+      expect_equal(facetLimit, 300)
+      data <- data.frame(value = if (facet == "country") "DE" else "EUROPE", count = 20)
+      names(data)[1] <- facet
+      data
+    },
+    occ_agent = function(occurrenceKey, apiKey, candidates) {
       calls <<- c(calls, occurrenceKey)
       expect_identical(apiKey, "test-key")
+      expect_identical(candidates$hdpFacets$country$country, "DE")
+      expect_identical(candidates$hdpFacets$continent$continent, "EUROPE")
       list(
         initialAssessment = list(decision = "NEEDS_REVIEW"),
         finalAssessment = list(
@@ -38,6 +53,7 @@ test_that("pipeline chains the three steps and returns final assessments", {
   result <- pipeline("3NFRS", basisOfRecord = "HUMAN_OBSERVATION",
                      sampleSize = 2, apiKey = "test-key", maxOccurrenceCount = 10)
   expect_identical(calls, c("find", "fetch", "5195998433", "6497435304"))
+  expect_identical(facet_calls, c("country", "continent"))
   expect_s3_class(result, "gbifout_pipeline")
   expect_identical(names(result), c("data", "sus", "int", "ok", "hdp", "taxonKey",
                                     "sdmPolygons"))
@@ -68,7 +84,7 @@ test_that("empty fetches return a typed table without assessment calls", {
       expect_identical(basisOfRecord, expected_basis)
       data.frame(gbifid = character(), binWkt = character())
     },
-    assess_occurrence_record = function(...) stop("must not assess"),
+    occ_agent = function(...) stop("must not assess"),
     .package = "gbifout"
   )
   result <- pipeline(123, apiKey = "test-key")
@@ -89,11 +105,12 @@ test_that("decision multipolygons combine unique cells and allow mixed decisions
             "POLYGON ((2 0, 3 0, 3 1, 2 1, 2 0))")
   decisions <- c("SUSPICIOUS", "SUSPICIOUS", "SUSPICIOUS", "OK", "NEEDS_REVIEW")
   local_mocked_bindings(
-    out_cand = function(...) list(taxonKey = 123, hdp = "MULTIPOLYGON EMPTY"),
+    out_cand = function(...) list(taxonKey = 123, hdp = "MULTIPOLYGON EMPTY",
+                                  basisOfRecord = NULL),
     occ_fetch_unique = function(...) data.frame(
       gbifid = as.character(seq_along(decisions)), binWkt = wkts[c(1, 1, 2, 1, 2)]
     ),
-    assess_occurrence_record = function(occurrenceKey, ...) list(finalAssessment = list(
+    occ_agent = function(occurrenceKey, ...) list(finalAssessment = list(
       decision = decisions[as.integer(occurrenceKey)], reasonCategory = "other",
       explanation = "Assessment", model = "test-model"
     )),
@@ -115,9 +132,10 @@ test_that("decision multipolygons combine unique cells and allow mixed decisions
 
 test_that("pipeline errors identify the occurrence and invalid inputs stop early", {
   local_mocked_bindings(
-    out_cand = function(...) list(taxonKey = "taxon"),
+    out_cand = function(...) list(taxonKey = "taxon", hdp = "MULTIPOLYGON EMPTY",
+                                  basisOfRecord = NULL),
     occ_fetch_unique = function(...) data.frame(gbifid = "123", binWkt = "polygon"),
-    assess_occurrence_record = function(...) stop("model unavailable"),
+    occ_agent = function(...) stop("model unavailable"),
     .package = "gbifout"
   )
   expect_error(pipeline("taxon", apiKey = "test-key"), "GBIF ID 123: model unavailable")

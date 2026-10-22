@@ -27,6 +27,8 @@
 #'   `taxonKey` and `sdmPolygons` retain the taxon and individual OK/HDP cells
 #'   for `sdm_check()`, including when no records were assessed.
 #'   The result has class `gbifout_pipeline`; use `plot()` to map the polygons.
+#'   Country/continent HDP facets are fetched once and shared with both models
+#'   for every assessed record as supporting distribution context.
 #' @export
 pipeline <- function(taxonKey,
                      basisOfRecord = c(
@@ -66,10 +68,11 @@ pipeline <- function(taxonKey,
     class = c("gbifout_pipeline", "list")))
   }
 
+  polygons$hdpFacets <- .hdp_facet_context(polygons)
   rows <- lapply(seq_len(nrow(occurrences)), function(index) {
     gbifid <- occurrences$gbifid[index]
     assessment <- tryCatch(
-      assess_occurrence_record(gbifid, apiKey = apiKey),
+      occ_agent(gbifid, apiKey = apiKey, candidates = polygons),
       error = function(error) {
         stop("Assessment failed for GBIF ID ", gbifid, ": ",
              conditionMessage(error), call. = FALSE)

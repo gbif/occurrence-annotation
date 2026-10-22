@@ -1,15 +1,19 @@
-#' Plot SDM record suitability over a GBIF occurrence map
+#' Plot predicted SDM suitability and assessed records
 #'
 #' Colours assessed occurrence points by cloglog suitability (0 to 1), with
 #' red rings around review flags and grey crosses for unscored records.
-#' The grey backdrop is GBIF occurrence coverage, not predicted suitability.
+#' Training occurrences define the prediction mask but are not drawn.
+#' New results display full-raster suitability underneath the records.
+#' The suitability-threshold polygon is outlined in black when present.
+#' Older results without predictions retain the GBIF occurrence backdrop.
 #' No climate data, model fitting, or occurrence lookups are needed.
 #'
 #' @param x a result from `sdm_check()`, including older saved unclassed lists.
 #' @param map optional single-layer EPSG:4326 terra SpatRaster from
 #'   `map_fetch()`, or a finder's `diagnostics$map`. Positive values indicate
-#'   occurrence coverage. NULL fetches a world map for `x$settings$taxonKey`
-#'   using all basis-of-record channels; supply a map to avoid network access.
+#'   occurrence coverage. NULL uses `x$prediction`, or fetches a world GBIF map
+#'   for legacy results without predictions. An explicit map adds grey coverage
+#'   underneath the prediction surface; it does not limit the prediction extent.
 #' @param main optional plot title.
 #' @param cex positive point size (default 1).
 #' @param ... additional arguments to `graphics::plot.window()`, e.g. `xlim`
@@ -32,7 +36,40 @@ plot_sdm <- function(x, map = NULL, main = NULL, cex = 1, ...) {
     stop("cex must be a positive finite number.")
   }
   taxon <- x$settings$taxonKey
-  if (is.null(map)) {
+  prediction <- x$prediction
+  if (inherits(prediction, "PackedSpatRaster")) prediction <- terra::unwrap(prediction)
+  if (!is.null(prediction)) {
+    if (!inherits(prediction, "SpatRaster") || terra::nlyr(prediction) != 1 ||
+        !isTRUE(sf::st_crs(terra::crs(prediction)) == sf::st_crs(4326))) {
+      stop("prediction must be a single-layer EPSG:4326 SpatRaster.")
+    }
+    scores <- terra::values(prediction, mat = FALSE)
+    if (any(!is.na(scores) & (!is.finite(scores) | scores < 0 | scores > 1))) {
+      stop("Raster suitability must be NA or finite values between 0 and 1.")
+    }
+  }
+  suitability_polygon <- NULL
+  if (!is.null(x$suitabilityPolygon)) {
+    wkt <- x$suitabilityPolygon
+    if (!is.character(wkt) || length(wkt) != 1 || is.na(wkt) || !nzchar(wkt)) {
+      stop("suitabilityPolygon must be a single polygon WKT string.")
+    }
+    geometry <- sf::st_as_sfc(wkt, crs = 4326)
+    if (any(!as.character(sf::st_geometry_type(geometry)) %in% c("POLYGON", "MULTIPOLYGON"))) {
+      stop("suitabilityPolygon must contain polygon geometry.")
+    }
+    if (!sf::st_is_empty(geometry)) suitability_polygon <- terra::vect(geometry)
+  }
+  polygon_label <- "Suitability boundary"
+  if (!is.null(suitability_polygon)) {
+    threshold <- x$settings$suitabilityThreshold
+    if (!is.numeric(threshold) || length(threshold) != 1 || !is.finite(threshold) ||
+        threshold < 0 || threshold > 1) {
+      stop("A suitability polygon requires settings$suitabilityThreshold between 0 and 1.")
+    }
+    polygon_label <- paste0("Suitability >= ", format(threshold, trim = TRUE))
+  }
+  if (is.null(map) && is.null(prediction)) {
     if (length(taxon) != 1 || is.na(taxon) || !nzchar(as.character(taxon))) {
       stop("Supply map or an SDM result with settings$taxonKey.")
     }
@@ -40,8 +77,8 @@ plot_sdm <- function(x, map = NULL, main = NULL, cex = 1, ...) {
       taxonKey = taxon, zoom = 0, squareSize = 8, format = "@1x.png"
     )
   }
-  if (!inherits(map, "SpatRaster") || terra::nlyr(map) != 1 ||
-      !isTRUE(sf::st_crs(terra::crs(map)) == sf::st_crs(4326))) {
+  if (!is.null(map) && (!inherits(map, "SpatRaster") || terra::nlyr(map) != 1 ||
+      !isTRUE(sf::st_crs(terra::crs(map)) == sf::st_crs(4326)))) {
     stop("map must be a single-layer EPSG:4326 SpatRaster.")
   }
   valid <- .sdm_valid_coordinates(data)
@@ -49,13 +86,14 @@ plot_sdm <- function(x, map = NULL, main = NULL, cex = 1, ...) {
     warning(sum(!valid), " records omitted from the SDM map: missing/invalid coordinates.",
             call. = FALSE)
   }
-  occupied <- terra::ifel(map > 0, 1, NA)
-  has_coverage <- any(terra::values(map, mat = FALSE) > 0, na.rm = TRUE)
+  occupied <- if (!is.null(map)) terra::ifel(map > 0, 1, NA) else NULL
+  has_coverage <- !is.null(map) && any(terra::values(map, mat = FALSE) > 0, na.rm = TRUE)
   points <- if (any(valid)) {
     terra::vect(data[valid, ], geom = c("decimalLongitude", "decimalLatitude"),
                  crs = "EPSG:4326")
   } else NULL
-  limits <- .map_limits(if (has_coverage) occupied else NULL, list(points))
+  limits <- .map_limits(if (has_coverage) occupied else NULL,
+                        list(prediction, points, suitability_polygon))
   window <- utils::modifyList(list(xlim = limits$x, ylim = limits$y, asp = 1), list(...))
   ocean <- read_ocean_polygon(ocean_polygon_path())
   graphics::plot.new()
@@ -65,6 +103,12 @@ plot_sdm <- function(x, map = NULL, main = NULL, cex = 1, ...) {
     terra::plot(occupied, col = "#BBBBBB", legend = FALSE, add = TRUE)
   }
   palette <- grDevices::colorRampPalette(c("#440154", "#31688E", "#35B779", "#FDE725"))(101)
+  if (!is.null(prediction) && any(is.finite(scores))) {
+    terra::plot(prediction, col = palette, range = c(0, 1), legend = FALSE, add = TRUE)
+  }
+  if (!is.null(suitability_polygon)) {
+    terra::plot(suitability_polygon, col = NA, border = "black", lwd = 2, add = TRUE)
+  }
   scored <- valid & is.finite(data$suitability)
   if (any(scored)) {
     graphics::points(
@@ -95,11 +139,21 @@ plot_sdm <- function(x, map = NULL, main = NULL, cex = 1, ...) {
   graphics::legend(
     "bottomleft", bg = "white", cex = 0.75,
     legend = c("Suitability 0", "0.25", "0.5", "0.75", "1",
-               "Review flag", "Unscored", "GBIF coverage (not SDM prediction)"),
-    pch = c(rep(21, 5), 1, 4, 15),
-    pt.bg = c(palette[c(1, 26, 51, 76, 101)], NA, NA, NA),
-    col = c(rep("#333333", 5), "#D73027", "grey40", "#BBBBBB"),
-    pt.cex = c(rep(1, 5), 1.7, 1, 1)
+               "Review flag", "Unscored",
+               if (!is.null(suitability_polygon)) polygon_label,
+               if (has_coverage) "GBIF coverage (not SDM prediction)"),
+    pch = c(rep(21, 5), 1, 4, if (!is.null(suitability_polygon)) NA,
+            if (has_coverage) 15),
+    pt.bg = c(palette[c(1, 26, 51, 76, 101)], NA, NA,
+              if (!is.null(suitability_polygon)) NA,
+              if (has_coverage) NA),
+    col = c(rep("#333333", 5), "#D73027", "grey40",
+            if (!is.null(suitability_polygon)) "black",
+            if (has_coverage) "#BBBBBB"),
+    pt.cex = c(rep(1, 5), 1.7, 1, if (!is.null(suitability_polygon)) 1,
+               if (has_coverage) 1),
+    lty = c(rep(NA, 7), if (!is.null(suitability_polygon)) 1, if (has_coverage) NA),
+    lwd = c(rep(1, 7), if (!is.null(suitability_polygon)) 2, if (has_coverage) 1)
   )
   invisible(x)
 }

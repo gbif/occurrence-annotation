@@ -2,7 +2,9 @@
 #'
 #' Fetches the first ten occurrences per original OK/HDP cell, fits a regularized
 #' linear/quadratic MaxEnt model, and scores pipeline records without changing
-#' their decisions. No OpenAI requests or annotation writes are made.
+#' their decisions. Predicts suitability for complete climate raster cells within
+#' 500 km of a retained OK/HDP training occurrence by default.
+#' No OpenAI requests or annotation writes are made.
 #'
 #' @param result a `pipeline()` result, including one loaded with `readRDS()`.
 #' @param climate optional EPSG:4326 terra SpatRaster with layers named bio1,
@@ -15,10 +17,26 @@
 #' @param basisOfRecord GBIF channels, defaulting to the pipeline's seven
 #'   channels. Pass the same filter used in the original analysis; NULL uses all.
 #' @param seed random seed for background sampling, preserving the caller's RNG state.
-#' @param outputDir optional directory for sdm-check.rds and sdm-scores.csv.
-#'   The RDS includes the serializable model, samples and settings, not a raster.
+#' @param outputDir optional directory for sdm-check.rds, sdm-scores.csv,
+#'   sdm-suitability.tif and sdm-suitability.wkt. The RDS packs the prediction raster for portability;
+#'   use `terra::unwrap()` on its `prediction` to recover a SpatRaster.
+#' @param predictionBufferKm maximum geodesic distance in kilometres from a
+#'   raster cell centre to a retained training occurrence from an OK or HDP cell
+#'   (default 500). Samples removed for missing climate do not anchor the mask.
+#'   NULL disables the prediction mask. Does not change
+#'   model fitting, background sampling, or individual record-review scores.
+#' @param suitabilityThreshold score cutoff for the suitability polygon
+#'   (default 0.70, inclusive; must be between 0 and 1). This is relative
+#'   suitability, not a probability or percentage of total suitability.
 #' @return A list with scored `data`, `model`, `training`, `background`,
-#'   `polygons` (including sampling counts), `thresholds`, and `settings`.
+#'   `polygons` (including sampling counts), `thresholds`, `settings`, and
+#'   `prediction`, a single-layer suitability SpatRaster on the climate grid.
+#'   `suitabilityPolygon` is EPSG:4326 MULTIPOLYGON WKT covering whole allowed
+#'   cells at or above `suitabilityThreshold`, preserving holes and disconnected
+#'   regions, or `MULTIPOLYGON EMPTY` when no cells qualify.
+#'   Cells outside the distance mask or missing any fitted predictor remain NA.
+#'   Predictions use cloglog
+#'   scores with clamping, just like record scoring.
 #'   Scores are relative suitability (cloglog), not occurrence probabilities.
 #'   Review flags use the 10th/90th percentiles of training suitability; these
 #'   are descriptive thresholds, not independently validated accuracy estimates.
@@ -28,11 +46,15 @@
 #' @export
 sdm_check <- function(result, climate = NULL,
                       cacheDir = tools::R_user_dir("gbifout", "cache"),
-                      sampleSize = 10, backgroundSize = 10000, bufferKm = 500,
+                      sampleSize = 10, 
+                      backgroundSize = 10000, 
+                      bufferKm = 1500,
                       basisOfRecord = c(
                         "PRESERVED_SPECIMEN", "OBSERVATION", "HUMAN_OBSERVATION",
                         "MACHINE_OBSERVATION", "LITERATURE", "OCCURRENCE", "UNKNOWN"
-                      ), seed = 42, outputDir = NULL) {
+                      ), seed = 42, outputDir = NULL, predictionBufferKm = 500,
+                      suitabilityThreshold = 0.10) {
+  started <- proc.time()[["elapsed"]]
   if (!is.list(result) || !is.data.frame(result$data) ||
       !all(c("gbifid", "decision") %in% names(result$data)) ||
       anyNA(result$data$gbifid) ||
@@ -59,6 +81,16 @@ sdm_check <- function(result, climate = NULL,
       !is.finite(bufferKm) || bufferKm <= 0) {
     stop("bufferKm must be a positive finite number of kilometres.")
   }
+  if (!is.null(predictionBufferKm) &&
+      (!is.numeric(predictionBufferKm) || length(predictionBufferKm) != 1 ||
+       !is.finite(predictionBufferKm) || predictionBufferKm <= 0)) {
+    stop("predictionBufferKm must be NULL or a positive finite number of kilometres.")
+  }
+  if (!is.numeric(suitabilityThreshold) || length(suitabilityThreshold) != 1 ||
+      !is.finite(suitabilityThreshold) || suitabilityThreshold < 0 ||
+      suitabilityThreshold > 1) {
+    stop("suitabilityThreshold must be a finite number between 0 and 1.")
+  }
   if (!is.null(basisOfRecord)) {
     if (!is.character(basisOfRecord) || !length(basisOfRecord) ||
         anyNA(basisOfRecord) || any(!nzchar(trimws(basisOfRecord))) ||
@@ -80,6 +112,7 @@ sdm_check <- function(result, climate = NULL,
     stop("Install the optional SDM dependency: install.packages('maxnet').")
   }
   climate_source <- if (is.null(climate)) "WorldClim 2.1, 10 arc-minutes" else "user-supplied"
+  message("SDM: loading climate predictors")
   if (is.null(climate)) climate <- .sdm_worldclim(cacheDir)
   variables <- c("bio1", "bio4", "bio12", "bio15")
   if (!inherits(climate, "SpatRaster") || !all(variables %in% names(climate)) ||
@@ -100,11 +133,14 @@ sdm_check <- function(result, climate = NULL,
   }, add = TRUE)
   set.seed(seed)
 
+  message("SDM: fetching coordinates for ", length(unique(result$data$gbifid)),
+          " assessed records")
   assessed <- .sdm_record_coordinates(result$data)
   samples <- .sdm_sample_occurrences(
     taxon_keys, polygons, sampleSize, basisOfRecord
   )
   training <- samples$data
+  message("SDM: extracting climate for ", nrow(training), " sampled training records")
   training$climateCell <- terra::cellFromXY(
     climate, as.matrix(training[, c("decimalLongitude", "decimalLatitude")])
   )
@@ -131,10 +167,13 @@ sdm_check <- function(result, climate = NULL,
   }
   if (length(variables) < 2) stop("SDM needs at least two varying climate predictors.")
   climate <- climate[[variables]]
+  message("SDM: generating accessible background from ", nrow(training), " training records")
   background <- .sdm_background(climate, training, backgroundSize, bufferKm)
   predictors <- rbind(training[, variables, drop = FALSE],
                       background[, variables, drop = FALSE])
   presence <- c(rep(1, nrow(training)), rep(0, nrow(background)))
+  message("SDM: fitting MaxEnt with ", nrow(training), " presences and ",
+          nrow(background), " background cells")
   model <- maxnet::maxnet(
     presence, predictors,
     f = maxnet::maxnet.formula(presence, predictors, classes = "lq"),
@@ -148,7 +187,19 @@ sdm_check <- function(result, climate = NULL,
   }
   thresholds <- stats::quantile(training$suitability, c(0.1, 0.9), names = FALSE)
   names(thresholds) <- c("low", "high")
+  message("SDM: scoring assessed records")
   data <- .sdm_score(assessed, climate, model, training, thresholds)
+  prediction_mask <- if (!is.null(predictionBufferKm)) {
+    message("SDM: building ", predictionBufferKm, " km training-point prediction mask")
+    .sdm_prediction_mask(climate[[1]], training, predictionBufferKm)
+  } else NULL
+  prediction_climate <- if (is.null(prediction_mask)) climate else {
+    terra::mask(climate, prediction_mask)
+  }
+  message("SDM: predicting raster suitability")
+  prediction <- .sdm_predict_raster(prediction_climate, model)
+  message("SDM: polygonizing suitability >= ", suitabilityThreshold)
+  suitability_polygon <- .sdm_suitability_polygon(prediction, suitabilityThreshold)
   polygons <- samples$polygons
   polygons$trainingCount <- tabulate(match(training$polygonId, polygons$polygonId),
                                      nbins = nrow(polygons))
@@ -159,6 +210,9 @@ sdm_check <- function(result, climate = NULL,
     sampleSize = sampleSize, backgroundSize = backgroundSize,
     occurrenceSampling = "first page, no occurrence deduplication",
     bufferKm = bufferKm, basisOfRecord = basisOfRecord, seed = seed,
+    predictionBufferKm = predictionBufferKm,
+    suitabilityThreshold = suitabilityThreshold,
+    predictionAnchors = if (is.null(predictionBufferKm)) NULL else "retained OK/HDP training records",
     features = "linear/quadratic", regularizationMultiplier = 1,
     lowQuantile = 0.1, highQuantile = 0.9,
     originalCells = !is.null(result$sdmPolygons),
@@ -167,16 +221,101 @@ sdm_check <- function(result, climate = NULL,
   )
   output <- list(data = data, model = model, training = training,
                  background = background, polygons = polygons,
-                 thresholds = thresholds, settings = settings)
+                 thresholds = thresholds, settings = settings,
+                 prediction = prediction, suitabilityPolygon = suitability_polygon)
   class(output) <- c("gbifout_sdm", "list")
   if (!is.null(outputDir)) {
+    message("SDM: saving outputs to ", outputDir)
     if (!dir.exists(outputDir) && !dir.create(outputDir, recursive = TRUE)) {
       stop("Could not create SDM output directory: ", outputDir)
     }
-    saveRDS(output, file.path(outputDir, "sdm-check.rds"))
+    terra::writeRaster(prediction, file.path(outputDir, "sdm-suitability.tif"),
+                       overwrite = TRUE)
+    saved <- output
+    saved$prediction <- terra::wrap(prediction, proxy = FALSE)
+    saveRDS(saved, file.path(outputDir, "sdm-check.rds"))
     utils::write.csv(data, file.path(outputDir, "sdm-scores.csv"), row.names = FALSE)
+    writeLines(suitability_polygon, file.path(outputDir, "sdm-suitability.wkt"))
   }
+  message("SDM: complete in ", round(proc.time()[["elapsed"]] - started, 1), " seconds")
   output
+}
+
+.sdm_suitability_polygon <- function(prediction, threshold) {
+  scores <- terra::values(prediction, mat = FALSE)
+  selected <- is.finite(scores) & scores >= threshold
+  if (!any(selected)) {
+    message("SDM: no allowed cells meet suitability threshold ", threshold)
+    return("MULTIPOLYGON EMPTY")
+  }
+  binary <- terra::rast(prediction)
+  terra::values(binary) <- ifelse(selected, 1, NA_real_)
+  polygons <- terra::as.polygons(binary, dissolve = TRUE, na.rm = TRUE)
+  geometry <- sf::st_geometry(sf::st_as_sf(polygons))
+  sf::st_as_text(sf::st_cast(geometry, "MULTIPOLYGON"))[[1]]
+}
+
+.sdm_prediction_mask <- function(template, training, bufferKm) {
+  valid <- .sdm_valid_coordinates(training)
+  if (any(!valid)) {
+    warning(sum(!valid), " training records excluded from the prediction mask: ",
+            "missing/invalid coordinates.", call. = FALSE)
+  }
+  if (!any(valid)) {
+    stop("The prediction mask requires at least one training record with valid coordinates. ",
+         "Use predictionBufferKm = NULL only for an explicitly unmasked prediction.")
+  }
+  coordinates <- unique(training[valid, c("decimalLongitude", "decimalLatitude"), drop = FALSE])
+  longitude <- terra::xFromCol(template, seq_len(terra::ncol(template)))
+  latitude <- terra::yFromRow(template, seq_len(terra::nrow(template)))
+  included <- rep(FALSE, terra::ncell(template))
+  # 6300 km is below Earth's minimum curvature radius: these spherical bounds
+  # conservatively enclose the ellipsoidal buffer, including poles/dateline.
+  angle <- min(pi, bufferKm / 6300)
+  for (i in seq_len(nrow(coordinates))) {
+    lon <- coordinates$decimalLongitude[i]
+    lat <- coordinates$decimalLatitude[i]
+    rows <- which(abs(latitude - lat) <= angle * 180 / pi)
+    reaches_pole <- abs(lat) * pi / 180 + angle >= pi / 2
+    lon_limit <- if (reaches_pole) 180 else {
+      asin(min(1, sin(angle) / cos(lat * pi / 180))) * 180 / pi
+    }
+    cols <- which(abs((longitude - lon + 180) %% 360 - 180) <= lon_limit)
+    cells <- as.vector(outer((rows - 1) * terra::ncol(template), cols, "+"))
+    cells <- cells[!included[cells]]
+    if (length(cells)) {
+      xy <- terra::xyFromCell(template, cells)
+      distance <- as.vector(terra::distance(xy, matrix(c(lon, lat), nrow = 1),
+                                            lonlat = TRUE))
+      included[cells[distance <= bufferKm * 1000]] <- TRUE
+    }
+    if (i %% 50 == 0 || i == nrow(coordinates)) {
+      message("SDM prediction mask: point ", i, "/", nrow(coordinates))
+    }
+  }
+  mask <- terra::rast(template)
+  terra::values(mask) <- ifelse(included, 1, NA_real_)
+  mask
+}
+
+.sdm_predict_raster <- function(climate, model) {
+  predict_cells <- function(model, data) {
+    data <- as.data.frame(data)
+    complete <- rowSums(is.finite(as.matrix(data))) == ncol(data)
+    scores <- rep(NA_real_, nrow(data))
+    if (any(complete)) {
+      scores[complete] <- as.numeric(stats::predict(
+        model, data[complete, , drop = FALSE], type = "cloglog", clamp = TRUE
+      ))
+      if (any(!is.finite(scores[complete]) | scores[complete] < 0 | scores[complete] > 1)) {
+        stop("The SDM produced invalid raster suitability scores.")
+      }
+    }
+    scores
+  }
+  prediction <- terra::predict(climate, model, fun = predict_cells)
+  names(prediction) <- "suitability"
+  prediction
 }
 
 .sdm_worldclim <- function(cacheDir) {

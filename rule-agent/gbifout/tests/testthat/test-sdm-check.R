@@ -263,6 +263,12 @@ test_that("SDM validates arguments before making requests", {
   expect_error(sdm_check(result, sampleSize = 300), "single GBIF page")
   expect_error(sdm_check(result, backgroundSize = 1), "backgroundSize")
   expect_error(sdm_check(result, bufferKm = Inf), "bufferKm")
+  for (radius in list(0, -1, Inf, NA_real_, "500", c(100, 500))) {
+    expect_error(sdm_check(result, predictionBufferKm = radius), "predictionBufferKm")
+  }
+  for (threshold in list(-0.1, 1.1, Inf, NA_real_, "0.7", c(0.7, 0.8))) {
+    expect_error(sdm_check(result, suitabilityThreshold = threshold), "suitabilityThreshold")
+  }
   expect_error(sdm_check(result, seed = NA_real_), "seed")
   expect_error(sdm_check(result, basisOfRecord = ""), "basisOfRecord")
   result$data$taxonKey[1] <- "other"
@@ -329,15 +335,181 @@ test_that("real MaxEnt fit is reproducible, saves reloadable outputs and preserv
   expect_true(all(fitted$data$suitability >= 0 & fitted$data$suitability <= 1))
   expect_identical(fitted$data$decision, result$data$decision)
   expect_equal(sum(fitted$polygons$trainingCount), 50)
+  expect_s4_class(fitted$prediction, "SpatRaster")
+  expect_true(terra::compareGeom(fitted$prediction, climate[[1]]))
+  expected <- as.numeric(stats::predict(
+    fitted$model, as.data.frame(terra::values(climate)), type = "cloglog", clamp = TRUE
+  ))
+  unmasked <- expected
+  coordinates <- terra::xyFromCell(climate, seq_len(terra::ncell(climate)))
+  distances <- terra::distance(
+    coordinates, as.matrix(samples[, c("decimalLongitude", "decimalLatitude")]), lonlat = TRUE
+  )
+  expected[apply(distances, 1, min) > 500000] <- NA_real_
+  expect_equal(as.numeric(terra::values(fitted$prediction)), expected)
+  expect_true(any(is.finite(expected)))
+  expect_true(anyNA(expected))
+  expect_equal(fitted$settings$suitabilityThreshold, 0.7)
+  expect_identical(fitted$suitabilityPolygon,
+                   gbifout:::.sdm_suitability_polygon(fitted$prediction, 0.7))
+  expect_equal(fitted$settings$predictionBufferKm, 500)
+  expect_identical(fitted$settings$predictionAnchors, "retained OK/HDP training records")
+  expect_equal(as.numeric(terra::values(fitted$prediction))[fitted$training$climateCell],
+               fitted$training$suitability)
+  expect_equal(terra::extract(
+    fitted$prediction,
+    as.matrix(fitted$data[, c("decimalLongitude", "decimalLatitude")])
+  )$suitability, expected[terra::cellFromXY(
+    climate, as.matrix(fitted$data[, c("decimalLongitude", "decimalLatitude")])
+  )])
   saved <- readRDS(file.path(directory, "sdm-check.rds"))
   expect_s3_class(saved, "gbifout_sdm")
   expect_identical(saved$data, fitted$data)
+  expect_identical(saved$suitabilityPolygon, fitted$suitabilityPolygon)
+  expect_identical(readLines(file.path(directory, "sdm-suitability.wkt")),
+                   fitted$suitabilityPolygon)
   expect_s3_class(saved$model, "maxnet")
+  restored <- terra::unwrap(saved$prediction)
+  expect_equal(terra::values(restored), terra::values(fitted$prediction))
+  exported <- terra::rast(file.path(directory, "sdm-suitability.tif"))
+  expect_true(terra::compareGeom(exported, restored))
+  expect_equal(terra::values(exported), terra::values(restored), tolerance = 1e-7)
   expect_equal(stats::predict(saved$model, saved$training[, saved$settings$variables],
                               type = "cloglog"), fitted$training$suitability,
                ignore_attr = TRUE)
   expect_true(file.exists(file.path(directory, "sdm-scores.csv")))
-  second <- sdm_check(result, climate = climate, backgroundSize = 100)
+  second <- sdm_check(result, climate = climate, backgroundSize = 100,
+                       suitabilityThreshold = 0.85)
   expect_equal(second$data$suitability, fitted$data$suitability)
   expect_identical(second$background, fitted$background)
+  expect_equal(terra::values(second$prediction), terra::values(fitted$prediction))
+  expect_equal(second$settings$suitabilityThreshold, 0.85)
+  expect_identical(second$suitabilityPolygon,
+                   gbifout:::.sdm_suitability_polygon(second$prediction, 0.85))
+  unrestricted <- sdm_check(result, climate = climate, backgroundSize = 100,
+                             predictionBufferKm = NULL)
+  expect_equal(as.numeric(terra::values(unrestricted$prediction)), unmasked)
+  expect_identical(unrestricted$data, fitted$data)
+  expect_identical(unrestricted$background, fitted$background)
+  expect_equal(unrestricted$model$betas, fitted$model$betas)
+  result$data$decision[] <- "SUSPICIOUS"
+  no_ok <- sdm_check(result, climate = climate, backgroundSize = 100)
+  expect_equal(terra::values(no_ok$prediction), terra::values(fitted$prediction))
+  expect_equal(no_ok$model$betas, fitted$model$betas)
+})
+
+test_that("suitability polygons include exact-threshold cells, holes and disconnected regions", {
+  prediction <- terra::rast(nrows = 5, ncols = 6, xmin = 0, xmax = 6,
+                            ymin = 0, ymax = 5, crs = "EPSG:4326")
+  scores <- matrix(0.69, nrow = 5, ncol = 6)
+  scores[1:3, 1:3] <- 0.7
+  scores[2, 2] <- 0.2
+  scores[5, 6] <- 1
+  scores[4, 5] <- NA_real_
+  terra::values(prediction) <- as.vector(t(scores))
+  polygon <- gbifout:::.sdm_suitability_polygon(prediction, 0.7)
+  geometry <- sf::st_as_sfc(polygon, crs = 4326)
+  expect_identical(as.character(sf::st_geometry_type(geometry)), "MULTIPOLYGON")
+  expect_length(geometry[[1]], 2)
+  expect_true(any(vapply(geometry[[1]], length, integer(1)) == 2))
+  restored <- terra::rasterize(terra::vect(geometry), prediction, field = 1)
+  expected <- ifelse(is.finite(terra::values(prediction, mat = FALSE)) &
+                       terra::values(prediction, mat = FALSE) >= 0.7, 1, NA_real_)
+  expect_equal(terra::values(restored, mat = FALSE), expected)
+  expect_identical(gbifout:::.sdm_suitability_polygon(prediction, 1),
+                   "MULTIPOLYGON (((5 1, 5 0, 6 0, 6 1, 5 1)))")
+  terra::values(prediction) <- 0.69
+  expect_identical(gbifout:::.sdm_suitability_polygon(prediction, 0.7),
+                   "MULTIPOLYGON EMPTY")
+  terra::values(prediction) <- NA_real_
+  expect_identical(gbifout:::.sdm_suitability_polygon(prediction, 0),
+                   "MULTIPOLYGON EMPTY")
+})
+
+test_that("prediction mask measures the 500 km cutoff from OK and HDP training points", {
+  template <- terra::rast(nrows = 1, ncols = 2, xmin = 4.485, xmax = 4.505,
+                          ymin = -0.005, ymax = 0.005, crs = "EPSG:4326")
+  training <- data.frame(
+    group = "ok", decimalLongitude = 0, decimalLatitude = 0
+  )
+  mask <- gbifout:::.sdm_prediction_mask(template, training, 500)
+  expect_equal(terra::values(mask, mat = FALSE), c(1, NA_real_))
+  expect_true(terra::compareGeom(mask, template))
+  training <- rbind(training, data.frame(
+    group = "hdp", decimalLongitude = 4.5, decimalLatitude = 0
+  ))
+  expect_equal(terra::values(
+    gbifout:::.sdm_prediction_mask(template, training, 500), mat = FALSE
+  ), c(1, 1))
+  training$decimalLongitude[1] <- NA_real_
+  expect_warning(gbifout:::.sdm_prediction_mask(template, training, 500),
+                 "1 training records excluded")
+  training <- training[1, , drop = FALSE]
+  expect_warning(expect_error(
+    gbifout:::.sdm_prediction_mask(template, training, 500), "at least one training record"
+  ), "1 training records excluded")
+  expect_error(gbifout:::.sdm_prediction_mask(template, training[FALSE, ], 500),
+               "at least one training record")
+})
+
+test_that("prediction masks handle antimeridian and polar distances", {
+  template <- terra::rast(nrows = 18, ncols = 36, xmin = -180, xmax = 180,
+                          ymin = -90, ymax = 90, crs = "EPSG:4326")
+  training <- data.frame(group = "hdp", decimalLongitude = 179, decimalLatitude = 85)
+  mask <- gbifout:::.sdm_prediction_mask(template, training, 500)
+  xy <- terra::xyFromCell(template, seq_len(terra::ncell(template)))
+  distances <- as.vector(terra::distance(xy, matrix(c(179, 85), nrow = 1), lonlat = TRUE))
+  expected <- ifelse(distances <= 500000, 1, NA_real_)
+  expect_equal(terra::values(mask, mat = FALSE), expected)
+  expect_true(any(is.finite(expected) & xy[, 1] < -170))
+  expect_true(any(is.finite(expected) & abs(xy[, 1]) < 150))
+})
+
+test_that("local mask searches match full ellipsoidal distances at different radii", {
+  template <- terra::rast(nrows = 36, ncols = 72, xmin = -180, xmax = 180,
+                          ymin = -90, ymax = 90, crs = "EPSG:4326")
+  training <- data.frame(
+    decimalLongitude = c(179.9, -179.9, 25, 120, -70, 0, 180),
+    decimalLatitude = c(0, -60, 89, -89, 35, 0, 90)
+  )
+  xy <- terra::xyFromCell(template, seq_len(terra::ncell(template)))
+  distances <- terra::distance(xy, as.matrix(training), lonlat = TRUE)
+  nearest <- apply(distances, 1, min)
+  for (radius in c(0.01, 100, 500, 5000, 21000)) {
+    mask <- gbifout:::.sdm_prediction_mask(template, training, radius)
+    expect_equal(terra::values(mask, mat = FALSE),
+                 ifelse(nearest <= radius * 1000, 1, NA_real_))
+    expect_true(terra::compareGeom(mask, template))
+  }
+  tiny <- terra::rast(nrows = 1, ncols = 1, xmin = 40, xmax = 41,
+                      ymin = 40, ymax = 41, crs = "EPSG:4326")
+  expect_true(all(is.na(terra::values(
+    gbifout:::.sdm_prediction_mask(tiny, training[6, , drop = FALSE], 1)
+  ))))
+})
+
+test_that("raster prediction covers unsampled cells and masks non-finite climate", {
+  climate <- sdm_test_climate()
+  values <- terra::values(climate)
+  values[1, 1] <- NA_real_
+  values[2, 2] <- Inf
+  values[3, 3] <- NaN
+  terra::values(climate) <- values
+  local_mocked_bindings(
+    predict = function(object, newdata, type, clamp) {
+      expect_identical(type, "cloglog")
+      expect_true(clamp)
+      expect_true(all(is.finite(as.matrix(newdata))))
+      rep(0.75, nrow(newdata))
+    }, .package = "stats"
+  )
+  prediction <- gbifout:::.sdm_predict_raster(climate, list())
+  expect_identical(names(prediction), "suitability")
+  expect_true(terra::compareGeom(prediction, climate[[1]]))
+  scores <- terra::values(prediction, mat = FALSE)
+  expect_true(all(is.na(scores[1:3])))
+  expect_equal(scores[-(1:3)], rep(0.75, terra::ncell(climate) - 3))
+  local_mocked_bindings(predict = function(object, newdata, ...) rep(Inf, nrow(newdata)),
+                         .package = "stats")
+  expect_error(gbifout:::.sdm_predict_raster(climate, list()), "invalid raster suitability")
 })

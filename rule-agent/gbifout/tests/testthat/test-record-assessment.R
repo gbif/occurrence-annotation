@@ -26,13 +26,15 @@ test_that("a decisive fast assessment is returned without advanced escalation", 
     .package = "gbifout"
   )
 
-  result <- assess_occurrence_record(123, apiKey = "test-key")
+  result <- occ_agent(123, apiKey = "test-key")
 
   expect_equal(result$initialAssessment$decision, "SUSPICIOUS")
   expect_null(result$advancedAssessment)
   expect_identical(result$finalAssessment, result$initialAssessment)
   expect_length(requests, 1)
   expect_equal(requests[[1]]$model, "gpt-4.1-mini")
+  expect_false("hdpFacetContext" %in% names(requests[[1]]$input))
+  expect_false("hdpFacetContext" %in% names(result))
 })
 
 test_that("NEEDS_REVIEW escalates and preserves both assessments", {
@@ -56,7 +58,7 @@ test_that("NEEDS_REVIEW escalates and preserves both assessments", {
     .package = "gbifout"
   )
 
-  result <- assess_occurrence_record(456, apiKey = "test-key")
+  result <- occ_agent(456, apiKey = "test-key")
 
   expect_equal(models, c("gpt-4.1-mini", "gpt-5.6-terra"))
   expect_equal(result$initialAssessment$decision, "NEEDS_REVIEW")
@@ -121,15 +123,57 @@ test_that("FORMER is a valid decision in the schema and parser and stays final",
     },
     .package = "gbifout"
   )
-  result <- assess_occurrence_record(789, apiKey = "test-key")
+  result <- occ_agent(789, apiKey = "test-key")
   expect_equal(models, "gpt-4.1-mini")
   expect_null(result$advancedAssessment)
   expect_equal(result$finalAssessment$decision, "FORMER")
 })
 
 test_that("invalid occurrence keys are rejected before API access", {
-  expect_error(assess_occurrence_record("not-a-key", apiKey = "test-key"),
+  expect_error(occ_agent("not-a-key", apiKey = "test-key"),
                "positive integer key")
+})
+
+test_that("both reviewers receive coordinates and a coordinate-first conflict policy", {
+  record <- list(
+    key = "123", scientificName = "Calopteryx maculata",
+    locality = "Silma Falls", stateProvince = "Ontario",
+    country = "Canada", countryCode = "CA",
+    decimalLatitude = 50, decimalLongitude = 10
+  )
+  inputs <- list()
+  local_mocked_bindings(
+    .fetch_occurrence_record = function(...) record,
+    .record_geocode_context = function(...) list(status = "no_polygon_matches",
+                                                results = data.frame()),
+    .country_centroid_context = function(...) NULL,
+    .request_record_triage = function(input, instructions, model, ...) {
+      inputs[[length(inputs) + 1]] <<- input
+      expect_identical(input$record, record)
+      expect_match(instructions, "location from decimalLatitude and decimalLongitude", fixed = TRUE)
+      expect_match(instructions, "not proof of where the plotted point lies", fixed = TRUE)
+      expect_match(instructions, "Never substitute a named locality", fixed = TRUE)
+      expect_match(instructions, "locality_coordinate_mismatch even if the named locality", fixed = TRUE)
+      expect_match(instructions, "use NEEDS_REVIEW rather than OK", fixed = TRUE)
+      expect_match(instructions, "not merely the named locality", fixed = TRUE)
+      expect_match(instructions, "do not invent a reverse-geocoded location", fixed = TRUE)
+      expect_match(instructions, "state the supplied latitude and longitude", fixed = TRUE)
+      expect_match(instructions, "Neither HDP country/continent facets", fixed = TRUE)
+      expect_lt(regexpr("After the fossil check", instructions, fixed = TRUE)[[1]],
+                regexpr("establish the plotted", instructions, fixed = TRUE)[[1]])
+      expect_lt(regexpr("establish the plotted", instructions, fixed = TRUE)[[1]],
+                regexpr("First identify the focal accepted taxon", instructions, fixed = TRUE)[[1]])
+      list(decision = if (length(inputs) == 1) "NEEDS_REVIEW" else "SUSPICIOUS",
+           reasonCategory = "locality_coordinate_mismatch",
+           explanation = "The supplied coordinates conflict with the stated locality.",
+           model = model)
+    },
+    .package = "gbifout"
+  )
+  result <- occ_agent(123, apiKey = "test-key")
+  expect_length(inputs, 2)
+  expect_identical(inputs[[1]]$record, inputs[[2]]$record)
+  expect_identical(result$finalAssessment$reasonCategory, "locality_coordinate_mismatch")
 })
 
 test_that("empty output text is reported as a response issue, not a vapply error", {

@@ -42,7 +42,7 @@ test_that("pipeline S3 plotting fetches only the map and survives RDS reload", {
     },
     out_cand = function(...) stop("must not discover"),
     occ_fetch_unique = function(...) stop("must not fetch records"),
-    assess_occurrence_record = function(...) stop("must not assess"),
+    occ_agent = function(...) stop("must not assess"),
     .package = "gbifout"
   )
   path <- withr::local_tempfile(fileext = ".pdf")

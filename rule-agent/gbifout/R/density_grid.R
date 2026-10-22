@@ -47,7 +47,35 @@ fetch_occurrence_density_raster <- function(taxonKey, zoom = 0, squareSize = 256
     plot_terra = FALSE
   )
   if (!is.null(basisOfRecord)) request$basisOfRecord <- basisOfRecord
-  raster <- do.call(map_fetch, request)
+  empty_tile <- function(error) {
+    identical(conditionMessage(error),
+              "The args chosen returned no data. Try smaller x,y values.")
+  }
+  raster <- tryCatch(do.call(map_fetch, request), error = function(error) {
+    if (!empty_tile(error)) stop(error)
+    message("GBIF backdrop contains empty tiles; fetching tiles separately for taxonKey ",
+            taxonKey, ".")
+    tiles <- expand.grid(x = request$x, y = request$y)
+    rasters <- lapply(seq_len(nrow(tiles)), function(i) {
+      tile_request <- request
+      tile_request$x <- tiles$x[i]
+      tile_request$y <- tiles$y[i]
+      tryCatch(do.call(map_fetch, tile_request), error = function(error) {
+        if (!empty_tile(error)) stop(error)
+        width <- 180 / 2^zoom
+        xmin <- -180 + tiles$x[i] * width
+        ymax <- 90 - tiles$y[i] * width
+        blank <- terra::rast(
+          nrows = tile_pixels, ncols = tile_pixels,
+          xmin = xmin, xmax = xmin + width, ymin = ymax - width, ymax = ymax,
+          crs = "EPSG:4326"
+        )
+        terra::values(blank) <- NA_real_
+        blank
+      })
+    })
+    do.call(terra::merge, rasters)
+  })
 
   # each squareSize-px bin (in the 4096px native grid) spans this many
   # rendered pixels at the requested tile resolution

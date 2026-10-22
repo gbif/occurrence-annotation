@@ -48,6 +48,8 @@
 #'   cells receive no dataset-facet requests.
 #'   `hdpCells` retains individual high-occupancy and count-excluded cell WKT
 #'   strings before merging, for per-cell SDM sampling.
+#'   `basisOfRecord` retains the supplied channels for HDP facet queries made
+#'   when this result is passed to `occ_agent()`.
 #'   `occupancyCv` is occupied-cell standard deviation divided by mean (0 for
 #'   one cell, NA for none); `effectiveQuantile` is used by both selectors.
 #'   `diagnostics` holds the occupied-cell `occupancy` and `filledPixelCount`
@@ -226,6 +228,7 @@ out_cand <- function(taxonKey,
 
   output <- structure(list(
     taxonKey = taxonKey,
+    basisOfRecord = basisOfRecord,
     occupancyCv = occupancy_cv,
     effectiveQuantile = effective_quantile,
     candidates = result,

@@ -135,7 +135,8 @@ test_that("polygon counts and dataset facets use the raster's basis-of-record fi
   )
   default_filter <- paste(eval(formals(out_cand)$basisOfRecord), collapse = ";")
 
-  out_cand("taxon")
+  result <- out_cand("taxon")
+  expect_identical(result$basisOfRecord, eval(formals(out_cand)$basisOfRecord))
   expect_true(length(requests) > 0)
   expect_true(all(vapply(requests, function(request) {
     identical(request$basisOfRecord, default_filter)
@@ -143,14 +144,18 @@ test_that("polygon counts and dataset facets use the raster's basis-of-record fi
   expect_false(grepl("FOSSIL_SPECIMEN|MATERIAL_CITATION", default_filter))
 
   requests <- list()
-  out_cand("taxon",
-           basisOfRecord = c(" HUMAN_OBSERVATION ", "OBSERVATION", "OBSERVATION"))
+  result <- out_cand("taxon",
+                    basisOfRecord = c(" HUMAN_OBSERVATION ", "OBSERVATION", "OBSERVATION"))
+  expect_identical(result$basisOfRecord,
+                   c(" HUMAN_OBSERVATION ", "OBSERVATION", "OBSERVATION"))
   expect_true(all(vapply(requests, function(request) {
     identical(request$basisOfRecord, "HUMAN_OBSERVATION;OBSERVATION")
   }, logical(1))))
 
   requests <- list()
-  out_cand("taxon", basisOfRecord = NULL)
+  result <- out_cand("taxon", basisOfRecord = NULL)
+  expect_true("basisOfRecord" %in% names(result))
+  expect_null(result$basisOfRecord)
   expect_true(all(vapply(requests, function(request) is.null(request$basisOfRecord), logical(1))))
 })
 
