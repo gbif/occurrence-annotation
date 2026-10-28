@@ -33,6 +33,8 @@ GBIF context when a single taxon is selected (not counts from the uploaded file)
 Country shading indicates country-level reports, not precise occurrence locations,
 and does not change the map extent or intercept map interactions. Failed requests
 are reported in the map legend rather than displayed as zero countries.
+Shading is clipped to the map viewport and the single tiled world, including
+dateline-crossing countries, so it does not repeat into the blank map margins.
 
 ### Backend Service
 
