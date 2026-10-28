@@ -25,6 +25,15 @@ Visit [https://labs.gbif.org/annotations/](https://labs.gbif.org/annotations/) t
 
 [UI Documentation](./ui/README.md)
 
+Taxon occurrence maps include a subtle dashed grey country overlay for GBIF
+records without coordinates. It uses a counts-only country facet request
+(`hasCoordinate=false`), not downloaded occurrence records. The main map follows
+the selected taxon and occurrence filters; the download-results map shows this
+GBIF context when a single taxon is selected (not counts from the uploaded file).
+Country shading indicates country-level reports, not precise occurrence locations,
+and does not change the map extent or intercept map interactions. Failed requests
+are reported in the map legend rather than displayed as zero countries.
+
 ### Backend Service
 
 A Spring Boot REST API that provides the core annotation functionality.

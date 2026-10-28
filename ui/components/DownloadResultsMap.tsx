@@ -4,6 +4,7 @@ import type { AnnotationRule } from '../utils/downloadProcessor';
 import type { MapPoint, SpeciesHierarchy } from '../utils/mapDataFilter';
 import { parseWKTGeometry, type PolygonWithHoles } from '../utils/wktParser';
 import { ZoomIn, ZoomOut } from 'lucide-react';
+import { CoordinateLessCountryOverlay } from './CoordinateLessCountryOverlay';
 
 interface DownloadResultsMapProps {
   rules: AnnotationRule[];
@@ -218,6 +219,10 @@ export function DownloadResultsMap({
           touchEvents={true}
         >
           {/* Render rule polygons */}
+          <CoordinateLessCountryOverlay
+            taxonKey={selectedSpecies == null ? null : String(selectedSpecies)}
+            filters={{ showOnlyPresent: true }}
+          />
           {displayRules.map(rule => {
             if (!rule.geometry || !rule.id) return null;
 
