@@ -12,6 +12,9 @@
 #'   (default 5). Set to `NULL` to assess every unique record. Use `set.seed()`
 #'   before calling for reproducible sampling.
 #' @param apiKey OpenAI key, defaulting to `OPENAI_API_KEY` in the environment.
+#' @param speciesContext optional reviewed or saved `species_context()` profile.
+#'   NULL generates one unverified model-knowledge profile per non-empty run.
+#' @param speciesModel strong-model API identifier for generating the profile.
 #' @param ... additional arguments passed to `out_cand()`.
 #' @return A list with `data`, a data.frame with character columns
 #'   `gbifid`, `binWkt`, `taxonKey`,
@@ -29,6 +32,8 @@
 #'   The result has class `gbifout_pipeline`; use `plot()` to map the polygons.
 #'   Country/continent HDP facets are fetched once and shared with both models
 #'   for every assessed record as supporting distribution context.
+#'   `speciesContext` retains the shared profile, or NULL for an empty run
+#'   without a supplied profile.
 #' @export
 pipeline <- function(taxonKey,
                      basisOfRecord = c(
@@ -36,7 +41,8 @@ pipeline <- function(taxonKey,
                        "MACHINE_OBSERVATION", "LITERATURE", "OCCURRENCE", "UNKNOWN"
                      ),
                      sampleSize = 5,
-                     apiKey = Sys.getenv("OPENAI_API_KEY"), ...) {
+                     apiKey = Sys.getenv("OPENAI_API_KEY"),
+                     speciesContext = NULL, speciesModel = "gpt-5.6-terra", ...) {
   if (!(is.character(taxonKey) || is.numeric(taxonKey)) ||
       length(taxonKey) != 1 || is.na(taxonKey) ||
       !nzchar(trimws(as.character(taxonKey)))) {
@@ -45,6 +51,8 @@ pipeline <- function(taxonKey,
   if (!is.character(apiKey) || length(apiKey) != 1 || is.na(apiKey) || !nzchar(apiKey)) {
     stop("Set OPENAI_API_KEY or provide apiKey.")
   }
+  .species_text(speciesModel, "speciesModel")
+  if (!is.null(speciesContext)) .validate_species_context(speciesContext, taxonKey)
   if (!is.null(sampleSize) &&
       (!is.numeric(sampleSize) || length(sampleSize) != 1 || is.na(sampleSize) ||
        !is.finite(sampleSize) || sampleSize < 1 || sampleSize != floor(sampleSize))) {
@@ -64,15 +72,21 @@ pipeline <- function(taxonKey,
       explanation = character(0), model = character(0)
     ), sus = "MULTIPOLYGON EMPTY", int = "MULTIPOLYGON EMPTY", ok = "MULTIPOLYGON EMPTY",
     hdp = polygons$hdp, taxonKey = as.character(taxonKey),
-    sdmPolygons = .pipeline_sdm_polygons(character(), polygons$hdpCells)),
+    sdmPolygons = .pipeline_sdm_polygons(character(), polygons$hdpCells),
+    speciesContext = speciesContext),
     class = c("gbifout_pipeline", "list")))
   }
 
   polygons$hdpFacets <- .hdp_facet_context(polygons)
+  if (is.null(speciesContext)) {
+    speciesContext <- species_context(taxonKey, model = speciesModel, apiKey = apiKey)
+  }
+  .validate_species_context(speciesContext, taxonKey)
   rows <- lapply(seq_len(nrow(occurrences)), function(index) {
     gbifid <- occurrences$gbifid[index]
     assessment <- tryCatch(
-      occ_agent(gbifid, apiKey = apiKey, candidates = polygons),
+      occ_agent(gbifid, apiKey = apiKey, candidates = polygons,
+                speciesContext = speciesContext),
       error = function(error) {
         stop("Assessment failed for GBIF ID ", gbifid, ": ",
              conditionMessage(error), call. = FALSE)
@@ -100,7 +114,7 @@ pipeline <- function(taxonKey,
       hdp = polygons$hdp, taxonKey = as.character(taxonKey),
       sdmPolygons = .pipeline_sdm_polygons(
         data$binWkt[data$decision == "OK"], polygons$hdpCells
-      )), class = c("gbifout_pipeline", "list"))
+      ), speciesContext = speciesContext), class = c("gbifout_pipeline", "list"))
 }
 
 .pipeline_sdm_polygons <- function(ok, hdp) {

@@ -12,7 +12,11 @@ test_that("HDP facets use the combined area, taxon and original channels", {
                          facet, facetLimit) {
       calls <<- c(calls, facet)
       expect_identical(taxonKey, candidates$taxonKey)
-      expect_identical(geometry, candidates$hdp)
+      expect_true(sf::st_equals(
+        sf::st_as_sfc(geometry, crs = 4326),
+        sf::st_as_sfc(candidates$hdp, crs = 4326),
+        sparse = FALSE
+      )[1, 1])
       expect_identical(basisOfRecord, "HUMAN_OBSERVATION;OBSERVATION")
       expect_identical(occurrenceStatus, "PRESENT")
       expect_equal(facetLimit, 300)
@@ -25,10 +29,43 @@ test_that("HDP facets use the combined area, taxon and original channels", {
   expect_equal(context$country$count, c(10, 20))
   expect_equal(context$continent$count, 30)
   expect_identical(context$taxonKey, "DJX8")
+  expect_false(identical(candidates$hdp, gbifout:::.orient_rings(
+    sf::st_as_sfc(candidates$hdp, crs = 4326)
+  )))
 
   candidates$hdpFacets <- context
   expect_identical(gbifout:::.hdp_facet_context(candidates), context)
   expect_length(calls, 2)
+})
+
+test_that("HDP facet requests orient exterior rings counter-clockwise and holes clockwise", {
+  candidates <- hdp_facet_fixture()
+  candidates$hdp <- paste(
+    "POLYGON ((0 0, 0 4, 4 4, 4 0, 0 0),",
+    "(1 1, 3 1, 3 3, 1 3, 1 1))"
+  )
+  requested <- character()
+  ring_area <- function(ring) {
+    sum(ring[-nrow(ring), 1] * ring[-1, 2] -
+          ring[-1, 1] * ring[-nrow(ring), 2]) / 2
+  }
+  local_mocked_bindings(
+    occ_count = function(geometry, facet, ...) {
+      requested <<- c(requested, geometry)
+      parsed <- sf::st_cast(sf::st_as_sfc(geometry, crs = 4326), "POLYGON")[[1]]
+      expect_gt(ring_area(parsed[[1]]), 0)
+      expect_lt(ring_area(parsed[[2]]), 0)
+      if (facet == "country") data.frame(country = character(), count = numeric())
+      else data.frame(continent = character(), count = numeric())
+    }, .package = "gbifout"
+  )
+  gbifout:::.hdp_facet_context(candidates)
+  expect_length(requested, 2)
+  expect_true(all(requested == requested[[1]]))
+  expect_false(identical(requested[[1]], candidates$hdp))
+  expect_true(sf::st_equals(sf::st_as_sfc(requested[[1]], crs = 4326),
+                            sf::st_as_sfc(candidates$hdp, crs = 4326),
+                            sparse = FALSE)[1, 1])
 })
 
 test_that("both assessment models receive identical HDP context", {

@@ -17,7 +17,8 @@
 #' @param main optional plot title.
 #' @param cex positive point size (default 1).
 #' @param ... additional arguments to `graphics::plot.window()`, e.g. `xlim`
-#'   and `ylim`. Defaults fit the backdrop and georeferenced assessment points.
+#'   and `ylim`. Defaults fit non-missing suitability cells, occurrence coverage,
+#'   and georeferenced assessment points, excluding empty raster margins.
 #' @return `x`, invisibly.
 #' @export
 plot_sdm <- function(x, map = NULL, main = NULL, cex = 1, ...) {
@@ -92,8 +93,11 @@ plot_sdm <- function(x, map = NULL, main = NULL, cex = 1, ...) {
     terra::vect(data[valid, ], geom = c("decimalLongitude", "decimalLatitude"),
                  crs = "EPSG:4326")
   } else NULL
+  prediction_extent <- if (!is.null(prediction) && any(is.finite(scores))) {
+    terra::trim(prediction)
+  } else NULL
   limits <- .map_limits(if (has_coverage) occupied else NULL,
-                        list(prediction, points, suitability_polygon))
+                        list(prediction_extent, points, suitability_polygon))
   window <- utils::modifyList(list(xlim = limits$x, ylim = limits$y, asp = 1), list(...))
   ocean <- read_ocean_polygon(ocean_polygon_path())
   graphics::plot.new()

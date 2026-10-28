@@ -135,6 +135,53 @@ test_that("prediction surfaces plot offline including after portable serializati
   expect_identical(plot(x), x)
 })
 
+test_that("default view fits informative raster cells and points rather than empty margins", {
+  x <- sdm_plot_fixture()
+  x$data <- x$data[FALSE, ]
+  x$prediction <- terra::rast(nrows = 180, ncols = 360, xmin = -180, xmax = 180,
+                              ymin = -90, ymax = 90, crs = "EPSG:4326")
+  terra::values(x$prediction) <- NA_real_
+  cells <- terra::cellFromXY(x$prediction, rbind(c(10.5, 20.5), c(12.5, 22.5)))
+  x$prediction[cells] <- c(0, 0.8)
+  class(x) <- c("gbifout_sdm", "list")
+  original <- terra::values(x$prediction)
+  window <- NULL
+  original_window <- graphics::plot.window
+  local_mocked_bindings(
+    plot.window = function(...) {
+      window <<- list(...)
+      original_window(...)
+    }, .package = "graphics"
+  )
+  path <- withr::local_tempfile(fileext = ".pdf")
+  grDevices::pdf(path)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  expect_identical(plot(x), x)
+  expect_equal(window$xlim, c(8, 15))
+  expect_equal(window$ylim, c(18, 25))
+  expect_identical(terra::values(x$prediction), original)
+
+  x$data <- sdm_plot_fixture()$data[1, , drop = FALSE]
+  x$data$decimalLongitude <- 30
+  x$data$decimalLatitude <- 40
+  plot(x)
+  expect_lt(window$xlim[1], 10)
+  expect_gt(window$xlim[2], 30)
+  expect_lt(window$ylim[1], 20)
+  expect_gt(window$ylim[2], 40)
+  terra::values(x$prediction) <- NA_real_
+  plot(x)
+  expect_equal(window$xlim, c(28, 32))
+  expect_equal(window$ylim, c(38, 42))
+  plot(x, xlim = c(-50, 50), ylim = c(-60, 60))
+  expect_equal(window$xlim, c(-50, 50))
+  expect_equal(window$ylim, c(-60, 60))
+  x$data <- x$data[FALSE, ]
+  expect_identical(plot(x), x)
+  expect_equal(window$xlim, c(-180, 180))
+  expect_equal(window$ylim, c(-90, 90))
+})
+
 test_that("invalid prediction rasters fail rather than falling back to coverage", {
   x <- sdm_plot_fixture()
   x$prediction <- sdm_plot_map()

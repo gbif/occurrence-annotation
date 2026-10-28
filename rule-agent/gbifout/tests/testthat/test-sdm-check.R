@@ -7,10 +7,13 @@ sdm_test_result <- function() {
   list(
     data = data.frame(gbifid = c("1", "2"), taxonKey = "DJX8",
                       decision = c("OK", "SUSPICIOUS")),
-    ok = sdm_test_polygon(), hdp = sdm_test_polygon(10),
+    ok = sdm_test_polygon(),
+    hdp = "MULTIPOLYGON (((10 0, 20 0, 20 10, 10 10, 10 0)),
+                          ((20 0, 30 0, 30 10, 20 10, 20 0)))",
     taxonKey = "DJX8",
-    sdmPolygons = data.frame(group = c("ok", "hdp"),
-                             binWkt = c(sdm_test_polygon(), sdm_test_polygon(10)))
+    sdmPolygons = data.frame(group = c("ok", "hdp", "hdp"),
+                             binWkt = c(sdm_test_polygon(), sdm_test_polygon(10),
+                                        sdm_test_polygon(20)))
   )
 }
 
@@ -26,14 +29,19 @@ sdm_test_climate <- function() {
   climate
 }
 
-test_that("sampling uses preserved cells, and legacy merged polygons warn", {
+test_that("sampling selects only preserved HDP cells, and legacy results use merged HDP", {
   result <- sdm_test_result()
   polygons <- gbifout:::.sdm_polygons(result)
-  expect_identical(polygons$group, c("ok", "hdp"))
+  expect_identical(polygons$group, c("hdp", "hdp"))
   expect_equal(polygons$polygonId, 1:2)
+  expect_false(any(polygons$binWkt == sdm_test_polygon()))
   result$sdmPolygons <- NULL
-  expect_warning(legacy <- gbifout:::.sdm_polygons(result), "Legacy pipeline")
+  expect_warning(legacy <- gbifout:::.sdm_polygons(result), "merged HDP")
   expect_equal(nrow(legacy), 2)
+  expect_identical(legacy$group, c("hdp", "hdp"))
+  result$sdmPolygons <- data.frame(group = "ok", binWkt = sdm_test_polygon())
+  expect_equal(nrow(gbifout:::.sdm_polygons(result)), 0)
+  expect_error(sdm_check(result), "No HDP sampling polygons")
   result$sdmPolygons <- data.frame(group = "sus", binWkt = sdm_test_polygon())
   expect_error(gbifout:::.sdm_polygons(result), "group")
   result$sdmPolygons <- data.frame(group = "ok", binWkt = "POINT (0 0)")
@@ -56,11 +64,11 @@ test_that("one request per polygon keeps the first ten records including duplica
       requests[[length(requests) + 1]] <<- c(i, start)
       expect_equal(start, 0)
       ids <- 1:10
-      x <- if (i == 1) ids / 10 else 10 + ids / 10
+      x <- if (i == 1) 10 + ids / 10 else 20 + ids / 10
       page <- data.frame(key = as.character(ids + (i - 1) * 30),
                           decimalLongitude = x, decimalLatitude = x)
       if (i == 1 && start == 0) {
-        page$decimalLongitude[3] <- 5
+        page$decimalLongitude[3] <- 15
         page$decimalLatitude[3] <- 5
         page$decimalLongitude[4] <- page$decimalLongitude[5]
         page$decimalLatitude[4] <- page$decimalLatitude[5]
@@ -307,7 +315,7 @@ test_that("real MaxEnt fit is reproducible, saves reloadable outputs and preserv
   xy <- terra::xyFromCell(climate, seq(450, 1150, length.out = 50))
   samples <- data.frame(
     gbifid = as.character(101:150), decimalLongitude = xy[, 1], decimalLatitude = xy[, 2],
-    polygonId = rep(1:2, each = 25), group = rep(c("ok", "hdp"), each = 25)
+    polygonId = rep(1:2, each = 25), group = rep("hdp", 50)
   )
   local_mocked_bindings(
     .sdm_record_coordinates = function(data) {
@@ -349,11 +357,11 @@ test_that("real MaxEnt fit is reproducible, saves reloadable outputs and preserv
   expect_equal(as.numeric(terra::values(fitted$prediction)), expected)
   expect_true(any(is.finite(expected)))
   expect_true(anyNA(expected))
-  expect_equal(fitted$settings$suitabilityThreshold, 0.7)
+  expect_equal(fitted$settings$suitabilityThreshold, 0.1)
   expect_identical(fitted$suitabilityPolygon,
-                   gbifout:::.sdm_suitability_polygon(fitted$prediction, 0.7))
+                   gbifout:::.sdm_suitability_polygon(fitted$prediction, 0.1))
   expect_equal(fitted$settings$predictionBufferKm, 500)
-  expect_identical(fitted$settings$predictionAnchors, "retained OK/HDP training records")
+  expect_identical(fitted$settings$predictionAnchors, "retained HDP training records")
   expect_equal(as.numeric(terra::values(fitted$prediction))[fitted$training$climateCell],
                fitted$training$suitability)
   expect_equal(terra::extract(
@@ -426,11 +434,11 @@ test_that("suitability polygons include exact-threshold cells, holes and disconn
                    "MULTIPOLYGON EMPTY")
 })
 
-test_that("prediction mask measures the 500 km cutoff from OK and HDP training points", {
+test_that("prediction mask measures the 500 km cutoff from HDP training points only", {
   template <- terra::rast(nrows = 1, ncols = 2, xmin = 4.485, xmax = 4.505,
                           ymin = -0.005, ymax = 0.005, crs = "EPSG:4326")
   training <- data.frame(
-    group = "ok", decimalLongitude = 0, decimalLatitude = 0
+    group = "hdp", decimalLongitude = 0, decimalLatitude = 0
   )
   mask <- gbifout:::.sdm_prediction_mask(template, training, 500)
   expect_equal(terra::values(mask, mat = FALSE), c(1, NA_real_))

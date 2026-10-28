@@ -6,7 +6,15 @@ test_that("pipeline chains the three steps and returns final assessments", {
   polygons <- list(taxonKey = "3NFRS", candidates = data.frame(binWkt = wkts),
                     hdp = hdp, hdpCells = hdp, basisOfRecord = "HUMAN_OBSERVATION")
   facet_calls <- character()
+  profile <- species_context_fixture()
   local_mocked_bindings(
+    species_context = function(taxonKey, model, apiKey) {
+      calls <<- c(calls, "profile")
+      expect_identical(taxonKey, "3NFRS")
+      expect_identical(model, "gpt-5.6-terra")
+      expect_identical(apiKey, "test-key")
+      profile
+    },
     out_cand = function(taxonKey, basisOfRecord, ...) {
       calls <<- c(calls, "find")
       expect_identical(taxonKey, "3NFRS")
@@ -25,7 +33,11 @@ test_that("pipeline chains the three steps and returns final assessments", {
                          facet, facetLimit) {
       facet_calls <<- c(facet_calls, facet)
       expect_identical(taxonKey, "3NFRS")
-      expect_identical(geometry, hdp)
+      expect_true(sf::st_equals(
+        sf::st_as_sfc(geometry, crs = 4326),
+        sf::st_as_sfc(hdp, crs = 4326),
+        sparse = FALSE
+      )[1, 1])
       expect_identical(basisOfRecord, "HUMAN_OBSERVATION")
       expect_identical(occurrenceStatus, "PRESENT")
       expect_equal(facetLimit, 300)
@@ -33,9 +45,10 @@ test_that("pipeline chains the three steps and returns final assessments", {
       names(data)[1] <- facet
       data
     },
-    occ_agent = function(occurrenceKey, apiKey, candidates) {
+    occ_agent = function(occurrenceKey, apiKey, candidates, speciesContext) {
       calls <<- c(calls, occurrenceKey)
       expect_identical(apiKey, "test-key")
+      expect_identical(speciesContext, profile)
       expect_identical(candidates$hdpFacets$country$country, "DE")
       expect_identical(candidates$hdpFacets$continent$continent, "EUROPE")
       list(
@@ -52,11 +65,12 @@ test_that("pipeline chains the three steps and returns final assessments", {
 
   result <- pipeline("3NFRS", basisOfRecord = "HUMAN_OBSERVATION",
                      sampleSize = 2, apiKey = "test-key", maxOccurrenceCount = 10)
-  expect_identical(calls, c("find", "fetch", "5195998433", "6497435304"))
+  expect_identical(calls, c("find", "fetch", "profile", "5195998433", "6497435304"))
   expect_identical(facet_calls, c("country", "continent"))
   expect_s3_class(result, "gbifout_pipeline")
   expect_identical(names(result), c("data", "sus", "int", "ok", "hdp", "taxonKey",
-                                    "sdmPolygons"))
+                                    "sdmPolygons", "speciesContext"))
+  expect_identical(result$speciesContext, profile)
   expect_identical(result$taxonKey, "3NFRS")
   expect_identical(result$sdmPolygons, data.frame(group = "hdp", binWkt = hdp))
   expect_identical(result$hdp, hdp)
@@ -85,12 +99,14 @@ test_that("empty fetches return a typed table without assessment calls", {
       data.frame(gbifid = character(), binWkt = character())
     },
     occ_agent = function(...) stop("must not assess"),
+    species_context = function(...) stop("must not generate profile"),
     .package = "gbifout"
   )
   result <- pipeline(123, apiKey = "test-key")
   expect_s3_class(result, "gbifout_pipeline")
   expect_identical(names(result), c("data", "sus", "int", "ok", "hdp", "taxonKey",
-                                    "sdmPolygons"))
+                                    "sdmPolygons", "speciesContext"))
+  expect_null(result$speciesContext)
   expect_identical(result$taxonKey, "123")
   expect_identical(result$sdmPolygons, data.frame(group = "hdp", binWkt = hdp))
   expect_identical(result$hdp, hdp)
@@ -116,7 +132,7 @@ test_that("decision multipolygons combine unique cells and allow mixed decisions
     )),
     .package = "gbifout"
   )
-  result <- pipeline(123, apiKey = "test-key")
+  result <- pipeline(123, apiKey = "test-key", speciesContext = species_context_fixture("123"))
   expect_equal(nrow(result$data), 5)
   expect_identical(result$hdp, "MULTIPOLYGON EMPTY")
   expect_identical(result$int, "MULTIPOLYGON EMPTY")
@@ -138,7 +154,9 @@ test_that("pipeline errors identify the occurrence and invalid inputs stop early
     occ_agent = function(...) stop("model unavailable"),
     .package = "gbifout"
   )
-  expect_error(pipeline("taxon", apiKey = "test-key"), "GBIF ID 123: model unavailable")
+  expect_error(pipeline("taxon", apiKey = "test-key",
+                       speciesContext = species_context_fixture("taxon")),
+               "GBIF ID 123: model unavailable")
   expect_error(pipeline(NA, apiKey = "test-key"), "taxonKey")
   expect_error(pipeline("taxon", apiKey = ""), "OPENAI_API_KEY")
   expect_error(pipeline("taxon", apiKey = "test-key", sampleSize = 0), "sampleSize")

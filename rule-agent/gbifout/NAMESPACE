@@ -1,6 +1,7 @@
 export(build_occurrence_grid)
 export(build_raster_occupancy_grid)
 export(occ_agent)
+export(species_context)
 export(combine_outlier_polygons)
 export(dedup_occurrences)
 export(find_low_occupancy_cells)

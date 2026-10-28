@@ -75,7 +75,60 @@ standalone assessment continues to work without these extra requests.
 
 The result distinguishes `SUSPICIOUS`, `INTRODUCED`, `OK`, `FORMER`, and `NEEDS_REVIEW`. `FORMER` marks fossil or subfossil records, including those whose `basisOfRecord` says `PRESERVED_SPECIMEN`; they get reason `fossil_or_subfossil` and are never flagged `SUSPICIOUS` or `OK`. A `coordinateUncertaintyInMeters` of 500,000 (500 km) or more is `SUSPICIOUS` with reason `high_coordinate_uncertainty`, regardless of native range; this is checked after the fossil check, and `country_centroid_anomaly` is used instead when its own conditions are met. Country-centroid distance is supporting context only; it is not used as standalone evidence.
 
-Both models first recall the focal taxon's native range from pretrained knowledge and compare it with the record coordinates and locality, allowing for coordinate uncertainty. Clear, distant native-range mismatches are marked `SUSPICIOUS` with `unlikely_location_for_taxon`; supported free-ranging introduced populations remain `INTRODUCED`. Uncertain taxonomy or range knowledge is routed to `NEEDS_REVIEW`. Range claims are model-recalled, not checked against external sources, so assessments remain review-only.
+Both models use a supplied species distribution profile as their shared starting
+reference; without one, standalone assessment recalls the focal taxon's range
+from model knowledge. They compare the range with the plotted coordinates,
+allowing for uncertainty. Clear, distant native-range mismatches are marked
+`SUSPICIOUS` with `unlikely_location_for_taxon`; supported free-ranging introduced
+populations remain `INTRODUCED`. Uncertain taxonomy or range knowledge is routed
+to `NEEDS_REVIEW`. Profiles are supporting evidence, not unquestionable boundaries.
+
+### Shared Species Distribution Profile
+
+The pipeline automatically resolves the taxon's GBIF usage and generates one
+structured profile with `gpt-5.6-terra` before reviewing the first record. Both
+cheap reviews and advanced escalations receive that same profile. It separates
+native and introduced range and records habitat, elevation, vagrancy/expansion,
+historical range, taxonomic caveats, knowledge gaps, and confidence. Unknown
+information is explicitly allowed; country membership does not imply that the
+species occurs throughout that country.
+
+This version uses **unverified model knowledge**, not source retrieval:
+`evidenceBasis` is `model_knowledge_unverified` and `sources` is empty. GBIF
+resolves taxonomic identity, not the distribution claims. Profiles must not
+override geocoder evidence, fossil/uncertainty policies, or justify absence
+from omitted regions. Advanced review can question the shared profile.
+
+Generate a profile separately to inspect, save, or reuse without another
+profile-generation charge:
+
+```r
+context <- gbifout::species_context("3NFRS", model = "gpt-5.6-terra")
+context$taxon
+context$distribution
+saveRDS(context, "species-context.rds")
+
+assessment <- gbifout::occ_agent(
+  6497435304, speciesContext = context
+)
+analysis <- gbifout::pipeline(
+  "3NFRS", speciesContext = readRDS("species-context.rds")
+)
+analysis$speciesContext
+```
+
+To supply a reviewed profile, edit the generated `distribution` fields, set
+`context$evidenceBasis <- "user_reviewed"` and put consulted source references
+in the character vector `context$sources`. Preserve the resolved taxonomic
+identity and metadata. Profiles with missing claims or mismatched taxon keys
+are rejected; standalone record review also checks the record's taxon keys.
+Occurrence records may use numeric GBIF Backbone keys while profiles use COL
+keys. When keys do not match directly, the record's accepted name (or scientific
+name), rank, and available classification are matched against the profile's
+checklist. Only an exact, same-rank match whose resolved taxon or ancestry
+contains the profile taxon is accepted. Failed lookup requests stop explicitly;
+fuzzy, higher-rank, and unrelated matches are not accepted.
+No profile is generated implicitly by standalone `occ_agent()`.
 
 After the fossil and uncertainty checks, both models are instructed to establish
 the plotted location from `decimalLatitude`/`decimalLongitude` and cross-check
@@ -106,8 +159,13 @@ analysis <- gbifout::pipeline("3NFRS", sampleSize = 3, maxOccurrenceCount = 10)
 `pipeline()` runs candidate discovery, unique occurrence fetching, and sequential record assessment. It uses the same basis-of-record selection for discovery and fetching, and samples up to five unique records per polygon by default, after deduplication. Set `sampleSize = NULL` to assess all unique records or use `set.seed()` for reproducible samples. Additional finder options are passed through `...`.
 
 The pipeline fetches HDP country/continent facets once and reuses them for every
-record assessment, including advanced reviews. No facet queries are made when
-there are no records to assess.
+record assessment, including advanced reviews. It also generates a shared
+species profile once, unless `speciesContext` is supplied, and retains it in
+the returned result (including RDS saves). `speciesModel` selects the profile
+generation model and defaults to `"gpt-5.6-terra"`; it does not change the cheap
+record model or existing advanced escalation. The extra profile request is paid.
+No facet queries or profile generation occur when there are no records to assess;
+an empty result retains a supplied profile, or `speciesContext = NULL`.
 
 The returned list contains `data`, the assessment data.frame with `gbifid`, source polygon `binWkt`, `taxonKey`, and the final assessment's `decision`, `reasonCategory`, `explanation`, and `model`. It also contains combined MULTIPOLYGON WKT strings: `sus` for SUSPICIOUS, `int` for INTRODUCED, and `ok` for OK. Polygons with mixed record decisions can appear in multiple groups; NEEDS_REVIEW and FORMER records remain in `data` only. Missing groups return `MULTIPOLYGON EMPTY`, and no fetched records means an empty `data` table. The pipeline requires `OPENAI_API_KEY`, makes paid OpenAI requests, and stops on errors rather than silently returning partial assessments.
 
@@ -223,23 +281,25 @@ via `geodata`, but only these four are used. Keep `cacheDir` to reuse downloads.
 Alternatively supply `climate`, an EPSG:4326 `terra::SpatRaster` containing
 layers named `bio1`, `bio4`, `bio12`, and `bio15`.
 
-Training requests the **first 10 georeferenced, present occurrences per OK/HDP
-cell** in a single GBIF search, with no additional pages or deduplication.
+Training requests the **first 10 georeferenced, present occurrences per HDP
+cell only** in a single GBIF search. OK cells and pipeline-assessed records do
+not supply training presences. There are no additional pages or deduplication.
 Duplicates, shared climate cells, and records already in the pipeline are retained.
 Missing/invalid coordinates are removed without fetching replacements.
 This is API-order selection, not a random or independent validation sample.
-HDP membership and OK-cell membership are assumptions about training quality,
-not individual validation; mixed-decision cells may supply non-OK records.
+HDP membership is an assumption about training quality, not individual
+validation; HDP contains unassessed high-occupancy and count-excluded cells, so
+records in an HDP cell are not necessarily verified presences.
 The default seven basis-of-record channels are used; pass `basisOfRecord`
 explicitly if the pipeline used a different filter.
 
-New pipeline runs retain original sampling cells. Older saved results (including
-the original DJX8 run) remain usable but issue an explicit warning and sample
-connected polygons from their merged OK/HDP geometries; original HDP cells cannot
-be recovered from that file. For original-cell sampling, use a new pipeline
-result or supply a `result$sdmPolygons` data.frame with `group` (`ok`/`hdp`) and
-individual `binWkt` values. Large occurrence counts do not prevent fetching the
-first page. Sparse/empty cells warn and contribute fewer records.
+New pipeline runs retain original HDP sampling cells. Older saved results
+(including the original DJX8 run) remain usable but issue an explicit warning
+and sample the merged HDP polygon; original HDP cells cannot be recovered from
+that file. For original-cell sampling, use a new pipeline result or supply a
+`result$sdmPolygons` data.frame with `group` (`ok`/`hdp`) and individual `binWkt`
+values. Only `hdp` rows are used. Large occurrence counts do not prevent
+fetching the first page. Sparse/empty cells warn and contribute fewer records.
 `sampleSize` defaults to 10 and is capped at 299 to avoid `rgbif`'s internal
 auto-pagination. No paging metadata is used to fetch further records.
 
@@ -363,8 +423,8 @@ dev.off()
 Points are coloured from purple (suitability 0) to yellow (1). Red rings mark
 records with a `reviewFlag`; grey crosses mark georeferenced but unscored records.
 Sampled occurrences retained for model fitting (`sdm$training`) are not drawn,
-keeping the plot uncluttered. Both OK and HDP training points still anchor the
-500 km prediction mask used to generate the allowed SDM output area.
+keeping the plot uncluttered. HDP training points anchor the 500 km prediction
+mask used to generate the allowed SDM output area.
 Assessed-record markers and review rings remain visible. Hiding training points
 does not change the model, prediction mask, or saved suitability raster.
 Missing/invalid coordinates are omitted with a warning. The legend and subtitle
@@ -380,6 +440,10 @@ GBIF map. New results require no map requests. Legacy results remain point-only;
 rerun `sdm_check()` to generate the full prediction surface.
 Plotting never downloads climate layers, refits models, or looks up
 occurrence records. Optional `xlim` and `ylim` arguments zoom to a region.
+By default, the plot fits the non-missing suitability cells, georeferenced
+assessment points, and any supplied occurrence coverage, with a small margin.
+Empty raster margins do not force a world-wide view. Zero suitability is still
+information and remains visible. This changes only the view, not the saved raster.
 
 ### SDM runtime and progress
 

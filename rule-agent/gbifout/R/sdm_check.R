@@ -1,9 +1,9 @@
 #' Double-check pipeline records with a presence-background climate model
 #'
-#' Fetches the first ten occurrences per original OK/HDP cell, fits a regularized
+#' Fetches the first ten occurrences per original HDP cell, fits a regularized
 #' linear/quadratic MaxEnt model, and scores pipeline records without changing
 #' their decisions. Predicts suitability for complete climate raster cells within
-#' 500 km of a retained OK/HDP training occurrence by default.
+#' 500 km of a retained HDP training occurrence by default.
 #' No OpenAI requests or annotation writes are made.
 #'
 #' @param result a `pipeline()` result, including one loaded with `readRDS()`.
@@ -21,15 +21,16 @@
 #'   sdm-suitability.tif and sdm-suitability.wkt. The RDS packs the prediction raster for portability;
 #'   use `terra::unwrap()` on its `prediction` to recover a SpatRaster.
 #' @param predictionBufferKm maximum geodesic distance in kilometres from a
-#'   raster cell centre to a retained training occurrence from an OK or HDP cell
+#'   raster cell centre to a retained training occurrence from an HDP cell
 #'   (default 500). Samples removed for missing climate do not anchor the mask.
 #'   NULL disables the prediction mask. Does not change
 #'   model fitting, background sampling, or individual record-review scores.
 #' @param suitabilityThreshold score cutoff for the suitability polygon
 #'   (default 0.70, inclusive; must be between 0 and 1). This is relative
 #'   suitability, not a probability or percentage of total suitability.
-#' @return A list with scored `data`, `model`, `training`, `background`,
-#'   `polygons` (including sampling counts), `thresholds`, `settings`, and
+#' @return A list with scored `data`, `model`, `training` sampled only from HDP
+#'   cells, `background`, `polygons` (including HDP sampling counts),
+#'   `thresholds`, `settings`, and
 #'   `prediction`, a single-layer suitability SpatRaster on the climate grid.
 #'   `suitabilityPolygon` is EPSG:4326 MULTIPOLYGON WKT covering whole allowed
 #'   cells at or above `suitabilityThreshold`, preserving holes and disconnected
@@ -52,7 +53,10 @@ sdm_check <- function(result, climate = NULL,
                       basisOfRecord = c(
                         "PRESERVED_SPECIMEN", "OBSERVATION", "HUMAN_OBSERVATION",
                         "MACHINE_OBSERVATION", "LITERATURE", "OCCURRENCE", "UNKNOWN"
-                      ), seed = 42, outputDir = NULL, predictionBufferKm = 500,
+                      ), 
+                      seed = 42, 
+                      outputDir = NULL, 
+                      predictionBufferKm = 500,
                       suitabilityThreshold = 0.10) {
   started <- proc.time()[["elapsed"]]
   if (!is.list(result) || !is.data.frame(result$data) ||
@@ -107,7 +111,7 @@ sdm_check <- function(result, climate = NULL,
     }
   }
   polygons <- .sdm_polygons(result)
-  if (!nrow(polygons)) stop("No OK or HDP sampling polygons are available.")
+  if (!nrow(polygons)) stop("No HDP sampling polygons are available.")
   if (!requireNamespace("maxnet", quietly = TRUE)) {
     stop("Install the optional SDM dependency: install.packages('maxnet').")
   }
@@ -212,7 +216,7 @@ sdm_check <- function(result, climate = NULL,
     bufferKm = bufferKm, basisOfRecord = basisOfRecord, seed = seed,
     predictionBufferKm = predictionBufferKm,
     suitabilityThreshold = suitabilityThreshold,
-    predictionAnchors = if (is.null(predictionBufferKm)) NULL else "retained OK/HDP training records",
+    predictionAnchors = if (is.null(predictionBufferKm)) NULL else "retained HDP training records",
     features = "linear/quadratic", regularizationMultiplier = 1,
     lowQuantile = 0.1, highQuantile = 0.9,
     originalCells = !is.null(result$sdmPolygons),

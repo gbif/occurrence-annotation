@@ -2,19 +2,16 @@
   polygons <- result$sdmPolygons
   if (is.null(polygons)) {
     warning("Legacy pipeline result: original HDP cells are unavailable; ",
-            "sampling connected OK/HDP polygons instead. New pipeline runs retain cells.",
+            "sampling the merged HDP polygon instead. New pipeline runs retain cells.",
             call. = FALSE)
-    parts <- lapply(c("ok", "hdp"), function(group) {
-      geometry <- sf::st_as_sfc(result[[group]], crs = 4326)
-      if (any(!as.character(sf::st_geometry_type(geometry)) %in%
-              c("POLYGON", "MULTIPOLYGON"))) {
-        stop("ok and hdp must be polygon WKT.")
-      }
-      geometry <- sf::st_cast(geometry[!sf::st_is_empty(geometry)], "POLYGON")
-      data.frame(group = rep(group, length(geometry)),
-                 binWkt = sf::st_as_text(geometry))
-    })
-    polygons <- as.data.frame(bind_rows(parts))
+    geometry <- sf::st_as_sfc(result$hdp, crs = 4326)
+    if (any(!as.character(sf::st_geometry_type(geometry)) %in%
+            c("POLYGON", "MULTIPOLYGON"))) {
+      stop("hdp must be polygon WKT.")
+    }
+    geometry <- sf::st_cast(geometry[!sf::st_is_empty(geometry)], "POLYGON")
+    polygons <- data.frame(group = rep("hdp", length(geometry)),
+                           binWkt = sf::st_as_text(geometry))
   }
   if (!is.data.frame(polygons) ||
       !all(c("group", "binWkt") %in% names(polygons)) ||
@@ -29,6 +26,8 @@
       any(!sf::st_is_valid(geometry))) {
     stop("SDM sampling cells must be valid, non-empty polygons.")
   }
+  polygons <- polygons[polygons$group == "hdp", , drop = FALSE]
+  rownames(polygons) <- NULL
   polygons$polygonId <- seq_len(nrow(polygons))
   polygons
 }

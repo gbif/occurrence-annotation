@@ -14,15 +14,19 @@
 #'   occurrence counts within its combined HDP area are fetched using its
 #'   taxon and basis-of-record filter and sent to both models as supporting
 #'   distribution context, not as a native-range determination.
+#' @param speciesContext optional reusable `species_context()` profile.
+#'   Sent unchanged to both reviewers; no new profile is generated here.
 #'
 #' @return A list with `occurrenceKey`, the GBIF `record`, `initialAssessment`,
 #'   optional `advancedAssessment`, and `finalAssessment`. When `candidates`
 #'   is supplied, also includes `hdpFacetContext` with the counts sent.
 #'   `geocodeContext` retains the reverse-geocoder results and coverage status.
+#'   A supplied `speciesContext` is also retained unchanged.
 #' @export
 occ_agent <- function(occurrenceKey,
                       candidates = NULL,
-                      apiKey = Sys.getenv("OPENAI_API_KEY")
+                      apiKey = Sys.getenv("OPENAI_API_KEY"),
+                      speciesContext = NULL
                       ) {
   if (length(occurrenceKey) != 1 || is.na(occurrenceKey) ||
       !grepl("^[0-9]+$", as.character(occurrenceKey))) {
@@ -35,15 +39,36 @@ occ_agent <- function(occurrenceKey,
   if (!is.character(apiKey) || length(apiKey) != 1 || is.na(apiKey) || !nzchar(apiKey)) {
     stop("Set OPENAI_API_KEY or provide apiKey.")
   }
+  if (!is.null(speciesContext)) {
+    .validate_species_context(speciesContext,
+                              if (!is.null(candidates)) candidates$taxonKey else NULL)
+  }
   hdp_context <- if (!is.null(candidates)) .hdp_facet_context(candidates) else NULL
 
   record <- .fetch_occurrence_record(occurrence_key)
+  if (!is.null(speciesContext)) {
+    taxonomic_keys <- c(
+      "taxonKey", "acceptedTaxonKey", "speciesKey", "genusKey",
+      "familyKey", "orderKey", "classKey", "phylumKey", "kingdomKey"
+    )
+    record_keys <- as.character(unlist(record[intersect(taxonomic_keys, names(record))],
+                                       use.names = FALSE))
+    profile_keys <- as.character(c(speciesContext$taxonKey,
+                                    speciesContext$taxon$acceptedUsageKey))
+    record_keys <- record_keys[!is.na(record_keys) & nzchar(record_keys)]
+    profile_keys <- profile_keys[!is.na(profile_keys) & nzchar(profile_keys)]
+    if (!any(record_keys %in% profile_keys) &&
+        !.record_matches_species_context(record, speciesContext)) {
+      stop("Record taxon does not match speciesContext; review the taxonomic concept.")
+    }
+  }
   geocode_context <- .record_geocode_context(record)
   centroid_context <- .country_centroid_context(record)
   input <- list(occurrenceKey = occurrenceKey, record = record,
                 geocodeContext = geocode_context)
   if (!is.null(centroid_context)) input$countryCentroidContext <- centroid_context
   if (!is.null(hdp_context)) input$hdpFacetContext <- hdp_context
+  if (!is.null(speciesContext)) input$speciesContext <- speciesContext
 
   initial <- .request_record_triage(
     apiKey = apiKey,
@@ -62,6 +87,7 @@ occ_agent <- function(occurrenceKey,
       initialAssessment = initial
     )
     if (!is.null(hdp_context)) advanced_input$hdpFacetContext <- hdp_context
+    if (!is.null(speciesContext)) advanced_input$speciesContext <- speciesContext
     advanced <- .request_record_triage(
       apiKey = apiKey,
       model = "gpt-5.6-terra",
@@ -81,6 +107,7 @@ occ_agent <- function(occurrenceKey,
     finalAssessment = if (is.null(advanced)) initial else advanced
   )
   if (!is.null(hdp_context)) output$hdpFacetContext <- hdp_context
+  if (!is.null(speciesContext)) output$speciesContext <- speciesContext
   output
 }
 
@@ -141,6 +168,7 @@ occ_agent <- function(occurrenceKey,
       any(!sf::st_is_valid(geometry))) {
     stop("candidates$hdp must be valid polygon WKT.")
   }
+  query_geometry <- .orient_rings(geometry)
   basis_filter <- if (is.null(basis)) NULL else paste(unique(trimws(basis)), collapse = ";")
   counts <- lapply(c("country", "continent"), function(facet) {
     if (all(sf::st_is_empty(geometry))) {
@@ -152,7 +180,7 @@ occ_agent <- function(occurrenceKey,
       candidates$hdpFacets[[facet]]
     } else tryCatch(
       occ_count(
-        taxonKey = candidates$taxonKey, geometry = candidates$hdp,
+        taxonKey = candidates$taxonKey, geometry = query_geometry,
         basisOfRecord = basis_filter, occurrenceStatus = "PRESENT",
         facet = facet, facetLimit = 300
       ),
@@ -262,7 +290,18 @@ occ_agent <- function(occurrenceKey,
 
 .native_range_review_policy <- paste(
   "First identify the focal accepted taxon using acceptedScientificName or",
-  "scientificName, taxonRank, and classification. Recall its native range from",
+  "scientificName, taxonRank, and classification.",
+  "When speciesContext is supplied, use that shared distribution profile as the",
+  "starting reference instead of independently reinventing the species' range.",
+  "Respect its taxonomic concept, native/introduced distinction, confidence,",
+  "knowledge gaps and evidenceBasis. model_knowledge_unverified means no external",
+  "distribution evidence was retrieved; user_reviewed means user-supplied review,",
+  "not independent verification by this agent. Neither is infallible.",
+  "Do not infer absence from omitted regions or treat a whole country as occupied.",
+  "Profile claims cannot override coordinate/geocoder evidence, fossil or",
+  "uncertainty policies. If a profile conflict is uncertain, use NEEDS_REVIEW;",
+  "the advanced reviewer must critically reconsider the profile, not defer to it.",
+  "When no profile is supplied, recall its native range from",
   "your pretrained biogeographic knowledge: regions, countries, islands, and",
   "habitat where confidently known. Do not substitute a genus or family range",
   "for a species range or guess the distribution of an unfamiliar taxon.",
@@ -424,6 +463,18 @@ occ_agent <- function(occurrenceKey,
 
 .request_record_triage <- function(apiKey, model, instructions, input,
                                    maxOutputTokens, reasoningEffort = NULL) {
+  text <- .request_structured_response(
+    apiKey, model, instructions, input, maxOutputTokens, reasoningEffort,
+    schema = .record_triage_schema, schemaName = "occurrence_triage"
+  )
+  assessment <- .parse_record_triage(text)
+  assessment$model <- model
+  assessment
+}
+
+.request_structured_response <- function(apiKey, model, instructions, input,
+                                          maxOutputTokens, reasoningEffort = NULL,
+                                          schema, schemaName) {
   body <- list(
     model = model,
     instructions = instructions,
@@ -431,9 +482,9 @@ occ_agent <- function(occurrenceKey,
     max_output_tokens = maxOutputTokens,
     text = list(format = list(
       type = "json_schema",
-      name = "occurrence_triage",
+      name = schemaName,
       strict = TRUE,
-      schema = .record_triage_schema
+      schema = schema
     ))
   )
   if (!is.null(reasoningEffort)) body$reasoning <- list(effort = reasoningEffort)
@@ -446,13 +497,11 @@ occ_agent <- function(occurrenceKey,
   if (!identical(payload$status, "completed")) {
     status <- payload$status
     if (is.null(status)) status <- "unknown"
-    stop("OpenAI triage response was not completed (status=", status, ").")
+    stop("OpenAI structured response was not completed (schema=", schemaName,
+         ", status=", status, ").")
   }
 
-  text <- .record_response_text(payload)
-  assessment <- .parse_record_triage(text)
-  assessment$model <- model
-  assessment
+  .record_response_text(payload)
 }
 
 .record_response_text <- function(payload) {
