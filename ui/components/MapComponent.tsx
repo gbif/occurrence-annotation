@@ -18,6 +18,7 @@ import { PolygonWithHoles } from '../utils/wktParser';
 import { subtractOceanFromPolygon, bufferPolygon, bufferMultiPolygon, eraseFromPolygon } from '../utils/spatialOperations';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { getDatasetInfo } from '../utils/datasetCache';
+import { CoordinateLessCountryOverlay } from './CoordinateLessCountryOverlay';
 
 // COL (Catalogue of Life Extended Release) checklist UUID
 const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
@@ -1863,6 +1864,11 @@ export function MapComponent({
         metaWheelZoom={false} // Disable meta+wheel for more predictable behavior
       >
         {/* PRIORITY 1: Base map tiles are rendered first automatically by pigeon-maps */}
+        <CoordinateLessCountryOverlay
+          taxonKey={selectedSpecies?.key ?? null}
+          checklistKey={GBIF_BACKBONE_UUID}
+          filters={occurrenceFilters}
+        />
         
         {/* PRIORITY 2: GBIF Occurrence Tiles as Overlays - render early */}
         {!isZooming && gbifTiles.map((tile) => {
@@ -4217,5 +4223,3 @@ export function MapComponent({
     </div>
   );
 }
-
-
