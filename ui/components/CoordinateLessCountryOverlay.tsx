@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { PigeonProps } from 'pigeon-maps';
 import type { OccurrenceFilterOptions } from './OccurrenceFilters';
 import {
@@ -14,6 +14,7 @@ interface CoordinateLessCountryOverlayProps extends PigeonProps {
 export function CoordinateLessCountryOverlay({
   taxonKey, filters = {}, checklistKey, mapState, latLngToPixel,
 }: CoordinateLessCountryOverlayProps) {
+  const clipId = useId();
   const query = taxonKey ? coordinateLessCountryQuery(taxonKey, filters, checklistKey) : '';
   const [state, setState] = useState<{
     query: string;
@@ -50,26 +51,35 @@ export function CoordinateLessCountryOverlay({
   const current = state.query === query;
   const countries = current ? state.countries : [];
   const worldWidth = 256 * Math.pow(2, mapState.zoom);
-  const repeats = Math.ceil(mapState.width / worldWidth) + 1;
+  const [worldLeft, equatorY] = latLngToPixel([0, -180]);
   const countryCount = new Set(countries.map(country => country.code)).size;
   return (
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-      <svg width={mapState.width} height={mapState.height} aria-hidden="true">
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+      <svg
+        width={mapState.width}
+        height={mapState.height}
+        style={{ display: 'block', overflow: 'hidden' }}
+        aria-hidden="true"
+      >
+        <defs>
+          <clipPath id={clipId}>
+            <rect x={worldLeft} y={equatorY - worldWidth / 2} width={worldWidth} height={worldWidth} />
+          </clipPath>
+        </defs>
+        <g clipPath={`url(#${clipId})`}>
         {countries.flatMap(country => country.polygons.flatMap((polygon, index) => {
-          // Shift the whole polygon, including holes, to the nearest visible world copy.
-          const longitude = polygon.outer[0][1];
-          const shift = 360 * Math.round((mapState.center[1] - longitude) / 360);
           const path = [polygon.outer, ...polygon.holes].map(ring =>
             ring.map(([lat, lng], pointIndex) => {
-              const [x, y] = latLngToPixel([lat, lng + shift]);
+              const [x, y] = latLngToPixel([lat, lng]);
               return `${pointIndex === 0 ? 'M' : 'L'}${x},${y}`;
             }).join(' ') + ' Z'
           ).join(' ');
-          return Array.from({ length: repeats * 2 + 1 }, (_, copy) => (
+          // Keep dateline-crossing parts on both edges, clipped to the single tiled world.
+          return [-1, 0, 1].map(copy => (
             <path
               key={`${country.code}-${country.name}-${index}-${copy}`}
               d={path}
-              transform={`translate(${(copy - repeats) * worldWidth},0)`}
+              transform={`translate(${copy * worldWidth},0)`}
               fill="#64748b"
               fillOpacity={0.12}
               stroke="#64748b"
@@ -80,6 +90,7 @@ export function CoordinateLessCountryOverlay({
             />
           ));
         }))}
+        </g>
       </svg>
       <div
         role="status"
