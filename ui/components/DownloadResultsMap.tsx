@@ -5,6 +5,8 @@ import type { MapPoint, SpeciesHierarchy } from '../utils/mapDataFilter';
 import { parseWKTGeometry, type PolygonWithHoles } from '../utils/wktParser';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { CoordinateLessCountryOverlay } from './CoordinateLessCountryOverlay';
+import { ColDistributionOverlay } from './ColDistributionOverlay';
+import { OverlayControl } from './OverlayControl';
 
 interface DownloadResultsMapProps {
   rules: AnnotationRule[];
@@ -219,10 +221,12 @@ export function DownloadResultsMap({
           touchEvents={true}
         >
           {/* Render rule polygons */}
+          <ColDistributionOverlay taxonKey={selectedSpecies == null ? null : String(selectedSpecies)} />
           <CoordinateLessCountryOverlay
             taxonKey={selectedSpecies == null ? null : String(selectedSpecies)}
             filters={{ showOnlyPresent: true }}
           />
+          <OverlayControl />
           {displayRules.map(rule => {
             if (!rule.geometry || !rule.id) return null;
 

@@ -44,6 +44,9 @@ export const getGbifApiUrl = (endpoint: string): string => {
   return `${baseUrl}${path}`;
 };
 
+export const getColApiUrl = (endpoint: string): string =>
+  `https://api.checklistbank.org${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+
 // OpenAI API Configuration (for AI-powered location quality checks)
 const OPENAI_KEY_STORAGE_KEY = 'gbif_openai_api_key';
 

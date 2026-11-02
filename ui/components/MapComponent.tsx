@@ -19,6 +19,8 @@ import { subtractOceanFromPolygon, bufferPolygon, bufferMultiPolygon, eraseFromP
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { getDatasetInfo } from '../utils/datasetCache';
 import { CoordinateLessCountryOverlay } from './CoordinateLessCountryOverlay';
+import { ColDistributionOverlay } from './ColDistributionOverlay';
+import { OverlayControl } from './OverlayControl';
 
 // COL (Catalogue of Life Extended Release) checklist UUID
 const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
@@ -1864,6 +1866,7 @@ export function MapComponent({
         metaWheelZoom={false} // Disable meta+wheel for more predictable behavior
       >
         {/* PRIORITY 1: Base map tiles are rendered first automatically by pigeon-maps */}
+        <ColDistributionOverlay taxonKey={selectedSpecies?.key ?? null} isColTaxon />
         <CoordinateLessCountryOverlay
           taxonKey={selectedSpecies?.key ?? null}
           checklistKey={GBIF_BACKBONE_UUID}
@@ -2504,6 +2507,9 @@ export function MapComponent({
           )}
         </div>
       </div>
+
+      {/* Rendered outside <Map> and above the drawing capture layer so it stays clickable in every mode */}
+      <OverlayControl />
 
       {/* Click capture layer for drawing when overlays are present */}
       {isDrawing && (

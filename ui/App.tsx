@@ -1034,7 +1034,7 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col">
-      <Toaster />
+      <Toaster position="bottom-center" />
       
       <div className="flex-1 flex overflow-hidden relative">
         {/* Sidebar with logo and title */}

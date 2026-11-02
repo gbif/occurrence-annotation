@@ -33,8 +33,29 @@ GBIF context when a single taxon is selected (not counts from the uploaded file)
 Country shading indicates country-level reports, not precise occurrence locations,
 and does not change the map extent or intercept map interactions. Failed requests
 are reported in the map legend rather than displayed as zero countries.
+All overlays share one collapsed "Overlays" button in the lower right of the map.
+It opens a panel with a checkbox per overlay to hide or show its polygons without refetching;
+clicking outside the panel collapses it again.
+the choice is remembered in localStorage. Overlays with no results do not appear in the panel.
 Shading is clipped to the map viewport and the single tiled world, including
 dateline-crossing countries, so it does not repeat into the blank map margins.
+
+Taxon maps also show Catalogue of Life distributions as a separate subtle fawn (`#ECAC7C`)
+overlay with solid outlines. The UI uses GBIF's ChecklistBank source link to select
+the exact COL Extended Release dataset for the selected taxon, then checks its info endpoint
+and downloads the supplied ISO or TDWG area's GeoJSON from the ChecklistBank area
+API only when distributions exist. Older numeric GBIF Backbone keys are resolved
+through an exact canonical-name and rank match in COL Extended Release (`3LXR`)
+before querying COL. Distribution
+areas are independent of occurrence filters and represent published range
+information, not individual records or proof of native status. Establishment
+means are shown when supplied by COL. A compact "N areas not shown" disclosure in the
+Overlays panel lists areas without drawable boundaries, including free-text-only
+distributions. The COL entry is omitted only when no distribution areas are
+supplied; request failures remain visible. Both overlays preserve map extent and interactions and
+are clipped to the viewport and single tiled world.
+Deployments with an HTTP Content-Security-Policy header must also permit
+`https://api.checklistbank.org` in `connect-src`.
 
 ### Backend Service
 
