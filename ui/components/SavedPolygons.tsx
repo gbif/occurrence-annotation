@@ -18,10 +18,10 @@ import { getSelectedProjectName } from '../utils/projectSelection';
 import { Checkbox } from './ui/checkbox';
 import { CountrySelector } from './CountrySelector';
 import { useDebouncedCallback } from '../utils/useDebounce';
-import { getChecklistDoi } from '../utils/gbifDatasetService';
+import { getChecklistDoi, DEFAULT_CHECKLIST_KEY } from '../utils/gbifDatasetService';
 
 // COL (Catalogue of Life Extended Release) checklist UUID
-const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
+const GBIF_BACKBONE_UUID = DEFAULT_CHECKLIST_KEY;
 
 // Vocabulary term interface
 interface VocabularyTerm {

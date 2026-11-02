@@ -45,7 +45,7 @@ import { SelectedSpecies } from './SpeciesSelector';
 import { getAnnotationApiUrl } from '../utils/apiConfig';
 import { getSpeciesInfo } from '../utils/speciesCache';
 import DownloadAnnotator from './DownloadAnnotator';
-import { getChecklistDoi, COL_XR_DATASET_KEY } from '../utils/gbifDatasetService';
+import { getChecklistDoi, DEFAULT_CHECKLIST_KEY } from '../utils/gbifDatasetService';
 import { 
   Pagination, 
   PaginationContent, 
@@ -1015,7 +1015,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
 
     try {
       // Fetch COL checklist DOI once for all updates
-      const checklistDoi = await getChecklistDoi(COL_XR_DATASET_KEY);
+      const checklistDoi = await getChecklistDoi(DEFAULT_CHECKLIST_KEY);
       
       // Update all selected rules
       await Promise.all(
@@ -1051,7 +1051,7 @@ export function UserPage({ onNavigateToRule }: UserPageProps) {
                   projectId: bulkEditProjectId 
                     ? (bulkEditProjectId === 'CLEAR' ? null : parseInt(bulkEditProjectId))
                     : currentRule.projectId,
-                  checklistKey: COL_XR_DATASET_KEY,
+                  checklistKey: DEFAULT_CHECKLIST_KEY,
                   checklistDoi: checklistDoi,
                 }),
               }
