@@ -12,7 +12,7 @@ import { parseWKTGeometry, PolygonWithHoles, MultiPolygon, isInvertedPolygon } f
 import { unionPolygons } from './utils/spatialOperations';
 import { getSpeciesInfo } from './utils/speciesCache';
 import { refreshUserProfile } from './utils/authHelpers';
-import { getChecklistDoi, COL_XR_DATASET_KEY } from './utils/gbifDatasetService';
+import { getChecklistDoi, DEFAULT_CHECKLIST_KEY } from './utils/gbifDatasetService';
 
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
@@ -126,7 +126,7 @@ export default function App() {
   // Pre-warm checklist DOI cache on app boot
   // Optimization: Fetches COL XR DOI early so it's cached when user saves first rule
   useEffect(() => {
-    getChecklistDoi(COL_XR_DATASET_KEY).catch(() => {
+    getChecklistDoi(DEFAULT_CHECKLIST_KEY).catch(() => {
       // Silently fail - DOI will be fetched again when needed
     });
   }, []); // Empty deps = run once on mount
