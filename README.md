@@ -25,6 +25,14 @@ Visit [https://labs.gbif.org/annotations/](https://labs.gbif.org/annotations/) t
 
 [UI Documentation](./ui/README.md)
 
+Use the map's Occurrence Filters dialog to search by **GBIF occurrence ID**
+(for example, `182368733`), not the publisher-provided occurrence ID. Multiple
+IDs can be separated by commas or whitespace. The IDs restrict occurrence tiles,
+area investigation results, and the coordinate-less country overlay using `gbifId`,
+combined with the selected taxon/checklist and other occurrence filters.
+Clear the field or reset filters to remove the restriction. This is a display/search
+filter only; GBIF occurrence IDs are never added to saved annotation rules.
+
 Taxon occurrence maps include a subtle dashed grey country overlay for GBIF
 records without coordinates. It uses a counts-only country facet request
 (`hasCoordinate=false`), not downloaded occurrence records. The main map follows

@@ -7,8 +7,10 @@ import { Checkbox } from './ui/checkbox';
 import { Filter, X } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { getGbifApiUrl } from '../utils/apiConfig';
+import { parseGbifOccurrenceIds } from '../utils/gbifOccurrenceIds';
 
 export interface OccurrenceFilterOptions {
+  gbifId?: string[];
   datasetKey?: string;
   year?: string;
   yearRange?: { min: number; max: number };
@@ -43,6 +45,8 @@ const basisOfRecordOptions = [
 export function OccurrenceFilters({ filters, onFiltersChange }: OccurrenceFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [localFilters, setLocalFilters] = useState<OccurrenceFilterOptions>(filters);
+  const [gbifIdInput, setGbifIdInput] = useState(filters.gbifId?.join(', ') || '');
+  const [gbifIdError, setGbifIdError] = useState<string | null>(null);
   
   // Dataset search state
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
@@ -128,7 +132,14 @@ export function OccurrenceFilters({ filters, onFiltersChange }: OccurrenceFilter
   }, []);
 
   const handleApplyFilters = () => {
-    onFiltersChange(localFilters);
+    let gbifId: string[];
+    try {
+      gbifId = parseGbifOccurrenceIds(gbifIdInput);
+    } catch (error) {
+      setGbifIdError(error instanceof Error ? error.message : 'Invalid GBIF occurrence IDs.');
+      return;
+    }
+    onFiltersChange({ ...localFilters, gbifId: gbifId.length ? gbifId : undefined });
     setIsOpen(false);
   };
 
@@ -157,6 +168,8 @@ export function OccurrenceFilters({ filters, onFiltersChange }: OccurrenceFilter
       ]
     };
     setLocalFilters(defaults);
+    setGbifIdInput('');
+    setGbifIdError(null);
     setSelectedDataset(null);
     setDatasetQuery('');
   };
@@ -175,6 +188,7 @@ export function OccurrenceFilters({ filters, onFiltersChange }: OccurrenceFilter
 
   const getActiveFilterCount = () => {
     let count = 0;
+    if (filters.gbifId?.length) count++;
     if (filters.datasetKey) count++;
     if (filters.year) count++;
     if (filters.yearRange) count++;
@@ -188,7 +202,13 @@ export function OccurrenceFilters({ filters, onFiltersChange }: OccurrenceFilter
   const activeCount = getActiveFilterCount();
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (open) {
+        setGbifIdInput(filters.gbifId?.join(', ') || '');
+        setGbifIdError(null);
+      }
+      setIsOpen(open);
+    }}>
       <DialogTrigger asChild>
         <Button 
           variant="outline" 
@@ -455,6 +475,34 @@ export function OccurrenceFilters({ filters, onFiltersChange }: OccurrenceFilter
                   Exclude ABSENT occurrences (recommended)
                 </p>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="gbifId" className="text-sm font-medium">
+                GBIF occurrence ID
+              </Label>
+              <Input
+                id="gbifId"
+                placeholder="e.g. 182368733, 182368734"
+                value={gbifIdInput}
+                onChange={(e) => {
+                  setGbifIdInput(e.target.value);
+                  setGbifIdError(null);
+                }}
+                aria-invalid={!!gbifIdError}
+                aria-describedby={gbifIdError ? 'gbifId-error' : 'gbifId-help'}
+                className="text-sm"
+              />
+              <p id="gbifId-help" className="text-xs text-gray-500">
+                Enter one or more numeric GBIF IDs, separated by commas or whitespace.
+                These are not publisher-provided occurrence IDs. Other filters still apply.
+                Leave blank to show all matching occurrences.
+              </p>
+              {gbifIdError && (
+                <p id="gbifId-error" role="alert" className="text-xs text-destructive">
+                  {gbifIdError}
+                </p>
+              )}
             </div>
           </div>
         </div>

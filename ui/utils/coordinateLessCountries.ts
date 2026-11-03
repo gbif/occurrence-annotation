@@ -2,6 +2,7 @@ import type { OccurrenceFilterOptions } from '../components/OccurrenceFilters';
 import { getGbifApiUrl } from './apiConfig';
 import { fetchCountryPolygons } from './countryPolygons';
 import { parseWKTGeometry, type PolygonWithHoles } from './wktParser';
+import { appendGbifOccurrenceIds } from './gbifOccurrenceIds';
 
 export interface CoordinateLessCountry {
   code: string;
@@ -21,6 +22,7 @@ export function coordinateLessCountryQuery(
     facetLimit: '300',
     facetMincount: '1',
   });
+  appendGbifOccurrenceIds(params, filters.gbifId);
   if (checklistKey) params.set('checklistKey', checklistKey);
   else if (!/^\d+$/.test(taxonKey)) {
     params.set('checklistKey', '7ddf754f-d193-4cc9-b351-99906754a03b');

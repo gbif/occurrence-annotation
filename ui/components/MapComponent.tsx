@@ -21,6 +21,7 @@ import { getDatasetInfo } from '../utils/datasetCache';
 import { CoordinateLessCountryOverlay } from './CoordinateLessCountryOverlay';
 import { ColDistributionOverlay } from './ColDistributionOverlay';
 import { OverlayControl } from './OverlayControl';
+import { appendGbifOccurrenceIds } from '../utils/gbifOccurrenceIds';
 
 // COL (Catalogue of Life Extended Release) checklist UUID
 const GBIF_BACKBONE_UUID = '7ddf754f-d193-4cc9-b351-99906754a03b';
@@ -436,6 +437,7 @@ export function MapComponent({
       mode: 'GEO_CENTROID',
       taxonKey: taxonKey
     });
+    appendGbifOccurrenceIds(params, occurrenceFilters.gbifId);
 
     // Add occurrence status filter (defaults to PRESENT only if not explicitly set to false)
     if (occurrenceFilters?.showOnlyPresent !== false) {
@@ -521,7 +523,8 @@ export function MapComponent({
       if (prevTiles.length === newTiles.length) {
         const allMatch = newTiles.every(newTile => 
           prevTiles.some(prevTile => 
-            prevTile.x === newTile.x && prevTile.y === newTile.y && prevTile.z === newTile.z
+            prevTile.x === newTile.x && prevTile.y === newTile.y && prevTile.z === newTile.z &&
+            prevTile.url === newTile.url
           )
         );
         if (allMatch) {
@@ -596,6 +599,7 @@ export function MapComponent({
         decimalLongitude: `${west},${east}`,
         limit: '20'
       });
+      appendGbifOccurrenceIds(params, occurrenceFilters.gbifId);
 
       // Add occurrence status filter (defaults to PRESENT only if not explicitly set to false)
       if (occurrenceFilters.showOnlyPresent !== false) {
